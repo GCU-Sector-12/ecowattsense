@@ -95,4 +95,4 @@ Not decided yet. Note: WattSeal, which we studied as an existing solution, is GP
 
 ## Team
 
-Group 12, GitHub organisation GCU-Sector-12. Seven members. Roles and tasks are in YouTrack and in the Planning Report.
+Group 12, GitHub organisation GCU-Sector-12. Eight members. Roles and tasks are in YouTrack and in the Planning Report.
