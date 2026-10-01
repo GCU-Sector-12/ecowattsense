@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EcoWattSense</title>
+<meta name="description" content="EcoWattSense shows which computers in an office or lab are active, idle or unused, and how much energy they waste. Group 12 project, Glasgow Caledonian University.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF2EE; --paper-2:#E1E9E3; --ink:#152B26; --ink-2:#4A5F59; --rule:#C5D1C9;
+  --active:#E3A41A; --idle:#6F86A6; --unused:#B5B0A6; --link:#1E5F4F;
+  --max:68rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --paper:#10201C; --paper-2:#16291F; --ink:#E7EFEA; --ink-2:#A9B8B1; --rule:#2C4039; --link:#8FD3BE; --unused:#6B6A66; }
+}
+*{box-sizing:border-box}
+html{font-size:17px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;font-optical-sizing:auto;line-height:1.5}
+a{color:var(--link);text-decoration-thickness:1px;text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--active);outline-offset:3px}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 16px}
+header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.4rem 1rem;padding:1.4rem 0 .6rem;border-bottom:1px solid var(--rule)}
+header .brand{font-weight:700;font-size:1.05rem;letter-spacing:-.01em}
+header nav{display:flex;flex-wrap:wrap;gap:.2rem 1.1rem}
+header nav a{font-size:.95rem;color:var(--ink-2)}
+h1,h2,h3{font-weight:600;letter-spacing:-.02em;line-height:1.1;margin:0}
+h1{font-size:clamp(2.2rem,6vw,4.4rem);font-weight:500;max-width:18ch;margin:2.6rem 0 1.2rem}
+h1 b{font-weight:800}
+h2{font-size:1.55rem;margin:0 0 1rem}
+h3{font-size:1.1rem;margin:0 0 .3rem}
+p{max-width:62ch;margin:0 0 1rem}
+.lede{font-size:1.2rem;color:var(--ink-2);max-width:52ch}
+section{padding:3.2rem 0;border-top:1px solid var(--rule)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:2.5rem}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+
+/* hero lab */
+.lab{margin:2rem 0 0;padding:1.4rem;background:var(--paper-2);border-radius:14px}
+.labhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.6rem 1.5rem;margin-bottom:1rem}
+.labhead .title{font-weight:600}
+.labhead .clock{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:.55rem}
+@media (max-width:560px){.grid{grid-template-columns:repeat(6,1fr)}}
+.pc{aspect-ratio:1/.8;border-radius:5px;position:relative;background:var(--unused);transition:background .6s}
+.pc::after{content:"";position:absolute;left:30%;right:30%;bottom:-.3rem;height:.18rem;border-radius:2px;background:inherit;opacity:.6}
+.pc[data-s="active"]{background:var(--active)}
+.pc[data-s="idle"]{background:var(--idle)}
+.tally{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--rule)}
+.tally div{display:flex;flex-direction:column}
+.tally .n{font-size:1.9rem;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.tally .k{color:var(--ink-2);font-size:.92rem;margin-top:.25rem}
+.tally .k i{display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.4em;vertical-align:-.05em}
+.waste{margin-top:1.1rem;font-size:1.05rem}
+.waste strong{font-weight:700}
+.labnote{font-size:.85rem;color:var(--ink-2);margin:1rem 0 0}
+
+/* parts */
+.parts{list-style:none;padding:0;margin:0;display:grid;gap:1.4rem}
+.parts li{display:grid;grid-template-columns:3.2rem 1fr;gap:1rem;align-items:start}
+.parts svg{width:3.2rem;height:3.2rem}
+.parts svg *{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.parts p{margin:0;color:var(--ink-2)}
+.flow{margin:1.6rem 0 0;color:var(--ink-2);font-size:.95rem}
+
+/* timeline: real sequence, so numbered */
+.tl{list-style:none;padding:0;margin:0;display:grid;gap:0}
+.tl li{display:grid;grid-template-columns:7rem 1fr;gap:1rem;padding:.75rem 0;border-top:1px dashed var(--rule)}
+.tl li:first-child{border-top:0}
+.tl .w{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl .now{font-weight:700}
+.tl .now .w{color:var(--active)}
+.tl .done .w::after{content:" done";font-size:.8em}
+.tl .done{color:var(--ink-2)}
+
+/* team */
+.team{list-style:none;padding:0;margin:0;columns:2;column-gap:2rem;max-width:34rem}
+.team li{padding:.3rem 0;border-bottom:1px solid var(--rule);break-inside:avoid}
+@media (max-width:480px){.team{columns:1}}
+
+/* states legend */
+.states{display:grid;gap:.9rem;margin-top:1.4rem}
+.states > div{display:grid;grid-template-columns:1.4rem 1fr;gap:.8rem;align-items:start}
+.states i{display:block;width:1.4rem;height:1.1rem;border-radius:4px;margin-top:.25rem}
+.states p{margin:0;color:var(--ink-2)}
+
+footer{padding:2rem 0 3rem;border-top:1px solid var(--rule);color:var(--ink-2);font-size:.9rem}
+footer p{margin:.3rem 0}
+@media (prefers-reduced-motion: reduce){.pc{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">EcoWattSense</div>
+  <nav><a href="#how">How it works</a><a href="#plan">Plan</a><a href="#team">Team</a><a href="https://github.com/GCU-Sector-12/ecowattsense">GitHub</a></nav>
+</header>
+
+<main>
+  <h1>Most computers in a lab are on. <b>Few are in use.</b></h1>
+  <p class="lede">EcoWattSense watches every computer in an office or a lab, tells you which ones are active, idle or simply left on, and estimates the energy that goes nowhere.</p>
+
+  <div class="lab" aria-label="Simulation of a computer lab">
+    <div class="labhead">
+      <span class="title">Lab B, 24 computers</span>
+      <span class="clock" id="clock">Thursday 09:00</span>
+    </div>
+    <div class="grid" id="grid" role="img" aria-live="off" aria-label="24 computers, colour shows the state"></div>
+    <div class="tally">
+      <div><span class="n" id="nA">0</span><span class="k"><i style="background:var(--active)"></i>active</span></div>
+      <div><span class="n" id="nI">0</span><span class="k"><i style="background:var(--idle)"></i>idle</span></div>
+      <div><span class="n" id="nU">0</span><span class="k"><i style="background:var(--unused)"></i>unused</span></div>
+    </div>
+    <p class="waste">Right now about <strong id="watts">0 W</strong> is drawn by computers nobody is using. Over a year that is roughly <strong id="year">0 kWh</strong>.</p>
+    <p class="labnote">Simulation of one working week, sped up. Wattage per state from our planning report: 60 W active, 30 W idle, 25 W left on. Real numbers come from the client once it runs.</p>
+  </div>
+</main>
+
+<section id="how">
+  <div class="two">
+    <div>
+      <h2>How it works</h2>
+      <p>Three small parts. A client on each computer, one server, one dashboard. Nothing is installed on the network and no personal data leaves the machine, only a device id and its state.</p>
+      <div class="states">
+        <div><i style="background:var(--active)"></i><div><h3>Active</h3><p>Someone is working. Keyboard or mouse used in the last few minutes, or the CPU is busy.</p></div></div>
+        <div><i style="background:var(--idle)"></i><div><h3>Idle</h3><p>Switched on, screen locked or no input for a while. Could sleep.</p></div></div>
+        <div><i style="background:var(--unused)"></i><div><h3>Unused</h3><p>On for hours or days with nobody at it. Should be off.</p></div></div>
+      </div>
+    </div>
+    <div>
+      <ul class="parts">
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="9" width="36" height="24" rx="2"/><path d="M18 40h12M24 33v7"/></svg>
+          <div><h3>Monitoring client</h3><p>Runs in the background. Every five minutes it reads idle time, CPU load and screen lock, decides the state and sends one short report. Windows first, then Linux, then macOS.</p></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="9" y="8" width="30" height="10" rx="2"/><rect x="9" y="19" width="30" height="10" rx="2"/><rect x="9" y="30" width="30" height="10" rx="2"/><path d="M14 13h.01M14 24h.01M14 35h.01"/></svg>
+          <div><h3>Server</h3><p>Receives the reports, stores them in a database and works out the energy from state and a typical wattage for that type of computer.</p></div>
+        </li>
+        <li>
+          <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="8" width="36" height="30" rx="2"/><path d="M12 30l7-8 6 5 11-12"/></svg>
+          <div><h3>Dashboard</h3><p>One page for the person who looks after the room. Every computer, its state now, its history, and the kWh that could be saved.</p></div>
+        </li>
+      </ul>
+      <p class="flow">client &rarr; report every 5 min &rarr; server + database &rarr; dashboard</p>
+    </div>
+  </div>
+</section>
+
+<section id="plan">
+  <div class="two">
+    <div>
+      <h2>Twelve weeks</h2>
+      <p>The module runs from 14 September to 4 December 2026 with a deliverable every two weeks. We are in the design phase.</p>
+    </div>
+    <ol class="tl">
+      <li class="done"><span class="w">Week 2</span><span>Project proposal and plan</span></li>
+      <li class="now"><span class="w">Week 4</span><span>Requirements and solution design, peer review 1</span></li>
+      <li><span class="w">Week 6</span><span>Progress review, first demonstration</span></li>
+      <li><span class="w">Week 8</span><span>Technical development and quality report, peer review 2</span></li>
+      <li><span class="w">Week 10</span><span>Testing, evaluation and release report</span></li>
+      <li><span class="w">Week 12</span><span>Final project and presentation</span></li>
+    </ol>
+  </div>
+</section>
+
+<section id="team">
+  <div class="two">
+    <div>
+      <h2>Team</h2>
+      <p>Group 12, BSc Computing, Glasgow Caledonian University. Module M3W226703 Group Project.</p>
+    </div>
+    <ul class="team">
+      <li>Aqdas Abdulquassim</li>
+      <li>Zahid Hasan</li>
+      <li>Jason Holmes</li>
+      <li>Dariusz Jaroch</li>
+      <li>Kevin Little</li>
+      <li>Charldon Noel</li>
+      <li>Ruslan Novosad</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <p>Source code and documentation: <a href="https://github.com/GCU-Sector-12/ecowattsense">github.com/GCU-Sector-12/ecowattsense</a></p>
+  <p>EcoWattSense is a student project. It is not a product and it is not affiliated with the university's IT services.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+  var N=24, W={active:60, idle:30, unused:25};
+  var grid=document.getElementById('grid'), pcs=[];
+  for(var i=0;i<N;i++){var d=document.createElement('div');d.className='pc';d.dataset.s='unused';grid.appendChild(d);pcs.push(d);}
+  // week schedule: hour 0..119 (5 days x 24h). occupancy by hour of day.
+  var h=9*1; // start Thursday 09:00 -> index day 3
+  var t=3*24+9;
+  var days=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  function occ(hour){ // fraction of machines in use
+    if(hour<8||hour>=19) return 0;
+    if(hour<9) return .15; if(hour<12) return .6; if(hour<13) return .3; if(hour<17) return .65; return .2;
+  }
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function step(){
+    var day=Math.floor(t/24)%5, hour=t%24;
+    var f=occ(hour), a=Math.round(N*f);
+    var leftOn = hour>=19||hour<8 ? Math.round(N*0.45) : Math.round(N*0.25);
+    var idle = Math.min(N-a, Math.round(N*(hour>=8&&hour<19?0.2:0.05)));
+    var states=[];
+    for(var i=0;i<N;i++){ states.push(i<a?'active': i<a+idle?'idle': i<a+idle+leftOn?'unused':'off'); }
+    // shuffle deterministically so the room looks mixed
+    for(var i=N-1;i>0;i--){var j=(i*7+t)%(i+1);var x=states[i];states[i]=states[j];states[j]=x;}
+    var nA=0,nI=0,nU=0;
+    pcs.forEach(function(p,i){var s=states[i]; p.dataset.s=s==='off'?'unused':s; p.style.opacity=s==='off'?'.25':'1'; if(s==='active')nA++; else if(s==='idle')nI++; else if(s==='unused')nU++;});
+    document.getElementById('nA').textContent=nA; document.getElementById('nI').textContent=nI; document.getElementById('nU').textContent=nU;
+    var w=nI*W.idle+nU*W.unused;
+    document.getElementById('watts').textContent=w+' W';
+    // crude annualised: this instant x 8760h, shown as order of magnitude
+    document.getElementById('year').textContent=Math.round(w*8760/1000/10)*10+' kWh';
+    document.getElementById('clock').textContent=days[day]+' '+String(hour).padStart(2,'0')+':00';
+    t=(t+1)%(5*24);
+  }
+  step();
+  if(!reduce) setInterval(step, 1800);
+})();
+</script>
+</body>
+</html>
