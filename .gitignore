@@ -1,0 +1,117 @@
+# EcoWattSense .gitignore
+# Rule number one: never commit secrets. Passwords, API keys, tokens, .env files,
+# private keys and real databases stay on your own machine.
+
+### Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+secrets.*
+credentials.*
+config.local.*
+*.local.json
+
+### Databases and data
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+data/*
+!data/.gitkeep
+
+### Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.spec
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+### Node / JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vite/
+coverage/
+
+### C / C++ / CMake (native sensor)
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+cmake-build-*/
+out/
+
+### .NET (in case option C is chosen)
+bin/
+obj/
+*.user
+*.suo
+
+### IDEs and editors
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+*.code-workspace
+*.swp
+*.swo
+*~
+
+### Operating systems
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+### Logs and temp
+*.log
+logs/
+*.tmp
+*.bak
+*.orig
+
+### Diagrams and documents
+*.drawio.bkp
+*.drawio.dtmp
+~$*.docx
+~$*.pptx
+~$*.xlsx

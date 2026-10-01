@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-09-30T10:00:00.000Z" agent="EcoWattSense" version="24.0.0" type="device">
+  <diagram id="ews-arch" name="EcoWattSense architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="EcoWattSense – system architecture (prototype, ADR-001 option A)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=18;fontColor=#1F3864;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Group 12 · M3W226703 · draft for D2, 30/09/2026" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#595959;" vertex="1" parent="1">
+          <mxGeometry x="40" y="48" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 1. Monitored computers ===== -->
+        <mxCell id="zoneClients" value="1. Monitored computers (many)" style="swimlane;html=1;startSize=28;fontStyle=1;fontColor=#FFFFFF;fillColor=#1F3864;strokeColor=#1F3864;swimlaneFillColor=#F2F5FA;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="330" height="520" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="osWin" value="Windows (first)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontStyle=1;" vertex="1" parent="zoneClients">
+          <mxGeometry x="20" y="40" width="90" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="osLinux" value="Linux desktop (second)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;dashed=1;fontColor=#595959;" vertex="1" parent="zoneClients">
+          <mxGeometry x="120" y="40" width="90" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="osMac" value="macOS (last)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;dashed=1;fontColor=#595959;" vertex="1" parent="zoneClients">
+          <mxGeometry x="220" y="40" width="90" height="34" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="client" value="Monitoring client (Python)&#xa;runs in the background, one module per OS" style="swimlane;html=1;startSize=40;fontStyle=1;fillColor=#FFFFFF;strokeColor=#1F3864;rounded=1;arcSize=8;whiteSpace=wrap;" vertex="1" parent="zoneClients">
+          <mxGeometry x="20" y="100" width="290" height="400" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="probeIdle" value="Idle time&#xa;GetLastInputInfo / D-Bus / ioreg" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7F7F7F;fontSize=10;" vertex="1" parent="client">
+          <mxGeometry x="15" y="55" width="80" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="probeCpu" value="CPU load&#xa;psutil" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7F7F7F;fontSize=10;" vertex="1" parent="client">
+          <mxGeometry x="105" y="55" width="80" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="probeLock" value="Screen locked&#xa;session API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7F7F7F;fontSize=10;" vertex="1" parent="client">
+          <mxGeometry x="195" y="55" width="80" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="probesLabel" value="OS probes (common interface)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontColor=#595959;fontStyle=2;" vertex="1" parent="client">
+          <mxGeometry x="15" y="108" width="260" height="16" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="classifier" value="State classifier&#xa;Active / Idle / Unused&#xa;(thresholds from config)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontSize=11;" vertex="1" parent="client">
+          <mxGeometry x="70" y="150" width="150" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="scheduler" value="Scheduler&#xa;every 5 minutes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=11;" vertex="1" parent="client">
+          <mxGeometry x="70" y="235" width="150" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sender" value="Report sender (requests)&#xa;POST JSON, retry queue if offline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontSize=11;" vertex="1" parent="client">
+          <mxGeometry x="70" y="300" width="150" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="config" value="config.json&#xa;device_id (random),&#xa;server URL, thresholds" style="shape=note;whiteSpace=wrap;html=1;size=12;fillColor=#FFF2CC;strokeColor=#BF9000;fontSize=10;" vertex="1" parent="client">
+          <mxGeometry x="70" y="360" width="150" height="34" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="client" source="probeIdle" target="classifier">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="55" y="135"/><mxPoint x="110" y="135"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="client" source="probeCpu" target="classifier">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="client" source="probeLock" target="classifier">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="235" y="135"/><mxPoint x="180" y="135"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="client" source="classifier" target="scheduler">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="client" source="scheduler" target="sender">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#7F7F7F;" edge="1" parent="client" source="config" target="sender">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 2. Server ===== -->
+        <mxCell id="zoneServer" value="2. Server (one, on the network)" style="swimlane;html=1;startSize=28;fontStyle=1;fontColor=#FFFFFF;fillColor=#1F3864;strokeColor=#1F3864;swimlaneFillColor=#F2F5FA;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="470" y="90" width="330" height="520" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="api" value="REST API (FastAPI)&#xa;POST /api/reports&#xa;GET /api/devices, /api/devices/{id}/history&#xa;GET /api/summary&#xa;/docs (OpenAPI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="45" width="290" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="validation" value="Validation&#xa;(pydantic models)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=11;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="160" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="energy" value="Energy estimator&#xa;state → watts (Table: Active / Idle / Unused)&#xa;kWh × price (23–27p), CO2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;" vertex="1" parent="zoneServer">
+          <mxGeometry x="170" y="160" width="140" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="orm" value="Data access (SQLModel / SQLAlchemy)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=11;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="240" width="290" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="db" value="SQLite (prototype)&#xa;ecowattsense.db&#xa;&#xa;devices(id, os, device_type, first_seen, last_seen)&#xa;reports(id, device_id, timestamp, state,&#xa;idle_seconds, cpu_percent, screen_locked)&#xa;energy_rates(state, watts)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#FFF2CC;strokeColor=#BF9000;fontSize=10;align=left;spacingLeft=10;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="310" width="290" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pgNote" value="Later: PostgreSQL (same ORM, no query rewrite)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontColor=#595959;fontStyle=2;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="445" width="290" height="18" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="static" value="Static files: dashboard HTML, CSS, JS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;dashed=1;" vertex="1" parent="zoneServer">
+          <mxGeometry x="20" y="475" width="290" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneServer" source="api" target="validation">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneServer" source="api" target="energy">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneServer" source="validation" target="orm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneServer" source="energy" target="orm">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;startArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneServer" source="orm" target="db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 3. Dashboard ===== -->
+        <mxCell id="zoneDash" value="3. Web dashboard (browser)" style="swimlane;html=1;startSize=28;fontStyle=1;fontColor=#FFFFFF;fillColor=#1F3864;strokeColor=#1F3864;swimlaneFillColor=#F2F5FA;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="900" y="90" width="240" height="330" as="geometry"/>
+        </mxCell>
+        <mxCell id="dashPages" value="Pages (HTML + Chart.js, Pico.css)&#xa;&#xa;• Device list: state now (Active / Idle / Unused)&#xa;• Device history: states over time&#xa;• Energy summary: kWh, £ cost, CO2, wasted vs useful&#xa;• Settings: watts per state, price per kWh" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontSize=10;align=left;spacingLeft=8;verticalAlign=top;spacingTop=6;" vertex="1" parent="zoneDash">
+          <mxGeometry x="15" y="40" width="210" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="fetch" value="fetch() → JSON from REST API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;" vertex="1" parent="zoneDash">
+          <mxGeometry x="15" y="190" width="210" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="d1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;startArrow=block;strokeColor=#1F3864;" edge="1" parent="zoneDash" source="dashPages" target="fetch">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="userAdmin" value="Lab technician /&#xa;IT admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;" vertex="1" parent="zoneDash">
+          <mxGeometry x="40" y="245" width="30" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="userMgr" value="Manager /&#xa;decision maker" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;" vertex="1" parent="zoneDash">
+          <mxGeometry x="160" y="245" width="30" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="u1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;strokeColor=#7F7F7F;" edge="1" parent="zoneDash" source="userAdmin" target="dashPages">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="55" y="235"/><mxPoint x="5" y="235"/><mxPoint x="5" y="105"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="u2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;strokeColor=#7F7F7F;" edge="1" parent="zoneDash" source="userMgr" target="dashPages">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="175" y="235"/><mxPoint x="235" y="235"/><mxPoint x="235" y="105"/></Array></mxGeometry>
+        </mxCell>
+
+        <!-- User of the computer -->
+        <mxCell id="userPc" value="Computer user&#xa;(no interaction,&#xa;client runs silently)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#1F3864;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="640" width="30" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="up1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=open;dashed=1;strokeColor=#7F7F7F;" edge="1" parent="1" source="userPc" target="zoneClients">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Main flows between zones ===== -->
+        <mxCell id="flow1" value="HTTP POST /api/reports&#xa;JSON, every 5 min&#xa;{device_id, timestamp, state, idle_seconds,&#xa;cpu_percent, screen_locked, os, device_type}" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;strokeWidth=2;strokeColor=#1F3864;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="sender" target="api">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="420" y="515"/><mxPoint x="420" y="180"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow2" value="HTTP GET, JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;startArrow=block;strokeWidth=2;strokeColor=#1F3864;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="api" target="fetch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="850" y="180"/><mxPoint x="850" y="297"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow3" value="serves pages" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;dashed=1;strokeColor=#7F7F7F;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="static" target="dashPages">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="870" y="580"/><mxPoint x="870" y="195"/></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== Future ===== -->
+        <mxCell id="zoneFuture" value="Future development (not in the prototype)" style="swimlane;html=1;startSize=26;fontStyle=1;fontColor=#595959;fillColor=#F2F2F2;strokeColor=#7F7F7F;dashed=1;swimlaneFillColor=#FFFFFF;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="900" y="450" width="240" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="futMqtt" value="MQTT broker instead of HTTP&#xa;(many clients, low overhead)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7F7F7F;dashed=1;fontSize=10;fontColor=#595959;" vertex="1" parent="zoneFuture">
+          <mxGeometry x="15" y="36" width="210" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="futPlug" value="Smart plugs (Matter) to measure&#xa;real watts and validate the model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7F7F7F;dashed=1;fontSize=10;fontColor=#595959;" vertex="1" parent="zoneFuture">
+          <mxGeometry x="15" y="86" width="210" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="futExe" value="Client packaged as .exe (PyInstaller)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7F7F7F;dashed=1;fontSize=10;fontColor=#595959;" vertex="1" parent="zoneFuture">
+          <mxGeometry x="15" y="132" width="210" height="22" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend" style="swimlane;html=1;startSize=22;fontStyle=1;fillColor=#FFFFFF;strokeColor=#7F7F7F;fontSize=10;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="640" width="330" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="lg1" value="Main component" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D9E2F3;strokeColor=#1F3864;fontSize=9;" vertex="1" parent="legend">
+          <mxGeometry x="10" y="30" width="90" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="lg2" value="Data / config" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#BF9000;fontSize=9;" vertex="1" parent="legend">
+          <mxGeometry x="120" y="30" width="90" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="lg3" value="Later / optional" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7F7F7F;dashed=1;fontSize=9;fontColor=#595959;" vertex="1" parent="legend">
+          <mxGeometry x="230" y="30" width="90" height="26" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
