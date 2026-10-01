@@ -67,7 +67,7 @@ How a task goes through:
 1. Start from `dev`: `git switch dev && git pull`, then `git switch -c EWS-28-use-case-diagram`. One branch per task, named after the YouTrack issue.
 2. Commit small and often. Put the issue key in the message, for example `EWS-28: add use case diagram for the admin`. YouTrack links the commit to the task.
 3. Open a pull request **into `dev`**. One review from another team member is required before merge. Delete the branch after merge.
-4. Before a deliverable or a demo, the Technical Lead opens a pull request from `dev` into `main`, the team checks it, then it is merged. A tag marks the version, for example `D2-design`.
+4. Before a deliverable or a demo, the Technical Lead makes a release branch from `main` (for example `release-D2-design`), cherry-picks the chosen commits from `dev` into it and opens a pull request into `main`. The team checks it, then it is merged. A tag marks the version, for example `D2-design`. `dev` is not merged into `main` as a whole: spikes and working files stay on `dev`.
 
 Never push directly to `main` or `dev`. Both branches are protected. Do not commit generated files, build output or IDE settings.
 
