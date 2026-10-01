@@ -1,0 +1,25 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "EcoWattSense UI tokens",
+  "source": "Team decision 2026-10-01, dashboard mockup docs/design/dashboard-mockup.png",
+  "color": {
+    "brand": { "green900": "#133931", "green700": "#255E4D", "leaf": "#50B54E" },
+    "status": {
+      "active":   { "main": "#33A73E", "background": "#E5F6E7" },
+      "idle":     { "main": "#FDC81B", "background": "#FDF4DC" },
+      "unused":   { "main": "#EF1C1F", "background": "#FDEBEB" }
+    },
+    "surface": { "page": "#F7F9FB", "card": "#FFFFFF", "cardAlt": "#F0F2F5", "track": "#D8DCDD", "border": "#E6E9ED", "button": "#EAECF0" },
+    "text": { "default": "#0F172A", "muted": "#79818E", "onDark": "#FFFFFF" },
+    "chart": { "line": "#189B2D", "fill": "#ECF9ED", "grid": "#E6E9ED" }
+  },
+  "radius": { "default": 8, "large": 12 },
+  "spacing": { "unit": 8 },
+  "layout": { "sidebarWidth": 300 },
+  "font": { "family": "Roboto, Inter, system-ui, sans-serif", "sizes": { "xs": 13, "sm": 15, "md": 17, "lg": 22, "xl": 28, "number": 36 } },
+  "states": {
+    "active": { "label": "Active",  "description": "Actively being used",      "rule": "input or CPU activity in the last 10 minutes" },
+    "idle":   { "label": "Idle",    "description": "No activity for 10+ mins",  "rule": "no activity for 10 to 60 minutes" },
+    "unused": { "label": "Unused",  "description": "No activity for 1+ hour",   "rule": "no activity for more than 60 minutes" }
+  }
+}

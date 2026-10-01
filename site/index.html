@@ -9,12 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#EDF2EE; --paper-2:#E1E9E3; --ink:#152B26; --ink-2:#4A5F59; --rule:#C5D1C9;
-  --active:#E3A41A; --idle:#6F86A6; --unused:#B5B0A6; --link:#1E5F4F;
+  /* palette agreed by the team 1 Oct 2026, see docs/design/ui-style-guide.md */
+  --paper:#F7F9FB; --paper-2:#FFFFFF; --ink:#133931; --ink-2:#79818E; --rule:#E6E9ED;
+  --active:#33A73E; --idle:#FDC81B; --unused:#EF1C1F; --link:#255E4D; --leaf:#50B54E;
   --max:68rem;
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ --paper:#10201C; --paper-2:#16291F; --ink:#E7EFEA; --ink-2:#A9B8B1; --rule:#2C4039; --link:#8FD3BE; --unused:#6B6A66; }
+  :root:not([data-theme="light"]){ --paper:#133931; --paper-2:#1A4A3F; --ink:#FFFFFF; --ink-2:#B8CCC4; --rule:#255E4D; --link:#50B54E; }
 }
 *{box-sizing:border-box}
 html{font-size:17px}
@@ -38,13 +39,13 @@ section{padding:3.2rem 0;border-top:1px solid var(--rule)}
 @media (max-width:760px){.two{grid-template-columns:1fr}}
 
 /* hero lab */
-.lab{margin:2rem 0 0;padding:1.4rem;background:var(--paper-2);border-radius:14px}
+.lab{margin:2rem 0 0;padding:1.4rem;background:var(--paper-2);border:1px solid var(--rule);border-radius:12px}
 .labhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.6rem 1.5rem;margin-bottom:1rem}
-.labhead .title{font-weight:600}
+.labhead .title{font-weight:700}
 .labhead .clock{color:var(--ink-2);font-variant-numeric:tabular-nums}
 .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:.55rem}
 @media (max-width:560px){.grid{grid-template-columns:repeat(6,1fr)}}
-.pc{aspect-ratio:1/.8;border-radius:5px;position:relative;background:var(--unused);transition:background .6s}
+.pc{aspect-ratio:1/.8;border-radius:5px;position:relative;background:var(--unused);transition:background .6s,opacity .6s}
 .pc::after{content:"";position:absolute;left:30%;right:30%;bottom:-.3rem;height:.18rem;border-radius:2px;background:inherit;opacity:.6}
 .pc[data-s="active"]{background:var(--active)}
 .pc[data-s="idle"]{background:var(--idle)}
@@ -94,7 +95,7 @@ footer p{margin:.3rem 0}
 <body>
 <div class="wrap">
 <header>
-  <div class="brand">EcoWattSense</div>
+  <div class="brand"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-3px;margin-right:.4rem"><path d="M20 3c-9 0-15 5-15 13 0 2 .5 3.5 1 5 1-5 4-9 9-12-4 4-6 8-7 12 8 1 13-5 12-18z" fill="var(--leaf)"/></svg>EcoWattSense</div>
   <nav><a href="#how">How it works</a><a href="#plan">Plan</a><a href="#team">Team</a><a href="https://github.com/GCU-Sector-12/ecowattsense">GitHub</a></nav>
 </header>
 
@@ -114,7 +115,7 @@ footer p{margin:.3rem 0}
       <div><span class="n" id="nU">0</span><span class="k"><i style="background:var(--unused)"></i>unused</span></div>
     </div>
     <p class="waste">Right now about <strong id="watts">0 W</strong> is drawn by computers nobody is using. Over a year that is roughly <strong id="year">0 kWh</strong>.</p>
-    <p class="labnote">Simulation of one working week, sped up. Wattage per state from our planning report: 60 W active, 30 W idle, 25 W left on. Real numbers come from the client once it runs.</p>
+    <p class="labnote">Simulation of one working week, sped up. Faded squares are switched off. Wattage per state from our planning report: 60 W active, 30 W idle, 25 W left on. Real numbers come from the client once it runs.</p>
   </div>
 </main>
 
@@ -124,9 +125,9 @@ footer p{margin:.3rem 0}
       <h2>How it works</h2>
       <p>Three small parts. A client on each computer, one server, one dashboard. Nothing is installed on the network and no personal data leaves the machine, only a device id and its state.</p>
       <div class="states">
-        <div><i style="background:var(--active)"></i><div><h3>Active</h3><p>Someone is working. Keyboard or mouse used in the last few minutes, or the CPU is busy.</p></div></div>
-        <div><i style="background:var(--idle)"></i><div><h3>Idle</h3><p>Switched on, screen locked or no input for a while. Could sleep.</p></div></div>
-        <div><i style="background:var(--unused)"></i><div><h3>Unused</h3><p>On for hours or days with nobody at it. Should be off.</p></div></div>
+        <div><i style="background:var(--active)"></i><div><h3>Active</h3><p>Actively being used. Keyboard, mouse or CPU activity in the last 10 minutes.</p></div></div>
+        <div><i style="background:var(--idle)"></i><div><h3>Idle</h3><p>No activity for 10 minutes or more. Could sleep.</p></div></div>
+        <div><i style="background:var(--unused)"></i><div><h3>Unused</h3><p>No activity for an hour or more. Should be off.</p></div></div>
       </div>
     </div>
     <div>
@@ -214,7 +215,7 @@ footer p{margin:.3rem 0}
     // shuffle deterministically so the room looks mixed
     for(var i=N-1;i>0;i--){var j=(i*7+t)%(i+1);var x=states[i];states[i]=states[j];states[j]=x;}
     var nA=0,nI=0,nU=0;
-    pcs.forEach(function(p,i){var s=states[i]; p.dataset.s=s==='off'?'unused':s; p.style.opacity=s==='off'?'.25':'1'; if(s==='active')nA++; else if(s==='idle')nI++; else if(s==='unused')nU++;});
+    pcs.forEach(function(p,i){var s=states[i]; p.dataset.s=s==='off'?'unused':s; p.style.opacity=s==='off'?'.18':'1'; if(s==='active')nA++; else if(s==='idle')nI++; else if(s==='unused')nU++;});
     document.getElementById('nA').textContent=nA; document.getElementById('nI').textContent=nI; document.getElementById('nU').textContent=nU;
     var w=nI*W.idle+nU*W.unused;
     document.getElementById('watts').textContent=w+' W';

@@ -1,0 +1,49 @@
+/* EcoWattSense design tokens. Source: docs/design/ui-style-guide.md (palette agreed by the team, 1 October 2026).
+   Do not hard-code colours in components, use these variables. */
+:root {
+  /* Brand */
+  --ews-green-900: #133931;   /* sidebar, dark surfaces */
+  --ews-green-700: #255E4D;   /* selected navigation item, hover on dark */
+  --ews-leaf:      #50B54E;   /* logo leaf, brand accent on dark */
+
+  /* Status colours. Meaning is fixed: green = Active, amber = Idle, red = Unused */
+  --ews-active:        #33A73E;
+  --ews-active-bg:     #E5F6E7;
+  --ews-idle:          #FDC81B;
+  --ews-idle-bg:       #FDF4DC;
+  --ews-unused:        #EF1C1F;
+  --ews-unused-bg:     #FDEBEB;
+
+  /* Neutral surfaces */
+  --ews-page:     #F7F9FB;    /* page background */
+  --ews-card:     #FFFFFF;    /* cards, table */
+  --ews-card-alt: #F0F2F5;    /* summary card (energy today) */
+  --ews-track:    #D8DCDD;    /* progress bar track, dividers */
+  --ews-border:   #E6E9ED;    /* table rows, card outline */
+  --ews-button:   #EAECF0;    /* secondary button background */
+
+  /* Text */
+  --ews-text:       #0F172A;  /* headings, numbers */
+  --ews-text-muted: #79818E;  /* captions, table header, info icon */
+  --ews-text-on-dark: #FFFFFF;
+
+  /* Charts */
+  --ews-chart-line: #189B2D;
+  --ews-chart-fill: #ECF9ED;
+  --ews-chart-grid: #E6E9ED;
+
+  /* Shape and spacing */
+  --ews-radius: 8px;
+  --ews-radius-lg: 12px;
+  --ews-space: 8px;           /* base unit, use multiples */
+  --ews-sidebar-width: 300px;
+
+  /* Type */
+  --ews-font: "Roboto", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ews-text-xs: 13px;
+  --ews-text-sm: 15px;
+  --ews-text-md: 17px;
+  --ews-text-lg: 22px;
+  --ews-text-xl: 28px;
+  --ews-text-num: 36px;       /* big numbers in stat cards */
+}
