@@ -20,7 +20,7 @@ Full description: Group 12 Planning Report (Teams channel Group 12).
 
 ## Status
 
-Week 3 of 12. Analysis and design phase. The technical stack is proposed in [ADR-001](docs/decisions/ADR-001-tech-stack.md) and is waiting for the team decision. No application code yet, only spikes and documents.
+Week 4 of 12. Analysis and design phase. The build phase starts on 12 October. The dashboard uses React (decided on 7 October). The rest of the technical stack is proposed in [ADR-001](docs/decisions/ADR-001-tech-stack.md) and is waiting for the team decision. Tasks and current status are in YouTrack.
 
 ## Repository layout
 
@@ -29,7 +29,13 @@ client/        monitoring client (per operating system)
   spike/       small test scripts, not production code
 server/        API and database
 dashboard/     web dashboard
+shared/        what client and server must agree on (report format)
+scripts/       developer tools, for example the network check for the demo
+tests/e2e/     end to end tests: client, server and dashboard together
 data/          local database files, ignored by Git
+site/          project site, published with GitHub Pages
+www/           landing page for ecowattsense.co.uk
+.github/       GitHub Actions workflows
 docs/          project documentation, see docs/README.md
   requirements/  use cases, user types, requirements (D2)
   design/        architecture, API, database schema, wireframes (D2)
@@ -59,7 +65,7 @@ Two long-lived branches:
 
 | Branch | Purpose | Who pushes |
 |---|---|---|
-| `main` | Stable. Only what was reviewed, tested and shown to the tutor. Updated at milestones and deliverables (D2 to D6). | nobody directly, only merges from `dev` |
+| `main` | Stable. Only what was reviewed, tested and shown to the tutor. Updated at milestones and deliverables (D2 to D6). | nobody directly, only release pull requests (step 4 below) |
 | `dev` | Integration branch. **During development all work goes through `dev`.** Feature branches start here and come back here. | nobody directly, only pull requests |
 
 How a task goes through:
@@ -73,7 +79,7 @@ Never push directly to `main` or `dev`. Both branches are protected. Do not comm
 
 ## Secrets and passwords
 
-This repository is visible to the whole team and may become public. Never commit:
+This repository is public. Anyone can read it, also the old versions in the history. Never commit:
 
 - passwords, API keys, access tokens, connection strings
 - `.env` files or any config file with real credentials
