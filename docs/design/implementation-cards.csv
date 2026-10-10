@@ -1,0 +1,53 @@
+id,group,piece,what,hours,who,hours_per_person,week_start,week_end,needs,needed_for,requirements
+SH-1,Shared contract,Report schema,File `shared/report_schema.json` with the report fields and 3 example reports. Names as in KB EWS-A-12.,3,Kevin + Ruslan,"Kevin 2h, Ruslan 1h",W5,W5,,M2,"FR-04, FR-09"
+SH-2,Shared contract,API contract,File `docs/design/api-contract.md`: every endpoint with a request and a response example. Matches `dashboard-sample-data.json`.,4,Zahid + Kevin,"Zahid 3h, Kevin 1h",W5,W5,SH-1,M2,FR-07
+SH-3,Shared contract,Test reports,Valid and invalid example reports for the tests of client and server.,2,Aqdas,,W6,W6,SH-1,M2,NFR-03
+DB-1,Database,Models for 7 tables,"SQLModel classes for locations, devices, reports, energy_rates, tariffs, settings, users. From the ERD (EWS-28) and KB EWS-A-12.",8,Jason,,W5,W5,,M2,FR-09
+DB-2,Database,Database setup,"Create tables on start, SQLite path from `.env`, session helper.",3,Jason,,W5,W5,DB-1,M2,FR-09
+DB-3,Database,Start data,"Seed rows: energy_rates (desktop, laptop), first tariff, default settings, admin user from `.env`.",4,Jason,,W6,W6,DB-1,D3,FR-06
+DB-4,Database,Cost and CO2 query,SQL that sums energy times the price valid at report time. Sorted by day.,5,Jason,,W6,W6,DB-1 DB-3,D3,FR-06
+SRV-1,Server,Server skeleton,"FastAPI app, settings from `.env`, `GET /api/health`, proxy headers for the tunnel.",4,Dariusz,,W5,W5,,M2,FR-09
+SRV-2,Server,Report validation,Pydantic models from the schema. A bad report gets 422.,4,Zahid + Kevin,"Zahid 3h, Kevin 1h",W5,W5,SH-1 SRV-1,M2,NFR-03
+SRV-3,Server,Client secret,Check the shared secret header on report requests. Wrong secret gets 401.,1,Zahid,,W5,W5,SRV-1,M2,NFR-04
+SRV-4,Server,POST /api/reports,A new device is added on its first report. A report is stored once per device and timestamp. The reply holds the interval and the thresholds.,8,Kevin + Zahid,"Kevin 5h, Zahid 3h",W5,W5,SRV-2 SRV-3 DB-2,M2,"FR-04, FR-05, FR-09"
+SRV-5,Server,Energy estimator,"State and device type to watts to microjoules. A measured value is kept. Unknown device type uses a default. Pure function with tests, then connected to SRV-4.",7,Zahid + Kevin,"Zahid 6h, Kevin 1h",W6,W6,SH-1 SRV-4 DB-3,D3,FR-06
+SRV-6,Server,Admin login,"Password hash, `POST /api/login` and `/api/logout`, session cookie, a check on every read and write endpoint.",8,Dariusz + Kevin,"Dariusz 4h, Kevin 4h",W5,W6,SRV-1 DB-2,D3,"FR-01, NFR-04"
+SRV-7,Server,GET /api/devices,"List of computers with current state, last seen and room. State becomes No data after 3 missed cycles.",6,Zahid + Jason,"Zahid 4h, Jason 2h",W6,W6,SRV-4 SRV-6 SH-2,D3,"FR-07, FR-10"
+SRV-8,Server,GET /api/devices/{id}/history,States and energy of one computer over a time range.,6,Jason + Zahid,"Jason 3h, Zahid 3h",W7,W8,SRV-4 SRV-6 SH-2,M4,FR-03
+SRV-9,Server,GET /api/summary,"Counts per state, energy today, cost, CO2 and the series for the chart.",8,Jason + Zahid,"Jason 5h, Zahid 3h",W7,W7,SRV-5 DB-4 SRV-6 SH-2,M4,FR-06
+SRV-10,Server,"Settings, rates and tariffs endpoints","Read and change report interval, thresholds, watts per device type and tariffs.",8,Kevin,,W7,W7,SRV-6 DB-3,M4,FR-08
+SRV-11,Server,Computer and room edit endpoints,"Change name and room of a computer, archive it, list and add rooms.",6,Jason,,W9,W9,SRV-6 DB-1,After,FR-08
+SRV-12,Server,Serve the dashboard,Static files of the dashboard build at `/`. No-cache headers for the demo.,2,Kevin,,W6,W6,SRV-1 DSH-1,D3,FR-02
+CLI-1,Client,Config and device ID,`config.json` in the data folder of the OS. Random UUID on first run. Server URL and secret.,4,Aqdas,,W5,W5,,M2,FR-04
+CLI-2,Client,OS probe interface and Windows probe,"`base.py` and `windows.py`: idle seconds, screen locked, CPU percent. Uses the result of spike EWS-23.",6,Ruslan + Aqdas,"Ruslan 5h, Aqdas 1h",W5,W5,,M2,FR-05
+CLI-3,Client,State classifier,"Idle and Unused thresholds give the state 2, 1 or 0. Pure function with tests.",4,Ruslan + Aqdas,"Ruslan 3h, Aqdas 1h",W5,W5,,M2,FR-05
+CLI-4,Client,Report sender,"Build the report from the schema, POST with the secret, read the interval from the reply, handle 201, 401, 422 and 5xx.",5,Aqdas,,W5,W5,SH-1 CLI-1,M2,FR-04
+CLI-5,Client,Local buffer,Write every report to `buffer.jsonl` first. Send the oldest first. Keep 7 days. Drop a report after 422.,6,Ruslan + Aqdas,"Ruslan 4h, Aqdas 2h",W6,W7,CLI-4,D3,NFR-03
+CLI-6,Client,Main loop and log,"Loop with the interval, clean stop, `logs/client.log`.",3,Ruslan,,W5,W5,CLI-2 CLI-3 CLI-4,M2,NFR-01
+CLI-7,Client,Windows autostart,Task Scheduler entry at log-in. Install steps in `client/README.md`.,4,Ruslan,,W6,W6,CLI-6,M4,NFR-01
+CLI-8,Client,macOS probe,`macos.py` from the spike `client/spike/macos_probe.py`. Needed only for team laptops that are Macs.,6,Dariusz,,W7,W7,CLI-2,M4,NFR-06
+CLI-9,Client,Linux probe,X11 first. Only if a team laptop runs Linux. No owner yet.,,,,W8,W8,CLI-2,After,NFR-06
+DSH-1,Dashboard,Dashboard setup,"Finish the React skeleton from branch EWS-19: Vite, router, `tokens.css`, Roboto and Lucide as local files, folders, ESLint.",6,Charldon + Dariusz,"Charldon 3h, Dariusz 3h",W5,W5,,D3,FR-02
+DSH-2,Dashboard,API client with sample mode,Fetch wrapper with cookie session. A switch reads `dashboard-sample-data.json` instead of the server.,4,Thomas,,W5,W5,DSH-1 SH-2,D3,FR-07
+DSH-3,Dashboard,App shell,"Sidebar (Dashboard, Computers, Energy Usage, Settings), header, routes. Layout changes at 1024 and 768 px.",6,Charldon + Aqdas,"Charldon 4h, Aqdas 2h",W6,W6,DSH-1,D3,FR-02
+DSH-4,Dashboard,Stat cards,"Active, Idle and Unused cards with a bar. Energy and cost card. `StateBadge` exists.",5,Charldon,,W6,W7,DSH-2 DSH-3,D3,"FR-06, FR-10"
+DSH-5,Dashboard,Computer list,"Table: name, state (dot and word), last activity, power, View button.",8,Charldon + Thomas,"Charldon 6h, Thomas 2h",W6,W6,DSH-2 DSH-3,D3,"FR-07, FR-10"
+DSH-6,Dashboard,Energy line chart,Energy today as a line with the area below.,8,Thomas,,W7,W7,DSH-2,M4,FR-03
+DSH-7,Dashboard,Status donut,Donut with the total in the middle and a legend.,4,Ruslan,,W7,W7,DSH-2,M4,FR-10
+DSH-8,Dashboard,Login page,"Form, session, route guard, log out.",6,Kevin,,W6,W6,DSH-2 SRV-6,D3,FR-01
+DSH-9,Dashboard,Computer history page,States and energy of one computer over time.,8,Thomas,,W8,W8,DSH-6 SRV-8,M4,FR-03
+DSH-10,Dashboard,Settings page: interval and thresholds,Form for the report interval and the Idle and Unused thresholds. Saves through the API.,6,Charldon,,W7,W8,SRV-10 DSH-8,M4,FR-08
+DSH-11,Dashboard,Computer edit,"Name, room and archive from the Computers page.",6,Kevin,,W9,W9,SRV-11 DSH-5,After,FR-08
+DSH-12,Dashboard,Energy usage page,"Energy, cost and CO2 per day, week and month.",8,Ruslan,,W8,W8,SRV-9 DSH-2,M4,FR-06
+DSH-14,Dashboard,Settings page: watts and tariff,Form for watts per computer type and for price and CO2 per kWh.,6,Charldon,,W8,W8,DSH-10,M4,"FR-06, FR-08"
+DSH-13,Dashboard,"Loading, error and No data states","Clear messages in every page when data is loading, missing or the server is down.",4,Aqdas,,W8,W8,DSH-5,M4,FR-10
+OPS-1,Deployment and tools,Decision record,"Write ADR-001 section 8: React dashboard, FastAPI, Docker and tunnel. Fix the report example in section 6. Closes EWS-26 and EWS-16.",2,Dariusz,,W5,W5,,M2,
+OPS-2,Deployment and tools,Dockerfile,"Two stages: Node builds the dashboard, a Python image runs the server.",6,Dariusz + Thomas,"Dariusz 3h, Thomas 3h",W6,W6,SRV-1 DSH-1,D3,
+OPS-3,Deployment and tools,Compose and env,`docker-compose.yml` with the server and cloudflared. `.env.example`. `.env` in `.gitignore`.,4,Dariusz,,W6,W6,OPS-2,D3,
+OPS-4,Deployment and tools,Tunnel and campus Wi-Fi test,Stable address. Run `scripts/wifi_check.py` on the campus Wi-Fi. Plan B: phone hotspot.,4,Dariusz,,W6,W6,OPS-3,D3,
+OPS-5,Deployment and tools,Checks on pull requests,"GitHub Actions on pull requests to dev: pytest, ruff, dashboard build.",6,Thomas,,W5,W6,SRV-1 DSH-1,M4,
+OPS-6,Deployment and tools,Git working session,"One hour for everyone: branch, pull request, review, conflicts.",3,Thomas,,W5,W5,,M2,
+TST-1,Testing,Test plan outline,"What we test, how and who (task EWS-8). Feeds D5.",4,Aqdas,,W7,W7,,M4,
+TST-2,Testing,End-to-end API smoke test,"Pytest: start the server, post a sample report, read it back from `GET /api/devices`.",4,Aqdas,,W6,W7,SRV-4 SRV-7,D3,
+TST-3,Testing,Dashboard end-to-end tests,"Playwright in `tests/e2e`: log in, see the list, see a chart.",8,Aqdas,,W9,W9,DSH-5 DSH-8,After,
+TST-4,Testing,24 hour run on team laptops,Install the client on every team laptop. Check the dashboard after 24 hours.,11,everyone,"Aqdas 2h, Dariusz 2h, Ruslan 2h, Charldon 1h, Jason 1h, Kevin 1h, Thomas 1h, Zahid 1h",W8,W8,CLI-7 OPS-4 SRV-7,M4,
