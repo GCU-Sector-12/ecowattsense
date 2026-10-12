@@ -1,0 +1,27 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: var(--ews-sidebar-width);
+  padding: calc(var(--ews-space) * 3);
+  font-size: var(--ews-text-lg);
+  font-weight: 700;
+  color: var(--ews-text-on-dark);
+  background: var(--ews-green-900);
+}
+
+.content {
+  flex: 1;
+  padding: calc(var(--ews-space) * 4);
+}
+
+.muted {
+  color: var(--ews-text-muted);
+}
+
+.states {
+  display: flex;
+  gap: calc(var(--ews-space) * 2);
+}

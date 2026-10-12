@@ -1,0 +1,14 @@
+/* Global base. Colours, sizes and fonts come from static/tokens.css, do not hard-code them here. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--ews-font);
+  font-size: var(--ews-text-sm);
+  color: var(--ews-text);
+  background: var(--ews-page);
+}
