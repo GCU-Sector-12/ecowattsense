@@ -1,0 +1,28 @@
+# Git stores text files with LF. Your editor may still use CRLF on Windows.
+* text=auto eol=lf
+
+# Windows scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Text files Git may not recognise by itself.
+*.drawio text
+*.svg text
+*.csv text
+
+# Binary files: never change line endings, never show a text diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.dotx binary
+*.pptx binary
+*.xlsx binary
+*.db binary
+*.sqlite binary
+*.woff binary
+*.woff2 binary
