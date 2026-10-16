@@ -1,0 +1,13 @@
+# Install: sudo cp scripts/systemd/* /etc/systemd/system/ && sudo systemctl enable --now ecowattsense-deploy.timer
+# Logs: journalctl -u ecowattsense-deploy
+# Paths and user below are the staging VM defaults. Change them if your clone is elsewhere.
+[Unit]
+Description=EcoWattSense staging deploy
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ecowattsense
+ExecStart=/home/ubuntu/ecowattsense/scripts/deploy.sh auto

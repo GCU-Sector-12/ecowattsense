@@ -1,0 +1,26 @@
+# EcoWattSense staging stack. Run: docker compose up -d --build
+name: ecowattsense
+
+services:
+  # server: FastAPI backend and SQLite database (internal port 8000, runs as uid 1000)
+  server:
+    build: ./server
+    expose:
+      - "8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - ECOWATTSENSE_DB_PATH=/app/data/ecowattsense.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  # front: web server for the dashboard, proxies /api to the server (localhost only)
+  front:
+    build: ./dashboard
+    ports:
+      - "127.0.0.1:${ECOWATTSENSE_FRONT_PORT:-8081}:80"
+    depends_on:
+      - server
+    restart: unless-stopped

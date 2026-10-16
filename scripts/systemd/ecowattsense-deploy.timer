@@ -1,0 +1,12 @@
+# Install: sudo cp scripts/systemd/* /etc/systemd/system/ && sudo systemctl enable --now ecowattsense-deploy.timer
+# Logs: journalctl -u ecowattsense-deploy
+[Unit]
+Description=Run the EcoWattSense staging deploy every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

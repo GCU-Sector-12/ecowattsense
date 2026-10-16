@@ -21,3 +21,13 @@ python3 scripts/wifi_check.py
 Each line is PASS, WARN, FAIL or SKIP. The last lines say what to do. Plan B for a bad network is the phone hotspot.
 
 Tip: at home run `docker pull cloudflare/cloudflared:latest`, so the image is already on the Mac.
+
+## deploy.sh
+
+Deploys the staging server (dev.ecowattsense.co.uk) from branch `dev`. It runs on the staging VM, by hand or from a systemd timer every 5 minutes.
+
+```bash
+scripts/deploy.sh [auto|server|front|all] [--dry-run]
+```
+
+`auto` is the default. It fetches `origin/dev`, rebuilds only the service whose folder changed, and checks `/api/health`. `--dry-run` shows what would be built and changes nothing. Setup and logs: `docs/design/deployment-staging.md`.
