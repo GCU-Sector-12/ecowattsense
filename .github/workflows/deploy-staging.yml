@@ -7,6 +7,7 @@
 #   STAGING_SSH_KEY  private deploy key (its public half is on the VM)
 #   STAGING_HOST     address of the VM
 #   STAGING_USER     user on the VM
+#   DISCORD_WEBHOOK_URL  Discord webhook of the #github channel (optional, for the result message)
 #
 # Push events never expose secrets to pull requests from forks.
 name: Deploy staging
@@ -56,3 +57,21 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
+
+      - name: Tell Discord
+        # One short message per run on the #github channel. Runs on success and on failure.
+        # Skipped when the DISCORD_WEBHOOK_URL secret is not set.
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RESULT: ${{ job.status }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [ -n "$DISCORD_WEBHOOK_URL" ] || { echo "No DISCORD_WEBHOOK_URL secret, skipping"; exit 0; }
+          title="$(printf '%s' "$COMMIT_MSG" | head -n 1)"
+          text="Deploy staging: $RESULT. Commit ${COMMIT_SHA:0:7} $title. Run: <$RUN_URL>"
+          payload="$(python3 -c 'import json, sys; print(json.dumps({"content": sys.argv[1]}))' "$text")"
+          curl -fsS -H 'Content-Type: application/json' -d "$payload" "$DISCORD_WEBHOOK_URL" > /dev/null
