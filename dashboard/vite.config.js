@@ -10,4 +10,10 @@ export default defineConfig({
     host: true,
     proxy: { '/api': process.env.API_PROXY_TARGET || 'http://localhost:8000' },
   },
+  // Test settings for Vitest: a fake browser (jsdom) and a shared setup file.
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.js',
+  },
 })
