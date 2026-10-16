@@ -1,11 +1,12 @@
 # Install: sudo cp scripts/systemd/* /etc/systemd/system/ && sudo systemctl enable --now ecowattsense-deploy.timer
 # Logs: journalctl -u ecowattsense-deploy
 [Unit]
-Description=Run the EcoWattSense staging deploy every 5 minutes
+Description=Run the EcoWattSense staging deploy every 30 minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+# Fallback only. GitHub Actions starts the deploy right after a merge to dev.
+OnUnitActiveSec=30min
 Persistent=true
 
 [Install]

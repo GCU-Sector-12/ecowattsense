@@ -1,0 +1,58 @@
+# Deploy staging.
+# This workflow starts the EcoWattSense staging deploy right after a merge to dev.
+# It does not build anything. It opens one SSH connection to the staging VM
+# and runs scripts/deploy.sh there. The build happens on the VM.
+#
+# Repository secrets needed:
+#   STAGING_SSH_KEY  private deploy key (its public half is on the VM)
+#   STAGING_HOST     address of the VM
+#   STAGING_USER     user on the VM
+#
+# Push events never expose secrets to pull requests from forks.
+name: Deploy staging
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "server/**"
+      - "dashboard/**"
+      - "docker-compose.yml"
+      - ".env.example"
+      - "scripts/deploy.sh"
+      - ".github/workflows/deploy-staging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Prepare SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/known_hosts <<'HOSTKEY'
+          145.241.245.48 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIw6e5H451e+uRh8svlHReiqg5cesOGWWRIw48kISUKi
+          HOSTKEY
+        env:
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Run deploy on the VM
+        # The word "deploy" is a placeholder. The key on the VM has a forced
+        # command in authorized_keys that always runs scripts/deploy.sh auto,
+        # so whatever is sent here is ignored.
+        # The ssh output is the deploy log. The step fails when deploy.sh fails.
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
