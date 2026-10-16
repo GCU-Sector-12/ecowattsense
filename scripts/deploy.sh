@@ -30,6 +30,12 @@ front_port() {
   echo "${port:-8081}"
 }
 
+front_bind() {
+  local bind=""
+  [ -f .env ] && bind="$(grep -E '^ECOWATTSENSE_FRONT_BIND=' .env | tail -n 1 | cut -d= -f2- || true)"
+  echo "${bind:-127.0.0.1}"
+}
+
 fetch_dev() {
   git fetch origin dev
   OLD="$(git rev-parse HEAD)"
@@ -87,7 +93,7 @@ skip_if_none() {
 }
 
 wait_for_health() {
-  local url="http://127.0.0.1:$(front_port)/api/health"
+  local url="http://$(front_bind):$(front_port)/api/health"
   local i
   for i in $(seq 1 30); do
     curl -fsS "$url" >/dev/null 2>&1 && return 0

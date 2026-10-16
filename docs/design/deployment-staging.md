@@ -4,7 +4,7 @@
 
 - One Oracle Cloud VM (Ampere, arm64, Ubuntu 24.04).
 - Two containers: `server` (FastAPI and SQLite) and `front` (dashboard and proxy for /api).
-- `front` is published on 127.0.0.1:8081 only.
+- `front` is published on port 8081 on the docker0 address of the VM (172.17.0.1), not on the public address. Only containers on the VM and the VM itself can reach it.
 - The Cloudflare Tunnel that already runs on the VM has a public hostname `dev.ecowattsense.co.uk`. It points to `http://host.docker.internal:8081`.
 - HTTPS ends at Cloudflare. No port is open to the internet.
 
@@ -23,7 +23,7 @@ Stop it with `docker compose down`. The SQLite file stays in `./data`.
 
 1. Clone the repo: `git clone https://github.com/GCU-Sector-12/ecowattsense.git ~/ecowattsense`
 2. Go in and switch branch: `cd ~/ecowattsense && git switch dev`
-3. Create the settings: `cp .env.example .env`, then edit it. Set `ECOWATTSENSE_UID` and `ECOWATTSENSE_GID` to the output of `id -u` and `id -g`, so the server container can write the SQLite file in `./data`.
+3. Create the settings: `cp .env.example .env`, then edit it. Set `ECOWATTSENSE_UID` and `ECOWATTSENSE_GID` to the output of `id -u` and `id -g`, so the server container can write the SQLite file in `./data`. Set `ECOWATTSENSE_FRONT_BIND` to the docker0 address (`ip -4 addr show docker0`, usually 172.17.0.1), so the tunnel container can reach the front.
 4. Start everything once: `scripts/deploy.sh all`
 5. Install the timer: `sudo cp scripts/systemd/* /etc/systemd/system/ && sudo systemctl enable --now ecowattsense-deploy.timer`
 6. In Cloudflare Zero Trust, add the public hostname `dev.ecowattsense.co.uk` to the existing tunnel. Set the service to `http://host.docker.internal:8081`.
