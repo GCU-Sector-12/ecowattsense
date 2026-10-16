@@ -30,7 +30,7 @@ Stop it with `docker compose down`. The SQLite file stays in `./data`.
 7. Make a deploy key pair: `ssh-keygen -t ed25519 -f deploy_key -C github-actions-deploy`. Keep the private half off the VM.
 8. On the VM, add the public key to `~/.ssh/authorized_keys` with a forced command, on one line:
    `command="/home/ubuntu/ecowattsense/scripts/deploy.sh auto",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... github-actions deploy`
-9. In GitHub, open Settings, Secrets and variables, Actions. Add three repository secrets: `STAGING_SSH_KEY` (the private key), `STAGING_HOST` and `STAGING_USER`.
+9. In GitHub, open Settings, Secrets and variables, Actions. Add three repository secrets: `STAGING_SSH_KEY` (the private key), `STAGING_HOST` and `STAGING_USER`. Optional: `DISCORD_WEBHOOK_URL`, a Discord webhook of the #github channel, for the result message.
 
 ## 4. How a deploy happens
 
@@ -40,7 +40,7 @@ Stop it with `docker compose down`. The SQLite file stays in `./data`.
 - The script fetches `dev` and rebuilds only the service whose folder changed. A change to `docker-compose.yml` or `.env.example` rebuilds both.
 - It updates the clone with a fast forward only. It never resets.
 - Then it polls `/api/health` for up to 60 seconds. If there is no answer, it exits with an error and the workflow fails.
-- The log is in the Actions tab of the repo.
+- The log is in the Actions tab of the repo. The run also posts one line to the Discord channel #github: result, commit and a link to the run (secret `DISCORD_WEBHOOK_URL`).
 - The systemd timer runs the same script every 30 minutes. It is a fallback.
 - To start a deploy by hand, use Run workflow on the Deploy staging page (`workflow_dispatch`).
 
