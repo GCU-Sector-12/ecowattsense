@@ -23,7 +23,7 @@ Stop it with `docker compose down`. The SQLite file stays in `./data`.
 
 1. Clone the repo: `git clone https://github.com/GCU-Sector-12/ecowattsense.git ~/ecowattsense`
 2. Go in and switch branch: `cd ~/ecowattsense && git switch dev`
-3. Create the settings: `cp .env.example .env`, then edit it.
+3. Create the settings: `cp .env.example .env`, then edit it. Set `ECOWATTSENSE_UID` and `ECOWATTSENSE_GID` to the output of `id -u` and `id -g`, so the server container can write the SQLite file in `./data`.
 4. Start everything once: `scripts/deploy.sh all`
 5. Install the timer: `sudo cp scripts/systemd/* /etc/systemd/system/ && sudo systemctl enable --now ecowattsense-deploy.timer`
 6. In Cloudflare Zero Trust, add the public hostname `dev.ecowattsense.co.uk` to the existing tunnel. Set the service to `http://host.docker.internal:8081`.

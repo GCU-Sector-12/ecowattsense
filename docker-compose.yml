@@ -5,6 +5,8 @@ services:
   # server: FastAPI backend and SQLite database (internal port 8000, runs as uid 1000)
   server:
     build: ./server
+    # Run as the host user that owns ./data (set ECOWATTSENSE_UID and GID in .env on the VM).
+    user: "${ECOWATTSENSE_UID:-1000}:${ECOWATTSENSE_GID:-1000}"
     expose:
       - "8000"
     env_file:
