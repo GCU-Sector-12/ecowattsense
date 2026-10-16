@@ -22,7 +22,8 @@ services:
   front:
     build: ./dashboard
     ports:
-      - "127.0.0.1:${ECOWATTSENSE_FRONT_PORT:-8081}:80"
+      # Bind address: 127.0.0.1 on a laptop. On the VM use the docker0 address (172.17.0.1), so the tunnel container can reach it.
+      - "${ECOWATTSENSE_FRONT_BIND:-127.0.0.1}:${ECOWATTSENSE_FRONT_PORT:-8081}:80"
     depends_on:
       - server
     restart: unless-stopped
