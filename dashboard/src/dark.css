@@ -1,0 +1,24 @@
+/* Dark theme values for the EcoWattSense tokens. They replace the light values from
+   static/tokens.css when Mantine sets data-mantine-color-scheme="dark" on <html>.
+   The sidebar, brand colours, status colours and chart line stay the same. */
+:root[data-mantine-color-scheme='dark'] {
+  --ews-active-bg: #12301a;
+  --ews-idle-bg: #33290a;
+  --ews-unused-bg: #3a1517;
+
+  --ews-page: #0e1512;
+  --ews-card: #17211d;
+  --ews-card-alt: #1d2a25;
+  --ews-track: #34423c;
+  --ews-border: #26332e;
+  --ews-button: #24312c;
+
+  --ews-text: #e8eeeb;
+  --ews-text-muted: #93a39d;
+
+  --ews-chart-fill: #12301a;
+  --ews-chart-grid: #26332e;
+
+  /* Brand icon on a card: the dark green is too dim on a dark card. */
+  --ews-icon-brand: var(--ews-leaf);
+}
