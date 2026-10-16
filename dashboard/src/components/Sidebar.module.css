@@ -1,0 +1,30 @@
+/* Navigation link on the dark sidebar. Mantine's default hover is a light grey
+   that is made for light pages, so white text becomes unreadable. The doubled
+   class beats Mantine's own hover rule whatever the CSS load order is. */
+.link.link {
+  color: var(--ews-text-on-dark);
+  border-radius: var(--ews-radius);
+  padding: 14px 16px;
+}
+
+/* Hover on a normal item: a soft green between the sidebar and the selected item. */
+.link.link:hover {
+  background-color: color-mix(in srgb, var(--ews-green-700) 55%, var(--ews-green-900));
+}
+
+/* Selected item keeps the green700 background, also on hover. */
+.link.link[data-active],
+.link.link[data-active]:hover {
+  background-color: var(--ews-green-700);
+}
+
+/* Keyboard focus: a visible leaf-green ring, no light background. */
+.link.link:focus-visible {
+  outline: 2px solid var(--ews-leaf);
+  outline-offset: -2px;
+}
+
+.label {
+  font-size: var(--ews-text-md);
+  font-weight: 500;
+}

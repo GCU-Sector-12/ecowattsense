@@ -1,22 +1,34 @@
-import StateBadge from './StateBadge.jsx'
-import './App.css'
+import { AppShell } from '@mantine/core'
+import data from '../../docs/design/dashboard-sample-data.json'
+import useHash from './useHash.js'
+import Sidebar from './components/Sidebar.jsx'
+import DashboardPage from './pages/DashboardPage.jsx'
+import ComputersPage from './pages/ComputersPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
 
-const STATES = ['active', 'idle', 'unused']
+const SIDEBAR_WIDTH = 300
 
-// Placeholder page. The real screens follow the approved design (wireframes, EWS-31).
+// Page for each menu key. A key without a page yet (Energy Usage, Reports) shows the dashboard.
+const PAGES = {
+  dashboard: DashboardPage,
+  computers: ComputersPage,
+  settings: SettingsPage,
+}
+
 export default function App() {
+  const hash = useHash()
+  const activeKey = hash in PAGES ? hash : 'dashboard'
+  const Page = PAGES[activeKey]
+
   return (
-    <div className="layout">
-      <aside className="sidebar">EcoWattSense</aside>
-      <main className="content">
-        <h1>Dashboard</h1>
-        <p className="muted">The screens will be built from the approved design.</p>
-        <div className="states">
-          {STATES.map((state) => (
-            <StateBadge key={state} state={state} />
-          ))}
-        </div>
-      </main>
-    </div>
+    <AppShell navbar={{ width: SIDEBAR_WIDTH, breakpoint: 0 }} padding={32}>
+      <AppShell.Navbar bg="var(--ews-green-900)" withBorder={false}>
+        <Sidebar items={data.navigation} activeKey={activeKey} />
+      </AppShell.Navbar>
+
+      <AppShell.Main bg="var(--ews-page)">
+        <Page data={data} />
+      </AppShell.Main>
+    </AppShell>
   )
 }
