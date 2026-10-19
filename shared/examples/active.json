@@ -1,0 +1,12 @@
+{
+  "device_id": "2b7e1c44-5a3d-4f0e-9c6b-8d1a2e3f4a55",
+  "timestamp": "2026-10-19T09:05:00Z",
+  "interval_seconds": 300,
+  "state": 2,
+  "idle_seconds": 4,
+  "cpu_percent": 42.5,
+  "screen_locked": false,
+  "on_battery": false,
+  "os": "windows",
+  "device_type": "desktop"
+}
