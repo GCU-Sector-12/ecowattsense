@@ -1,0 +1,16 @@
+{
+  "device_id": "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12",
+  "timestamp": "2026-10-19T14:10:00Z",
+  "interval_seconds": 300,
+  "state": 1,
+  "idle_seconds": 640,
+  "cpu_percent": 3.8,
+  "screen_locked": false,
+  "on_battery": true,
+  "os": "macos",
+  "device_type": "laptop",
+  "energy_uj": 0,
+  "battery_energy_uj": -2700000000,
+  "device_energy_uj": 2700000000,
+  "machine_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+}

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GCU-Sector-12/ecowattsense/blob/dev/shared/report_schema.json",
+  "title": "EcoWattSense report",
+  "description": "One report from one computer for one interval. Same shape alone and in a list. The names are the same in the database brief (docs/design/database-data-brief.md) and in the API contract (docs/design/api-contract.md).",
+  "type": "object",
+  "required": [
+    "device_id",
+    "timestamp",
+    "interval_seconds",
+    "state",
+    "idle_seconds",
+    "cpu_percent",
+    "screen_locked",
+    "on_battery",
+    "os",
+    "device_type"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The computer. A random UUID the client makes at its first start. It never changes."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The end of the interval, in UTC with a zone, for example `2026-10-19T14:05:00Z`. A time without a zone is rejected."
+    },
+    "interval_seconds": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "description": "The seconds the report covers. It can be shorter than the setting, for example before sleep."
+    },
+    "state": {
+      "type": "integer",
+      "enum": [
+        2,
+        1,
+        0
+      ],
+      "description": "2 active, 1 idle, 0 unused."
+    },
+    "idle_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds since the last keyboard or mouse input."
+    },
+    "cpu_percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Processor use in the interval."
+    },
+    "screen_locked": {
+      "type": "boolean",
+      "description": "True when the screen is locked."
+    },
+    "on_battery": {
+      "type": "boolean",
+      "description": "True when a laptop runs on its battery. A desktop always sends false."
+    },
+    "os": {
+      "type": "string",
+      "enum": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "description": "The operating system."
+    },
+    "device_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 40,
+      "description": "For example `desktop` or `laptop`. More types can come later. It picks the row in `energy_rates`."
+    },
+    "energy_uj": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Energy taken from the wall socket in the interval, in microjoules. Only a client that can measure it sends it. On battery it is 0. When it is missing, the server estimates it from `energy_rates`, except when `on_battery` is true: then the server stores 0."
+    },
+    "battery_energy_uj": {
+      "type": "integer",
+      "description": "Energy that went into the battery (above 0) or came out of it (below 0) in the interval, in microjoules. Only a client that can see the battery sends it. For analysis, not for cost."
+    },
+    "device_energy_uj": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Energy the computer used for its own work in the interval, from the grid or from the battery, in microjoules. For analysis, not for cost."
+    },
+    "machine_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of a hardware id, in lower case hex. A fingerprint, so the admin can see that two device ids are the same machine. Optional."
+    }
+  }
+}

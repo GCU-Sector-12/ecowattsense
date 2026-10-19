@@ -1,8 +1,12 @@
 # Data we store: what the ERD needs (input for EWS-28)
 
-**For:** Jason (EWS-28, database design and ER diagram). **From:** Dariusz. **Status:** draft v0.7, 4 October 2026.
+**For:** Jason (EWS-28, database design and ER diagram). **From:** Dariusz. **Status:** draft v0.9, 19 October 2026.
 
 This page says what data we keep, the rules for it, the naming rules and the list of tables and columns. The ERD itself is your work: the diagram, the notation and the details of the relationships. The names are fixed here, so the database, the API and the code use the same names.
+
+**What changed in v0.8 (11 October):** we added an energy rule, see Section 2, "Energy: from the grid". It came up when we analysed how the client works on laptops. The first design was made for desktop PCs, which always take their energy from the wall socket. A laptop can run on its battery. `energy_uj` keeps its column. Two optional columns are new (Section 5.3).
+
+**What changed in v0.9 (19 October):** the column `on_battery` in `reports` (Section 5.3). The client says whether the laptop ran on its battery. With it the server can apply the energy rule without guessing: when `on_battery` is true and `energy_uj` is missing, the server stores 0 and does not estimate.
 
 ## 1. What the database is for
 
@@ -15,7 +19,7 @@ The server keeps all data in one SQLite database (we use SQLModel, so PostgreSQL
 - We know the operating system (windows, linux or macos), the type (at the start desktop or laptop, more types can come later), the time of the first report and the time of the last report.
 - The admin can give a computer a name (for example "Lab 1 PC 03") and put it in a room.
 - The admin can archive an old computer. It is hidden in the list, but its history stays.
-- Optional, later: a hash of a hardware ID. It helps to find the same computer after a reinstall. It is a hint, not a key, because it is not always unique.
+- Optional: a hash of a hardware ID (`machine_hash`). It helps to find the same computer after a reinstall. It is a hint, not a key, because it is not always unique.
 
 **Rooms**
 - Name (for example "Lab 1") and building (optional).
@@ -23,11 +27,21 @@ The server keeps all data in one SQLite database (we use SQLModel, so PostgreSQL
 
 **Reports**
 - A client sends one report per report interval. The admin sets the interval (default 300 seconds).
-- The client sends: computer ID, time of the measurement, interval in seconds, state, idle seconds, CPU % and screen locked (yes or no).
-- If the client can measure real energy, it also sends the measured energy for the interval (in µJ).
+- The client sends: computer ID, time of the measurement, interval in seconds, state, idle seconds, CPU %, screen locked (yes or no), on battery (yes or no), operating system and device type. Only when the client has them: `energy_uj`, `battery_energy_uj`, `device_energy_uj` and `machine_hash`. The exact shape is `shared/report_schema.json`.
+- If the client can measure real energy, it also sends the energy for the interval (in µJ). This is the energy the computer takes from the grid (the wall socket). See "Energy: from the grid" below.
 - The server adds: the time when it got the report, the energy for the interval (the measured value, or an estimate when there is no measurement) and where the energy came from (estimate or measurement).
 - Only one report per computer and time. After a network problem the client can send the same report again, so the database must not save it twice.
 - We keep all reports (full history). With the default interval this is up to 288 reports a day per computer. 8 laptops give about 70,000 rows a month.
+
+**Energy: from the grid (new in v0.8)**
+- The first design was made for desktop PCs. A desktop always takes its energy from the wall socket, so the energy it uses is the energy from the grid. When we analysed how the client works on laptops, we found a gap. A laptop has a battery. It can run on the battery and it can charge.
+- So the energy in a report is the energy the computer takes **from the grid**.
+- A desktop: the energy it uses.
+- A laptop on its battery: 0. It takes nothing from the grid. The battery is only a buffer. The energy it gave is taken from the grid later, when the battery is charged, and it is counted then. If we counted it on the battery too, the same energy would be counted twice.
+- A laptop that charges: the energy for its work, plus the energy that goes into the battery, plus the loss of the adapter.
+- A laptop sends a report also on the battery. Its state (active, idle, unused) still matters, and the server shows "No data" when reports stop. The energy in such a report is 0. The report says `on_battery` true. When `on_battery` is true and `energy_uj` is missing, the server stores 0 and does not estimate. Without `on_battery` the server would estimate the energy from the watts table, and that would add energy that was never taken from the grid.
+- Optional detail, not needed for the first version: `battery_energy_uj` (into the battery above 0, out of it below 0) and `device_energy_uj` (what the computer used for its own work, from the grid or from the battery). They are for analysis. Cost and CO2 use only `energy_uj`.
+- Not decided: where the energy was taken (the lab, or somewhere else, for example a laptop charged at home). It is left for the evaluation (YouTrack EWS-14).
 
 **State codes**
 - 2 = active, 1 = idle, 0 = unused. Stored as a small number, the same as in the report JSON. A higher number means more activity.
@@ -38,6 +52,7 @@ The server keeps all data in one SQLite database (we use SQLModel, so PostgreSQL
 - At the start we have 2 device types (desktop and laptop), so there are 2 rows. This is not a fixed number. In real use there will be more device types (for example all-in-one, workstation or thin client). Each new type adds 1 row.
 - We use them only when we have no real reading. Then the server estimates the energy when it saves a report: energy in µJ = watts × interval in seconds × 1,000,000.
 - Real readings come later (hardware energy counters or the battery, EWS-A-10 NV-04). A client that can measure sends the energy itself, and the server saves it as it is.
+- The watts are for a computer that is plugged in. For a laptop on its battery the estimate is too high (see "Energy: from the grid").
 - A change of watts does not change past energy, because the energy is already saved in each report.
 
 **Prices (tariffs)**
@@ -55,6 +70,7 @@ The server keeps all data in one SQLite database (we use SQLModel, so PostgreSQL
 
 - **No personal data.** No user names, host names, IP or MAC addresses, window titles or keystrokes. Computers are not linked to people.
 - **Energy in µJ** (microjoules) as a whole number. One report can be bigger than 32 bits (30 W for 300 s = 9,000,000,000 µJ), so it needs a 64-bit integer. We convert to Wh or kWh only for display.
+- **Energy from the grid.** `energy_uj` is the energy taken from the grid. A laptop on its battery takes nothing from the grid, so its energy is 0. See Section 2.
 - **Times in UTC.** Daily totals use UK local time.
 - **Time in a state** = the sum of the interval seconds, not the number of reports × interval, because the admin can change the interval.
 
@@ -90,9 +106,9 @@ This is the list for the ERD. The types are general types for the diagram. SQLit
 | `id` | uuid | primary key | Random, made by the client at first start. It never changes. It is `device_id` in the report JSON |
 | `display_name` | text | optional | Set by the admin, for example "Lab 1 PC 03" |
 | `location_id` | integer | foreign key to `locations.id`, optional | Empty means no room |
-| `machine_hash` | text | optional | Hash of a hardware ID. A hint, not unique |
+| `machine_hash` | text | optional | SHA-256 of a hardware ID, 64 lower case hex characters. A hint, not unique. From the first report that carries it |
 | `os` | text | required | `windows`, `linux` or `macos` |
-| `device_type` | text | required | The type of computer, for example `desktop` or `laptop`. More types can come later (see 5.4) |
+| `device_type` | text | required | The type of computer, for example `desktop` or `laptop`. Lower case letters, digits and `_`, starts with a letter, at most 40 characters. More types can come later (see 5.4) |
 | `first_seen_at` | datetime | required | Time of the first report |
 | `last_seen_at` | datetime | required | Time of the last report |
 | `archived` | boolean | required, default false | Hidden in the list. The history stays |
@@ -110,10 +126,15 @@ This is the list for the ERD. The types are general types for the diagram. SQLit
 | `idle_seconds` | integer | required, 0 or more | |
 | `cpu_percent` | float | required, 0 to 100 | |
 | `screen_locked` | boolean | required | |
-| `energy_uj` | bigint | required, 0 or more | Energy for the interval in µJ. From the client if it measured it, otherwise calculated by the server |
-| `energy_source` | text | required | `estimated` or `measured` |
+| `on_battery` | boolean | required | New in v0.9. True when the laptop ran on its battery in the interval. A desktop sends false |
+| `energy_uj` | bigint | required, 0 or more | Energy taken from the grid for the interval in µJ (see Section 2). 0 for a laptop on its battery. From the client if it measured it, otherwise calculated by the server |
+| `energy_source` | text | required | `measured` when the client sent `energy_uj`. `estimated` when the server filled it, from the watts table or as 0 by the `on_battery` rule |
+| `battery_energy_uj` | bigint | optional, can be negative | New in v0.8. Energy that went into the battery (above 0) or came out of it (below 0) in µJ. Only a client that can see the battery sends it |
+| `device_energy_uj` | bigint | optional, 0 or more | New in v0.8. Energy the computer used for its own work, from the grid or from the battery, in µJ. For analysis, not for cost |
 
 Unique: `device_id` and `timestamp` together, so the same report is not saved twice. Index on `timestamp`.
+
+The two optional columns (v0.8) can also be added later. Cost and CO2 use `energy_uj` only, so the table works without them.
 
 ### 5.4 `energy_rates` (watts for the estimate)
 
@@ -125,7 +146,7 @@ Unique: `device_id` and `timestamp` together, so the same report is not saved tw
 | `idle_watts` | float | required, 0 or more | Estimated power in state 1 (idle) |
 | `unused_watts` | float | required, 0 or more | Estimated power in state 0 (unused) |
 
-One row for each device type. The admin can change the watts. At the start we have 2 rows: `desktop` and `laptop`. This is not a fixed number. In real use there will be more device types, for example `all_in_one`, `workstation` or `thin_client`. Each new type adds 1 row. So please do not limit `device_type` to 2 values in the ERD. Each row has one watts column for each state, so the table stays flat and easy to read. The 3 states are fixed. The server picks the column from the state of the report: 2 is `active_watts`, 1 is `idle_watts` and 0 is `unused_watts`.
+One row for each device type. The admin can change the watts. At the start we have 2 rows: `desktop` and `laptop`. This is not a fixed number. In real use there will be more device types, for example `all_in_one`, `workstation` or `thin_client`. Each new type adds 1 row. So please do not limit `device_type` to 2 values in the ERD. Each row has one watts column for each state, so the table stays flat and easy to read. The 3 states are fixed. The server picks the column from the state of the report: 2 is `active_watts`, 1 is `idle_watts` and 0 is `unused_watts`. The watts are for a computer that is plugged in (see Section 2, "Energy: from the grid").
 
 ### 5.5 `tariffs` (price and CO2 over time)
 
@@ -167,11 +188,12 @@ Keys and default values: `report_interval_seconds` (300), `idle_threshold_second
 - Calculated when needed: the state now, "No data", cost, CO2 and daily totals.
 - Files on each computer: settings, the buffer of unsent reports and logs. They are not part of the ERD.
 - Next version, not in the prototype (EWS-A-10): alerts, day and night prices, daily summaries, more user roles.
+- Not decided: where the energy was taken (the lab or somewhere else). It is left for the evaluation (YouTrack EWS-14).
 
 ## 7. Your survey in short
 
 1. Users: computers are not linked to people.
-2. Data from the client: see "Reports". No hostname, RAM or network data. In the prototype the server estimates the energy. If the client can measure it later, the client sends it.
+2. Data from the client: see "Reports". No hostname, RAM or network data. In the prototype the server estimates the energy. If the client can measure it later, the client sends it. The energy is the energy from the grid (Section 2).
 3. Authentication: admin login only.
 4. Rooms: yes.
 5. Alerts: not in the prototype.
@@ -183,4 +205,4 @@ The diagram notation, the details of the relationships (for example what happens
 
 ---
 *Written with AI help (Claude) from the team's design notes and your survey. Decisions: Dariusz Jaroch.*
-*v0.7, 4 October: the example report is removed. v0.6: `energy_rates` is a flat table with one row for each device type and one watts column for each state. v0.4: more device types are possible. v0.3: naming rules and the list of tables and columns. v0.2: watts are only for the estimate. A report can carry measured energy, and it keeps where its energy came from.*
+*v0.9, 19 October: the column `on_battery` in `reports`, so the server knows when to store 0 and not estimate. v0.8, 11 October: the energy rule (energy from the grid, 0 for a laptop on its battery) and two optional columns. It came from the analysis of how the client works on laptops. The first design was made for desktop PCs, which always take energy from the socket. v0.7, 4 October: the example report is removed. v0.6: `energy_rates` is a flat table with one row for each device type and one watts column for each state. v0.4: more device types are possible. v0.3: naming rules and the list of tables and columns. v0.2: watts are only for the estimate. A report can carry measured energy, and it keeps where its energy came from.*
