@@ -71,7 +71,7 @@ public sealed class DeviceReport
         DeviceType = deviceType;
     }
 
-    private static bool IsValidDeviceType(string value)
+    internal static bool IsValidDeviceType(string value)
     {
         if (string.IsNullOrEmpty(value) || value.Length > 40 || value[0] is < 'a' or > 'z')
             return false;

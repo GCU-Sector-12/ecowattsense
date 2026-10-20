@@ -1,8 +1,13 @@
 using EcoWattSense.Client;
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
+using EcoWattSense.Client.Reporting;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddSingleton(new ReportingSettings(
+    builder.Configuration.GetValue<int>("Reporting:IntervalSeconds", 300),
+    builder.Configuration["Reporting:DeviceType"] ?? ""));
+builder.Services.AddSingleton<ReportInterval>();
 // Read and validate local thresholds at startup, before starting any monitoring.
 builder.Services.AddSingleton(new StateClassifier(
     builder.Configuration.GetValue<double>("StateClassification:IdleThresholdSeconds", 600),
