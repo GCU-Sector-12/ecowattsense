@@ -3,7 +3,8 @@ using EcoWattSense.Client.Monitoring;
 namespace EcoWattSense.Client;
 
 public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonitor, CpuMonitor cpuMonitor,
-    WindowsSessionMonitor sessionMonitor, WindowsPowerMonitor powerMonitor) : BackgroundService
+    WindowsSessionMonitor sessionMonitor, WindowsPowerMonitor powerMonitor,
+    StateClassifier stateClassifier) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -49,14 +50,17 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
                 logger.LogWarning(exception, "Unable to read power status; will retry in 5 seconds.");
             }
 
+            ActivityState? state = stateClassifier.Classify(inactivitySeconds);
+
             logger.LogInformation(
-                "User inactivity: {InactivitySeconds} seconds; CPU usage: {CpuUsagePercent}; Screen lock: {ScreenLockStatus}; Power source: {PowerSource}",
+                "User inactivity: {InactivitySeconds} seconds; CPU usage: {CpuUsagePercent}; Screen lock: {ScreenLockStatus}; Power source: {PowerSource}; State: {ActivityState}",
                 inactivitySeconds?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "unavailable",
                 cpuPercentage is { } cpu
                     ? cpu.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%"
                     : "unavailable (warming up or no valid sample)",
                 isLocked switch { true => "locked", false => "unlocked", null => "unknown" },
-                isOnBattery switch { true => "battery", false => "mains", null => "unknown" });
+                isOnBattery switch { true => "battery", false => "mains", null => "unknown" },
+                state?.ToString() ?? "unknown");
 
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
