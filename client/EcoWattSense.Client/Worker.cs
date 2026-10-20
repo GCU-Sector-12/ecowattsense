@@ -3,7 +3,7 @@ using EcoWattSense.Client.Monitoring;
 namespace EcoWattSense.Client;
 
 public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonitor, CpuMonitor cpuMonitor,
-    WindowsSessionMonitor sessionMonitor) : BackgroundService
+    WindowsSessionMonitor sessionMonitor, WindowsPowerMonitor powerMonitor) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -12,6 +12,7 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
             double? inactivitySeconds = null;
             double? cpuPercentage = null;
             bool? isLocked = null;
+            bool? isOnBattery = null;
             try
             {
                 inactivitySeconds = activityMonitor.GetInactivitySeconds();
@@ -39,13 +40,23 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
                 logger.LogWarning(exception, "Unable to read session-lock status; will retry in 5 seconds.");
             }
 
+            try
+            {
+                isOnBattery = powerMonitor.IsOnBattery();
+            }
+            catch (InvalidOperationException exception)
+            {
+                logger.LogWarning(exception, "Unable to read power status; will retry in 5 seconds.");
+            }
+
             logger.LogInformation(
-                "User inactivity: {InactivitySeconds} seconds; CPU usage: {CpuUsagePercent}; Screen lock: {ScreenLockStatus}",
+                "User inactivity: {InactivitySeconds} seconds; CPU usage: {CpuUsagePercent}; Screen lock: {ScreenLockStatus}; Power source: {PowerSource}",
                 inactivitySeconds?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "unavailable",
                 cpuPercentage is { } cpu
                     ? cpu.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%"
                     : "unavailable (warming up or no valid sample)",
-                isLocked switch { true => "locked", false => "unlocked", null => "unknown" });
+                isLocked switch { true => "locked", false => "unlocked", null => "unknown" },
+                isOnBattery switch { true => "battery", false => "mains", null => "unknown" });
 
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
