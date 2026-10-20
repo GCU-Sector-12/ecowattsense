@@ -1,3 +1,5 @@
+#nullable enable
+using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
@@ -15,7 +17,13 @@ public sealed class CpuMonitor
     /// CPU utilisation from 0 to 100, or null while establishing a baseline or when
     /// the counters have not advanced or have reset.
     /// </returns>
-    public double? GetUsagePercentage()
+    public double? GetUsagePercentage() => GetSample().Sample?.UsagePercentage;
+
+    /// <summary>
+    /// Takes one native counter measurement. Consumers needing both a sample and
+    /// percentage must use the returned Sample.UsagePercentage, not call both APIs.
+    /// </summary>
+    public CpuReading GetSample()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -36,14 +44,25 @@ public sealed class CpuMonitor
             throw new InvalidOperationException("GetSystemTimes failed to retrieve CPU usage.", new Win32Exception(error));
         }
 
-        var current = (Idle: idle.ToUInt64(), Kernel: kernel.ToUInt64(), User: user.ToUInt64());
+        return ProcessCounters(idle.ToUInt64(), kernel.ToUInt64(), user.ToUInt64());
+    }
+
+    // Separate counter processing permits deterministic tests without native measurements.
+    internal CpuReading ProcessCounters(ulong idle, ulong kernel, ulong user)
+    {
+        var current = (Idle: idle, Kernel: kernel, User: user);
         var baseline = previous;
         previous = current;
 
-        if (baseline is not { } last || current.Idle < last.Idle ||
+        if (baseline is not { } last)
+        {
+            return new CpuReading(CpuReadingStatus.BaselineEstablished);
+        }
+
+        if (current.Idle < last.Idle ||
             current.Kernel < last.Kernel || current.User < last.User)
         {
-            return null;
+            return new CpuReading(CpuReadingStatus.Invalid);
         }
 
         ulong idleDelta = current.Idle - last.Idle;
@@ -51,10 +70,10 @@ public sealed class CpuMonitor
         double totalDelta = (double)(current.Kernel - last.Kernel) + (current.User - last.User);
         if (totalDelta <= 0 || idleDelta > totalDelta)
         {
-            return null;
+            return new CpuReading(CpuReadingStatus.Invalid);
         }
 
-        return Math.Clamp(100.0 * (totalDelta - idleDelta) / totalDelta, 0.0, 100.0);
+        return new CpuReading(CpuReadingStatus.Valid, new CpuSample(totalDelta - idleDelta, totalDelta));
     }
 
     [StructLayout(LayoutKind.Sequential)]
