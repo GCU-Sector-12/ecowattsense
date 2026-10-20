@@ -1,4 +1,4 @@
-# CPU interval samples (not yet integrated)
+# CPU interval samples
 
 `CpuMonitor.GetSample()` takes one GetSystemTimes measurement and returns a status
 plus an immutable sample when valid. BusyTime and TotalTime are CPU counter deltas
@@ -11,7 +11,7 @@ sample's UsagePercentage; do not call GetUsagePercentage again.
 It neither samples nor schedules reports. Empty and invalid intervals return null.
 IsComplete means no gap has been reported; an empty interval still has no average.
 
-Proposed caller protocol:
+Caller protocol (now used by Worker through ReportInterval):
 
 1. At startup, prime the monitor. BaselineEstablished contains no elapsed sample.
    Start the first interval at that baseline boundary with a fresh/reset accumulator;
@@ -41,4 +41,6 @@ Long intervals can be represented by larger deltas, but a skipped required obser
 is conservatively treated as a gap under this protocol. Overflow of accumulated totals
 also invalidates the interval until reset.
 
-No changes to Worker, classification, identity, serialization, or scheduling are made.
+Worker uses GetSample once per observation and logs that sample's percentage.
+ReportInterval schedules local reports at sample boundaries. Classification, identity,
+and serialization retain their existing semantics.
