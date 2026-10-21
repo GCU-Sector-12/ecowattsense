@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-The page opens at http://localhost:5173. For now it shows sample data from `docs/design/dashboard-sample-data.json`. Requests to `/api` go to the server on http://localhost:8000. Change the port in `vite.config.js` if the server uses another one.
+The page opens at http://localhost:5173. For now it shows sample data from `src/mock/dashboard-sample-data.json`. Requests to `/api` go to the server on http://localhost:8000. Change the port in `vite.config.js` if the server uses another one.
 
 Pages are chosen by the address hash. Use the menu, or open `#computers` or `#settings` directly. The Settings page has the theme switch (Light, Dark, Auto).
 

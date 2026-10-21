@@ -1,6 +1,6 @@
 // UNIT TEST: checks one small piece of logic with no React and no browser.
 // Proves: the sample data is consistent, so the dashboard numbers add up.
-import data from '../../../docs/design/dashboard-sample-data.json'
+import data from '../mock/dashboard-sample-data.json'
 
 function countByStatus(computers, status) {
   return computers.filter((computer) => computer.status === status).length

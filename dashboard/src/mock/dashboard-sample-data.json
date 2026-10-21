@@ -1,0 +1,61 @@
+{
+  "_comment": "Sample data taken from the dashboard mockup (docs/design/dashboard-mockup.png). For building and testing the UI before the server exists. Numbers are made up and do not come from real measurements.",
+  "generatedAt": "2025-03-10T14:32:00Z",
+  "user": { "name": "Admin", "role": "admin" },
+  "summary": {
+    "totalComputers": 20,
+    "active":  { "count": 12, "share": 0.60, "label": "Active Computers", "caption": "Actively being used" },
+    "idle":    { "count": 5,  "share": 0.25, "label": "Idle Computers",   "caption": "No activity for 10+ mins" },
+    "unused":  { "count": 3,  "share": 0.15, "label": "Unused Computers", "caption": "No activity for 1+ hour" },
+    "energyTodayKWh": 4.8,
+    "estimatedCostGBP": 1.20,
+    "tariffGBPPerKWh": 0.25
+  },
+  "energyToday": {
+    "unit": "kW",
+    "interval": "30min",
+    "points": [
+      {"t":"00:00","kw":0.30},{"t":"00:30","kw":0.28},{"t":"01:00","kw":0.32},{"t":"01:30","kw":0.29},
+      {"t":"02:00","kw":0.40},{"t":"02:30","kw":0.35},{"t":"03:00","kw":0.45},{"t":"03:30","kw":0.38},
+      {"t":"04:00","kw":0.42},{"t":"04:30","kw":0.36},{"t":"05:00","kw":0.50},{"t":"05:30","kw":0.44},
+      {"t":"06:00","kw":0.52},{"t":"06:30","kw":0.48},{"t":"07:00","kw":0.55},{"t":"07:30","kw":0.60},
+      {"t":"08:00","kw":0.58},{"t":"08:30","kw":0.65},{"t":"09:00","kw":0.85},{"t":"09:30","kw":1.05},
+      {"t":"10:00","kw":1.20},{"t":"10:30","kw":1.30},{"t":"11:00","kw":1.35},{"t":"11:30","kw":1.25},
+      {"t":"12:00","kw":1.40},{"t":"12:30","kw":1.50},{"t":"13:00","kw":1.45},{"t":"13:30","kw":1.55},
+      {"t":"14:00","kw":1.65},{"t":"14:30","kw":1.50},{"t":"15:00","kw":1.40},{"t":"15:30","kw":1.35},
+      {"t":"16:00","kw":1.45},{"t":"16:30","kw":1.30},{"t":"17:00","kw":1.20},{"t":"17:30","kw":1.10},
+      {"t":"18:00","kw":0.95},{"t":"18:30","kw":0.70},{"t":"19:00","kw":0.50},{"t":"19:30","kw":0.40},
+      {"t":"20:00","kw":0.35},{"t":"20:30","kw":0.32},{"t":"21:00","kw":0.30},{"t":"21:30","kw":0.28},
+      {"t":"22:00","kw":0.30},{"t":"22:30","kw":0.27},{"t":"23:00","kw":0.29},{"t":"23:30","kw":0.28}
+    ]
+  },
+  "computers": [
+    { "id": "PC-01", "name": "PC-01", "status": "active", "lastActivity": "2025-03-10T14:30:00Z", "lastActivityText": "2 mins ago",  "estimatedPowerW": 120 },
+    { "id": "PC-02", "name": "PC-02", "status": "idle",   "lastActivity": "2025-03-10T13:58:00Z", "lastActivityText": "34 mins ago", "estimatedPowerW": 95 },
+    { "id": "PC-03", "name": "PC-03", "status": "unused", "lastActivity": "2025-03-10T12:32:00Z", "lastActivityText": "2 hours ago", "estimatedPowerW": 100 },
+    { "id": "PC-04", "name": "PC-04", "status": "active", "lastActivity": "2025-03-10T14:31:00Z", "lastActivityText": "1 min ago",   "estimatedPowerW": 130 },
+    { "id": "PC-05", "name": "PC-05", "status": "idle",   "lastActivity": "2025-03-10T13:45:00Z", "lastActivityText": "47 mins ago", "estimatedPowerW": 90 },
+    { "id": "PC-06", "name": "PC-06", "status": "active", "lastActivity": "2025-03-10T14:29:00Z", "lastActivityText": "3 mins ago",  "estimatedPowerW": 115 },
+    { "id": "PC-07", "name": "PC-07", "status": "active", "lastActivity": "2025-03-10T14:32:00Z", "lastActivityText": "just now",    "estimatedPowerW": 125 },
+    { "id": "PC-08", "name": "PC-08", "status": "idle",   "lastActivity": "2025-03-10T14:10:00Z", "lastActivityText": "22 mins ago", "estimatedPowerW": 92 },
+    { "id": "PC-09", "name": "PC-09", "status": "active", "lastActivity": "2025-03-10T14:28:00Z", "lastActivityText": "4 mins ago",  "estimatedPowerW": 118 },
+    { "id": "PC-10", "name": "PC-10", "status": "unused", "lastActivity": "2025-03-10T10:05:00Z", "lastActivityText": "4 hours ago", "estimatedPowerW": 98 },
+    { "id": "PC-11", "name": "PC-11", "status": "active", "lastActivity": "2025-03-10T14:27:00Z", "lastActivityText": "5 mins ago",  "estimatedPowerW": 122 },
+    { "id": "PC-12", "name": "PC-12", "status": "active", "lastActivity": "2025-03-10T14:31:00Z", "lastActivityText": "1 min ago",   "estimatedPowerW": 128 },
+    { "id": "PC-13", "name": "PC-13", "status": "idle",   "lastActivity": "2025-03-10T14:05:00Z", "lastActivityText": "27 mins ago", "estimatedPowerW": 94 },
+    { "id": "PC-14", "name": "PC-14", "status": "active", "lastActivity": "2025-03-10T14:30:00Z", "lastActivityText": "2 mins ago",  "estimatedPowerW": 119 },
+    { "id": "PC-15", "name": "PC-15", "status": "active", "lastActivity": "2025-03-10T14:26:00Z", "lastActivityText": "6 mins ago",  "estimatedPowerW": 121 },
+    { "id": "PC-16", "name": "PC-16", "status": "unused", "lastActivity": "2025-03-10T09:40:00Z", "lastActivityText": "5 hours ago", "estimatedPowerW": 101 },
+    { "id": "PC-17", "name": "PC-17", "status": "active", "lastActivity": "2025-03-10T14:32:00Z", "lastActivityText": "just now",    "estimatedPowerW": 127 },
+    { "id": "PC-18", "name": "PC-18", "status": "idle",   "lastActivity": "2025-03-10T14:15:00Z", "lastActivityText": "17 mins ago", "estimatedPowerW": 93 },
+    { "id": "PC-19", "name": "PC-19", "status": "active", "lastActivity": "2025-03-10T14:29:00Z", "lastActivityText": "3 mins ago",  "estimatedPowerW": 124 },
+    { "id": "PC-20", "name": "PC-20", "status": "active", "lastActivity": "2025-03-10T14:31:00Z", "lastActivityText": "1 min ago",   "estimatedPowerW": 116 }
+  ],
+  "navigation": [
+    { "key": "dashboard", "label": "Dashboard", "icon": "home" },
+    { "key": "computers", "label": "Computers", "icon": "monitor" },
+    { "key": "energy",    "label": "Energy Usage", "icon": "bar-chart" },
+    { "key": "reports",   "label": "Reports", "icon": "file-text" },
+    { "key": "settings",  "label": "Settings", "icon": "settings" }
+  ]
+}
