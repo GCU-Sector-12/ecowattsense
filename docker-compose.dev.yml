@@ -1,0 +1,39 @@
+# EcoWattSense local development stack with hot reload.
+# Run: docker compose -f docker-compose.dev.yml up
+# Dashboard: http://localhost:5173 (Vite, proxies /api to the server)
+# API:       http://localhost:8000 (uvicorn --reload)
+# Edit files in dashboard/ or server/ and the change shows at once. No npm run dev needed.
+name: ecowattsense-dev
+
+services:
+  server:
+    build: ./server
+    command: ["uvicorn", "ecowattsense_server.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - ECOWATTSENSE_DB_PATH=/app/data/ecowattsense.db
+    volumes:
+      - ./server:/app/server
+      - ./data:/app/data
+
+  front:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "127.0.0.1:5173:5173"
+    environment:
+      - API_PROXY_TARGET=http://server:8000
+    volumes:
+      - ./dashboard:/app
+      # Linux node_modules stay in a volume, so they do not clash with the Mac ones.
+      - front_node_modules:/app/node_modules
+    depends_on:
+      - server
+
+volumes:
+  front_node_modules:
