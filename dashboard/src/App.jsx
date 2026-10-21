@@ -1,5 +1,5 @@
 import { AppShell } from '@mantine/core'
-import data from '../../docs/design/dashboard-sample-data.json'
+import data from './mock/dashboard-sample-data.json'
 import useHash from './useHash.js'
 import Sidebar from './components/Sidebar.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
