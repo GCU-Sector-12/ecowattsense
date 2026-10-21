@@ -3,7 +3,8 @@
 `DeviceReport` is an immutable outbound model for exactly the ten required fields
 in `shared/report_schema.json`. Use `ReportJson.Serialize(report)` for the wire JSON.
 It uses built-in System.Text.Json. Worker now supplies measurements to ReportInterval
-and logs completed JSON. No reports are sent or buffered; skips and shutdown discard data.
+and logs completed JSON in default local-only mode. Opt-in server mode sends reports once;
+see Communication/README.md. No reports are buffered; skips and shutdown discard data.
 
 Every constructor argument is required. If any measurement or classification is
 unknown, the caller must wait or otherwise handle that condition, not replace it

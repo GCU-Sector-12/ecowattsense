@@ -1,12 +1,13 @@
 using EcoWattSense.Client.Monitoring;
 using EcoWattSense.Client.Reporting;
 using System.Diagnostics;
+using EcoWattSense.Client.Communication;
 
 namespace EcoWattSense.Client;
 
 public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonitor, CpuMonitor cpuMonitor,
     WindowsSessionMonitor sessionMonitor, WindowsPowerMonitor powerMonitor,
-    StateClassifier stateClassifier, ReportInterval reportInterval) : BackgroundService
+    StateClassifier stateClassifier, ReportInterval reportInterval, ServerClient server) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -76,7 +77,28 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
             if (result.SkipReason is { } reason)
                 logger.LogWarning("Report skipped: {Reason}", reason);
             if (result.Report is { } report)
-                logger.LogInformation("Report generated locally (not sent or buffered): {ReportJson}", ReportJson.Serialize(report));
+            {
+                if (!server.Enabled)
+                    logger.LogInformation("Report generated locally (not sent or buffered): {ReportJson}", ReportJson.Serialize(report));
+                else
+                {
+                    try
+                    {
+                        var sent = await server.SendReportAsync(report, stoppingToken);
+                        if (sent.Outcome is ReportOutcome.Accepted or ReportOutcome.Duplicate)
+                            logger.LogInformation("Report {DeviceId} at {Timestamp:O}: {Outcome}", report.DeviceId, report.Timestamp, sent.Outcome);
+                        else
+                            logger.LogWarning("Report {DeviceId} at {Timestamp:O}: {Outcome}; dropped without retry or buffering ({Reason})",
+                                report.DeviceId, report.Timestamp, sent.Outcome, sent.Reason);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        logger.LogInformation("Report {DeviceId} at {Timestamp:O}: dropped on shutdown; acceptance unknown, no buffering",
+                            report.DeviceId, report.Timestamp);
+                        return;
+                    }
+                }
+            }
 
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
