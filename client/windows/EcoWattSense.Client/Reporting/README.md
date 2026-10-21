@@ -54,7 +54,7 @@ sample splitting occur. See Monitoring/CPU-intervals.md for the ownership protoc
 From the repository root, a short Windows manual test with the existing test identity:
 
 ```powershell
-dotnet run --project .\client\EcoWattSense.Client -- --Reporting:IntervalSeconds=15 --Reporting:DeviceType=laptop --DeviceIdentity:Directory="$env:TEMP\EcoWattSense-ManualIdentityTest"
+dotnet run --project .\client\windows\EcoWattSense.Client -- --Reporting:IntervalSeconds=15 --Reporting:DeviceType=laptop --DeviceIdentity:Directory="$env:TEMP\EcoWattSense-ManualIdentityTest"
 ```
 
 Expect five-second measurement logs and a locally generated JSON report after approximately

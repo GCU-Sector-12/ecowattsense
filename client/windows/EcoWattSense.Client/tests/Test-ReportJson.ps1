@@ -34,7 +34,7 @@ function Assert-Rejected([hashtable] $overrides) {
 
 $report = New-Report
 $json = [EcoWattSense.Client.Reporting.ReportJson]::Serialize($report)
-$schema = Get-Content -Raw (Join-Path $PSScriptRoot '../../../shared/report_schema.json') | ConvertFrom-Json
+$schema = Get-Content -Raw (Join-Path $PSScriptRoot '../../../../shared/report_schema.json') | ConvertFrom-Json
 $document = [System.Text.Json.JsonDocument]::Parse($json)
 try {
     $root = $document.RootElement

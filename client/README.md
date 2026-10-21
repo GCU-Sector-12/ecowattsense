@@ -1,19 +1,31 @@
 # Monitoring client
 
-Runs on each computer. Reads idle time, CPU load and screen lock, decides Active / Idle / Unused and sends a report to the server every 5 minutes.
+The Windows client monitors user inactivity, CPU usage, screen lock and battery/mains power. It classifies activity as Active, Idle or Unused and generates reports.
 
-Layout (empty for now, filled after the stack decision in ADR-001):
+Server communication is disabled by default. The default reporting interval is 300 seconds.
 
+## Layout
+
+```text
+client/
+  windows/
+    EcoWattSense.Client/        Windows monitoring client
+    EcoWattSense.Client.Tray/   Future tray app, if needed
+  linux/                       Future Linux client
+  macos/                       Future macOS client
+  spike/                       Small test scripts
 ```
-ecowattsense_client/
-  main.py        loop: read, decide state, send
-  state.py       rules for Active / Idle / Unused
-  reporter.py    HTTP POST /api/reports, retry, offline buffer
-  config.py      settings from .env and command line
-  platform/      one module per operating system behind a common interface
-    base.py      abstract class: idle_seconds(), cpu_load(), is_locked(), power()
-    windows.py   first target
-    linux.py     second
-    macos.py     last
-tests/
+
+The tray app, Linux client and macOS client are not implemented yet.
+
+## Run on Windows
+
+Requires the .NET 10 SDK. From the repository root:
+
+```powershell
+dotnet run --project ./client/windows/EcoWattSense.Client -- --Reporting:DeviceType=laptop
 ```
+
+Use `desktop` instead of `laptop` when appropriate.
+
+See the project's Reporting and Communication READMEs for configuration and test instructions.
