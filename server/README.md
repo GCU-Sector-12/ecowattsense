@@ -26,7 +26,7 @@ python scripts/server.py test     # pytest in server/tests
 
 On macOS and Linux use `python3` instead of `python`. Extra arguments go to the tool, for example `python scripts/server.py test -v` or `python scripts/server.py run --port 8080`.
 
-Check that it is up: open http://localhost:8000/api/health, you should see `{"status": "ok"}`. The interactive API docs are at http://localhost:8000/docs.
+Check that it is up: open http://localhost:8000/api/health, you should see `{"status": "ok"}`.
 
 By hand, without the script:
 
@@ -40,3 +40,10 @@ pytest
 ```
 
 Settings come from `.env` in the repository root, see `.env.example`.
+
+## API docs and API contract
+
+The docs of the API that is implemented are at http://localhost:8000/api/docs.
+The API contract is at http://localhost:8000/api/contract, as a Swagger UI page. The raw file is at `/api/contract/openapi.yaml` and as JSON at `/api/contract/openapi.json`.
+The server reads the contract from `shared/openapi-contract.yaml`. To use another file, set `ECOWATTSENSE_CONTRACT_PATH`.
+All of these are under `/api`, so they also work on staging through the proxy.
