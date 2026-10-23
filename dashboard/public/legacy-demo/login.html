@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+
+  <a href="index.html" class="login-home-link">← Back to home</a>
+
+  <div class="login-box">
+    <div class="logo big">⚡ EcoWattSense</div>
+    <span class="login-kicker">SECURE DASHBOARD ACCESS</span>
+    <h1>Welcome back</h1>
+    <p>Sign in to access the EcoWattSense monitoring dashboard.</p>
+
+    <form id="loginForm">
+      <label for="username">Username</label>
+      <input id="username" type="text" placeholder="Enter username" autocomplete="username" required>
+
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="Enter password" autocomplete="current-password" required>
+
+      <p id="loginError" class="error"></p>
+
+      <button type="submit" class="btn full">Log In</button>
+      <p class="auth-switch">No account yet? <a href="register.html">Create an account</a></p>
+    </form>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

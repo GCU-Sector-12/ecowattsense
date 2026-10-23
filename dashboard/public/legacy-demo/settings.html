@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page" data-page="settings">
+  <aside class="sidebar">
+    <a class="logo sidebar-logo" href="dashboard.html">⚡ EcoWattSense</a>
+
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" href="dashboard.html">▦ <span>Dashboard</span></a>
+      <a data-page="computers" href="computers.html">🖥 <span>Computers</span></a>
+      <a data-page="energy" href="energy.html">⚡ <span>Energy Usage</span></a>
+      <a data-page="reports" href="reports.html">▤ <span>Reports</span></a>
+      <a data-page="settings" href="settings.html">⚙ <span>Settings</span></a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="system-online">
+        <i></i>
+        <span><strong>System online</strong><small>Monitoring active</small></span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="dashboard">
+    <header class="dash-head app-page-head">
+      <div>
+        <span class="page-kicker">CONFIGURATION</span>
+        <h1>Settings</h1>
+        <p>Adjust the monitoring preferences used by the EcoWattSense prototype.</p>
+      </div>
+      <div class="header-actions">
+        <span class="live">● Live</span>
+        <div class="user-pill">
+          <span class="user-avatar">A</span>
+          <span><strong>Administrator</strong><small>EcoWattSense</small></span>
+        </div>
+      </div>
+    </header>
+
+    <form class="settings-layout" id="settingsForm">
+      <section class="panel settings-card">
+        <span class="panel-kicker">MONITORING</span>
+        <h2>Activity settings</h2>
+
+        <label>
+          Idle threshold
+          <span>Minutes before an inactive computer is treated as idle.</span>
+          <div class="input-with-unit">
+            <input id="idleThreshold" type="number" min="1" max="120" value="10">
+            <em>minutes</em>
+          </div>
+        </label>
+
+        <label>
+          Update interval
+          <span>How often the prototype dashboard refreshes its simulated readings.</span>
+          <select id="updateInterval">
+            <option value="3000">3 seconds</option>
+            <option value="5000" selected>5 seconds</option>
+            <option value="10000">10 seconds</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="panel settings-card">
+        <span class="panel-kicker">ENERGY</span>
+        <h2>Estimation settings</h2>
+
+        <label>
+          Electricity rate
+          <span>Used to estimate running cost.</span>
+          <div class="input-with-unit">
+            <input id="electricityRate" type="number" min="0" step="0.01" value="0.25">
+            <em>£/kWh</em>
+          </div>
+        </label>
+
+        <label>
+          CO₂ factor
+          <span>Used for the prototype environmental estimate.</span>
+          <div class="input-with-unit">
+            <input id="co2Factor" type="number" min="0" step="0.001" value="0.195">
+            <em>kg/kWh</em>
+          </div>
+        </label>
+      </section>
+
+      <section class="panel settings-card settings-wide">
+        <span class="panel-kicker">INTERFACE</span>
+        <h2>Dashboard preferences</h2>
+
+        <div class="toggle-row">
+          <div>
+            <strong>Live status indicator</strong>
+            <span>Show the live monitoring badge in the dashboard header.</span>
+          </div>
+          <label class="switch">
+            <input id="liveIndicator" type="checkbox" checked>
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-actions">
+          <button class="btn" type="submit">Save Settings</button>
+          <span id="settingsMessage"></span>
+        </div>
+      </section>
+    </form>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
