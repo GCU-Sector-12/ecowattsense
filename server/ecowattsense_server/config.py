@@ -16,10 +16,16 @@ class Settings(BaseSettings):
     server_url: str = "http://localhost:8000"
     db_path: str = "./data/ecowattsense.db"
     api_key: str = ""
+    contract_path: str = "shared/openapi-contract.yaml"
 
     @property
     def db_file(self) -> Path:
         path = Path(self.db_path)
+        return path if path.is_absolute() else (ROOT / path).resolve()
+
+    @property
+    def contract_file(self) -> Path:
+        path = Path(self.contract_path)
         return path if path.is_absolute() else (ROOT / path).resolve()
 
     @property
