@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page" data-page="dashboard">
+  <aside class="sidebar">
+    <a class="logo sidebar-logo" href="dashboard.html">⚡ EcoWattSense</a>
+
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" href="dashboard.html">▦ <span>Dashboard</span></a>
+      <a data-page="computers" href="computers.html">🖥 <span>Computers</span></a>
+      <a data-page="energy" href="energy.html">⚡ <span>Energy Usage</span></a>
+      <a data-page="reports" href="reports.html">▤ <span>Reports</span></a>
+      <a data-page="settings" href="settings.html">⚙ <span>Settings</span></a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="system-online">
+        <i></i>
+        <span><strong>System online</strong><small>Monitoring active</small></span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="dashboard">
+    <header class="dash-head app-page-head">
+      <div>
+        <span class="page-kicker">OVERVIEW</span>
+        <h1>Energy Dashboard</h1>
+        <p>Live computer activity and estimated energy usage.</p>
+      </div>
+      <div class="header-actions">
+        <span class="live">● Live</span>
+        <div class="user-pill">
+          <span class="user-avatar">A</span>
+          <span><strong>Administrator</strong><small>EcoWattSense</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats">
+      <article class="stat">
+        <span>ACTIVE COMPUTERS</span>
+        <strong id="activeCount">12</strong>
+        <small>Currently in use</small>
+      </article>
+
+      <article class="stat">
+        <span>IDLE COMPUTERS</span>
+        <strong id="idleCount">5</strong>
+        <small>Waiting for activity</small>
+      </article>
+
+      <article class="stat">
+        <span>UNUSED COMPUTERS</span>
+        <strong id="unusedCount">3</strong>
+        <small>Potential energy waste</small>
+      </article>
+
+      <article class="stat stat-green">
+        <span>CURRENT POWER</span>
+        <strong><span id="powerNow">824</span> W</strong>
+        <small>Estimated live usage</small>
+      </article>
+    </section>
+
+    <section class="dashboard-grid" id="energy">
+      <article class="panel chart-panel">
+        <div class="panel-title-row">
+          <div>
+            <span class="panel-kicker">LIVE ENERGY</span>
+            <h2>Power Usage</h2>
+          </div>
+          <div class="right-metric">
+            <strong id="dashboardEnergyToday">9.84 kWh</strong>
+            <span>Today</span>
+          </div>
+        </div>
+        <canvas id="energyChart" width="800" height="260"></canvas>
+      </article>
+
+      <article class="panel status-panel">
+        <span class="panel-kicker">DEVICE STATUS</span>
+        <h2>Computer Status</h2>
+        <canvas id="statusChart" width="320" height="260"></canvas>
+        <div class="chart-legend">
+          <span><i class="legend-active"></i>Active</span>
+          <span><i class="legend-idle"></i>Idle</span>
+          <span><i class="legend-unused"></i>Unused</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="mini-metrics">
+      <article class="panel mini-metric">
+        <span>ESTIMATED COST TODAY</span>
+        <strong id="dashboardCost">£2.46</strong>
+      </article>
+      <article class="panel mini-metric">
+        <span>ESTIMATED CO₂ TODAY</span>
+        <strong id="dashboardCo2">1.92 kg</strong>
+      </article>
+      <article class="panel mini-metric">
+        <span>LAST UPDATE</span>
+        <strong id="lastUpdated">Just now</strong>
+      </article>
+    </section>
+
+    <section class="panel" id="computers">
+      <div class="table-header">
+        <div>
+          <span class="panel-kicker">MONITORED DEVICES</span>
+          <h2>Computer Activity</h2>
+        </div>
+        <div class="table-actions">
+          <input id="searchBox" placeholder="Search computers">
+          <a href="computers.html" class="small-link-btn">View all</a>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Computer</th>
+              <th>Status</th>
+              <th>Power</th>
+              <th>Energy Today</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
