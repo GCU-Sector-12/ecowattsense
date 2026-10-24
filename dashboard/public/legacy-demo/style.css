@@ -7,7 +7,7 @@
   text-align:center;color:#fff6f6;
   text-shadow: black 0px 0px 1px, black 0px 0px 1px, black 0px 0px 1px;
   /*background:radial-gradient(circle at 20% 20%,rgba(254, 255, 254, 0.35),transparent 32%),linear-gradient(135deg,#06271f,#0c4c37,#1b7652);*/
-  background-image: url('/EcoWattSenseBg1.png');
+  background-image: url('EcoWattSenseBg1.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
