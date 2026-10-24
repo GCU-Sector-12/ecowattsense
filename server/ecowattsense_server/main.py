@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .api import contract, health
+from .api import auth, contract, health
 from .db import init_db
 
 
@@ -24,3 +24,4 @@ app = FastAPI(
 )
 app.include_router(health.router)
 app.include_router(contract.router)
+app.include_router(auth.router)
