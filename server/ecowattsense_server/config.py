@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     admin_username: str = Field(default="", validation_alias="EWS_ADMIN_USERNAME")
     admin_password: str = Field(default="", validation_alias="EWS_ADMIN_PASSWORD", repr=False)
     session_lifetime_seconds: int = Field(default=28800, gt=0)
+    report_interval_seconds: int = Field(default=300, gt=0)
+    ping_interval_seconds: int = Field(default=60, gt=0)
+    idle_threshold_seconds: int = Field(default=600, ge=0)
+    unused_threshold_seconds: int = Field(default=3600, ge=0)
+    no_data_after_cycles: int = Field(default=3, gt=0)
     contract_path: str = "shared/openapi-contract.yaml"
 
     @property
