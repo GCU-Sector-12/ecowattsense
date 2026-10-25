@@ -47,3 +47,15 @@ The docs of the API that is implemented are at http://localhost:8000/api/docs.
 The API contract is at http://localhost:8000/api/contract, as a Swagger UI page. The raw file is at `/api/contract/openapi.yaml` and as JSON at `/api/contract/openapi.json`.
 The server reads the contract from `shared/openapi-contract.yaml`. To use another file, set `ECOWATTSENSE_CONTRACT_PATH`.
 All of these are under `/api`, so they also work on staging through the proxy.
+
+## Admin sessions (EWS_API-10)
+
+Set `EWS_ADMIN_USERNAME` and `EWS_ADMIN_PASSWORD` in the root `.env` before
+logging in. Empty credentials never permit login. POST JSON to `/api/login`;
+reuse its `ews_session` cookie for dashboard requests and `/api/logout`.
+Sessions expire after eight hours and logout revokes the token on the server.
+Cookies are HttpOnly, SameSite=Lax, and Secure on HTTPS. The existing Uvicorn
+proxy configuration supplies the HTTPS scheme behind the staging proxy.
+
+The W6 session store is in memory: use one server worker. A restart logs everyone
+out. Multiple workers or replicas need a shared session store first.

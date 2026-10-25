@@ -15,6 +15,7 @@ from pydantic import (
     Field,
     StrictBool,
     StrictInt,
+    SecretStr,
     model_validator,
 )
 
@@ -92,3 +93,14 @@ class ReportResults(BaseModel):
     """The reply of POST /api/reports: one result for each report, in the same order."""
 
     results: list[ReportResult]
+
+
+class LoginIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    username: str
+    password: SecretStr
+
+
+class LoginOut(BaseModel):
+    username: str
