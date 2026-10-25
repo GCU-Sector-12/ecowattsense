@@ -188,3 +188,27 @@ class DashboardDevice(BaseModel):
 
 class DevicesOut(BaseModel):
     devices: list[DashboardDevice]
+
+
+class StateCounts(BaseModel):
+    active: int
+    idle: int
+    unused: int
+    no_data: int
+    total: int
+
+
+class EnergyPoint(BaseModel):
+    timestamp: AwareDatetime
+    energy_uj: int
+
+
+class SummaryOut(BaseModel):
+    date: str
+    counts: StateCounts
+    energy_uj: int
+    cost_gbp: float
+    co2_kg: float
+    price_gbp_per_kwh: float
+    co2_kg_per_kwh: float
+    series: list[EnergyPoint]
