@@ -7,6 +7,7 @@ come from docs/design/api-contract.md, section 5.4 (POST /api/reports).
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal, Optional, Union
 from uuid import UUID
+import unicodedata
 
 from pydantic import (
     AwareDatetime,
@@ -17,6 +18,7 @@ from pydantic import (
     StrictInt,
     SecretStr,
     model_validator,
+    field_validator,
 )
 
 # A report may be at most this far ahead of the server clock (contract 5.4).
@@ -104,3 +106,66 @@ class LoginIn(BaseModel):
 
 class LoginOut(BaseModel):
     username: str
+
+
+class SettingsOut(BaseModel):
+    settings_version: int
+    report_interval_seconds: int
+    ping_interval_seconds: int
+    idle_threshold_seconds: int
+    unused_threshold_seconds: int
+    no_data_after_cycles: int
+    tariff_valid_from: AwareDatetime
+    price_gbp_per_kwh: float
+    co2_kg_per_kwh: float
+
+
+class Ack(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: StrictInt
+    result: Literal["done", "failed", "unsupported"]
+
+
+class PingIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_id: UUID
+    unsent_reports: Annotated[StrictInt, Field(ge=0)]
+    acks: list[Ack] = Field(default_factory=list)
+
+
+class CommandOut(BaseModel):
+    id: int
+    type: str
+    params: dict
+    expires_at: AwareDatetime
+
+
+class PingOut(BaseModel):
+    settings_version: int
+    commands: list[CommandOut]
+    registered: bool
+
+
+class DeviceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_name: str | None = Field(default=None, max_length=60)
+    os: Literal["windows", "linux", "macos"]
+    device_type: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=40)]
+
+    @field_validator("device_name", mode="before")
+    @classmethod
+    def clean_name(cls, value):
+        if isinstance(value, str):
+            if any(unicodedata.category(char) == "Cc" for char in value):
+                raise ValueError("device_name must not contain control characters")
+            return value.strip() or None
+        return value
+
+
+class DeviceOut(BaseModel):
+    device_id: UUID
+    device_name: str | None
+    created: bool
