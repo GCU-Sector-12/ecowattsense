@@ -1,5 +1,12 @@
 """Device registration. W6 stub: acknowledges the name without storing it."""
 from uuid import UUID
+from datetime import datetime, timezone
+from typing import Annotated
+from sqlmodel import Session
+
+from ..config import settings
+from ..db import get_session
+from ..dashboard_store import devices_from_database
 
 from fastapi import APIRouter, Depends
 
@@ -18,9 +25,11 @@ def register_device(device_id: UUID, body: DeviceIn) -> DeviceOut:
 
 
 @router.get("/devices", response_model=DevicesOut, dependencies=[Depends(require_admin)])
-def list_devices(location_id: int | None = None, include_archived: bool = False) -> DevicesOut:
+def list_devices(session: Annotated[Session, Depends(get_session)], location_id: int | None = None, include_archived: bool = False) -> DevicesOut:
+    source = (devices_from_database(session, datetime.now(timezone.utc))
+              if settings.dashboard_data_source == "database" else demo_devices())
     devices = [
-        device for device in demo_devices()
+        device for device in source
         if (location_id is None or device.location_id == location_id)
         and (include_archived or not device.archived)
     ]

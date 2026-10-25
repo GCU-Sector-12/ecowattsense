@@ -1,5 +1,6 @@
 # ecowattsense_server/config.py
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,6 +26,7 @@ class Settings(BaseSettings):
     idle_threshold_seconds: int = Field(default=600, ge=0)
     unused_threshold_seconds: int = Field(default=3600, ge=0)
     no_data_after_cycles: int = Field(default=3, gt=0)
+    dashboard_data_source: Literal["stub", "database"] = "stub"
     contract_path: str = "shared/openapi-contract.yaml"
 
     @property
