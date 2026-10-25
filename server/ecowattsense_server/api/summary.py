@@ -1,7 +1,7 @@
 """W6 summary fixture: a full UK day of sample buckets (contract 5.10).
 
-The W6 task explicitly asks for a full chart, including future buckets. The W7
-live endpoint will omit future buckets and read reports and historical tariffs.
+The W6 task explicitly asks for a full chart, including future buckets. Database
+mode omits future buckets and reads reports and historical tariffs.
 """
 from datetime import date as Date, datetime, time, timedelta, timezone
 from decimal import Decimal
@@ -11,7 +11,12 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
 
+from sqlmodel import Session
+
 from ..auth import require_admin
+from ..config import settings
+from ..db import get_session
+from ..dashboard_store import summary_from_database
 from ..schemas import EnergyPoint, StateCounts, SummaryOut
 
 router = APIRouter(prefix="/api", tags=["summary"], dependencies=[Depends(require_admin)])
@@ -30,7 +35,7 @@ def day_buckets(day: Date) -> list[datetime]:
 
 
 @router.get("/summary", response_model=SummaryOut)
-def summary(date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None) -> SummaryOut:
+def summary(session: Annotated[Session, Depends(get_session)], date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] = None) -> SummaryOut:
     try:
         day = Date.fromisoformat(date) if date is not None else uk_today()
         buckets = day_buckets(day)
@@ -39,6 +44,8 @@ def summary(date: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}-\d{2}$")] =
             "type": "value_error", "loc": ("query", "date"),
             "msg": "date must be a supported YYYY-MM-DD calendar date", "input": date,
         }]) from exc
+    if settings.dashboard_data_source == "database":
+        return summary_from_database(session, day, datetime.now(timezone.utc))
     series = [EnergyPoint(timestamp=start, energy_uj=900_000_000_000) for start in buckets]
     energy = sum(point.energy_uj for point in series)
     kwh = Decimal(energy) / Decimal(3_600_000_000_000)

@@ -212,3 +212,41 @@ class SummaryOut(BaseModel):
     price_gbp_per_kwh: float
     co2_kg_per_kwh: float
     series: list[EnergyPoint]
+
+
+class HistoryReport(BaseModel):
+    timestamp: AwareDatetime
+    interval_seconds: int
+    state: Literal[2, 1, 0]
+    idle_seconds: int
+    cpu_percent: float
+    screen_locked: bool
+    on_battery: bool
+    energy_uj: int
+    energy_source: Literal["measured", "estimated"]
+
+
+class HistoryTotals(BaseModel):
+    active_time_seconds: int = 0
+    idle_time_seconds: int = 0
+    unused_time_seconds: int = 0
+    energy_uj: int = 0
+    cost_gbp: float = 0
+    co2_kg: float = 0
+
+
+class HistoryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    device_id: UUID
+    display_name: str | None
+    from_time: AwareDatetime = Field(alias="from")
+    to_time: AwareDatetime = Field(alias="to")
+    reports: list[HistoryReport]
+    totals: HistoryTotals
+
+
+class Tariff(BaseModel):
+    valid_from: AwareDatetime
+    price_gbp_per_kwh: float
+    co2_kg_per_kwh: float
