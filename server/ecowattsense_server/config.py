@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     server_url: str = "http://localhost:8000"
     db_path: str = "./data/ecowattsense.db"
     client_key: str = Field(default="", validation_alias="EWS_CLIENT_KEY", repr=False)
+    admin_username: str = Field(default="", validation_alias="EWS_ADMIN_USERNAME")
+    admin_password: str = Field(default="", validation_alias="EWS_ADMIN_PASSWORD", repr=False)
+    session_lifetime_seconds: int = Field(default=28800, gt=0)
     contract_path: str = "shared/openapi-contract.yaml"
 
     @property
