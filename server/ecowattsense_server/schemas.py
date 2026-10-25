@@ -169,3 +169,22 @@ class DeviceOut(BaseModel):
     device_id: UUID
     device_name: str | None
     created: bool
+
+
+class DashboardDevice(BaseModel):
+    device_id: UUID
+    display_name: str | None
+    location_id: int | None
+    location_name: str | None
+    building: str | None
+    os: Literal["windows", "linux", "macos"]
+    device_type: str
+    state: Literal[2, 1, 0] | None
+    state_name: Literal["active", "idle", "unused", "no_data"]
+    last_seen_at: AwareDatetime
+    first_seen_at: AwareDatetime
+    archived: bool
+
+
+class DevicesOut(BaseModel):
+    devices: list[DashboardDevice]
