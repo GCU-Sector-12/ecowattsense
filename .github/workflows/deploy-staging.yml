@@ -8,6 +8,12 @@
 #   STAGING_HOST     address of the VM
 #   STAGING_USER     user on the VM
 #   DISCORD_WEBHOOK_URL  Discord webhook of the #github channel (optional, for the result message)
+#   EWS_CLIENT_KEY       shared secret of the clients (optional, an empty one is not sent)
+#   EWS_ADMIN_USERNAME   dashboard admin user name (optional, an empty one is not sent)
+#   EWS_ADMIN_PASSWORD   dashboard admin password (optional, an empty one is not sent)
+#
+# To add a new secret: add one line in the env: block of the deploy step
+# and add its name to the for list in the same step.
 #
 # Push events never expose secrets to pull requests from forks.
 name: Deploy staging
@@ -20,6 +26,7 @@ on:
       - "dashboard/**"
       - "docker-compose.yml"
       - ".env.example"
+      - "deploy/staging.env"
       - "scripts/deploy.sh"
       - ".github/workflows/deploy-staging.yml"
   workflow_dispatch:
@@ -52,11 +59,24 @@ jobs:
       - name: Run deploy on the VM
         # The word "deploy" is a placeholder. The key on the VM has a forced
         # command in authorized_keys that always runs scripts/deploy.sh auto,
-        # so whatever is sent here is ignored.
+        # so the command word is ignored. The script reads the settings from stdin.
+        # The first line is a marker. The other lines are NAME=value, secrets only.
         # The ssh output is the deploy log. The step fails when deploy.sh fails.
+        env:
+          EWS_CLIENT_KEY: ${{ secrets.EWS_CLIENT_KEY }}
+          EWS_ADMIN_USERNAME: ${{ secrets.EWS_ADMIN_USERNAME }}
+          EWS_ADMIN_PASSWORD: ${{ secrets.EWS_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
+          emit_setting() {
+            local value="${!1:-}"
+            [ -n "$value" ] || return 0
+            case "$value" in
+              *$'\n'*) echo "::error::$1 contains a newline"; exit 1 ;;
+            esac
+            printf '%s=%s\n' "$1" "$value"
+          }
+          { echo "# ews-env v1"; for name in EWS_CLIENT_KEY EWS_ADMIN_USERNAME EWS_ADMIN_PASSWORD; do emit_setting "$name"; done; } | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
 
       - name: Tell Discord
         # One short message per run on the #github channel. Runs on success and on failure.
