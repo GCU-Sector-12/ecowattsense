@@ -31,3 +31,7 @@ scripts/deploy.sh [auto|server|front|all] [--dry-run]
 ```
 
 `auto` is the default. It fetches `origin/dev`, rebuilds only the service whose folder changed, and checks `/api/health`. `--dry-run` shows what would be built and changes nothing. Setup and logs: `docs/design/deployment-staging.md`.
+
+It also reads settings from `deploy/staging.env` (in `origin/dev`) and from stdin. Stdin counts only when its first line is the marker `# ews-env v1`.
+It writes the settings to `.env` and prints key names only. A changed `.env` recreates the `server` container.
+`scripts/test-deploy-env.sh` runs the tests for this part.

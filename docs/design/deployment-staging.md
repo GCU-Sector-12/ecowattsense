@@ -54,3 +54,42 @@ docker compose logs -f server
 journalctl -u ecowattsense-deploy
 systemctl list-timers ecowattsense-deploy.timer
 ```
+
+## 6. Settings and secrets
+
+Staging gets its server settings from GitHub on every deploy. Nobody edits `~/ecowattsense/.env` on the VM by hand.
+
+- Normal settings live in `deploy/staging.env` in the repo. The deploy applies the file on every deploy. This repository is public, so everything in that file is public too.
+- Secrets live in GitHub Actions secrets: `EWS_CLIENT_KEY`, `EWS_ADMIN_USERNAME` and `EWS_ADMIN_PASSWORD`. The workflow sends them over the same SSH connection, on stdin. The first line is the marker `# ews-env v1`. Stdin without the marker is ignored.
+- A secret that is empty or not set is not sent.
+
+### Change a normal setting
+
+1. Edit `deploy/staging.env`.
+2. Open a pull request to `dev` and merge it.
+3. The workflow starts and the deploy applies the new value.
+
+### Add or rotate a secret
+
+1. Run `gh secret set NAME --repo GCU-Sector-12/ecowattsense`.
+2. Start the workflow by hand: Actions, Deploy staging, Run workflow.
+
+To add a new secret name, see the header of `.github/workflows/deploy-staging.yml`.
+
+### What the script does
+
+- Only keys that start with `EWS_` or `ECOWATTSENSE_` are accepted. Other lines are skipped.
+- The script prints key names only, never values. For example `env: updated EWS_CLIENT_KEY` or `env: unchanged`.
+- A value from stdin wins over the same key in `deploy/staging.env`.
+- Before a change, the old file is copied to `.env.bak` (mode 600). The new `.env` has mode 600.
+- The VM owns these keys and the script never touches them: `ECOWATTSENSE_FRONT_BIND`, `ECOWATTSENSE_FRONT_PORT`, `ECOWATTSENSE_UID` and `ECOWATTSENSE_GID`.
+
+### What happens to the running server
+
+When `.env` changes, the `server` container is recreated, even if no code changed. Admin sessions end, because they live in memory. Users log in again.
+
+### Notes
+
+- First run: the first deploy after this change runs the old `deploy.sh` that is already on the VM. It ignores stdin. Run the workflow a second time.
+- `/api` is public through Cloudflare (bypass). Use a long random admin password.
+- Tests for the script: `scripts/test-deploy-env.sh`.
