@@ -35,3 +35,21 @@ scripts/deploy.sh [auto|server|front|all] [--dry-run]
 It also reads settings from `deploy/staging.env` (in `origin/dev`) and from stdin. Stdin counts only when its first line is the marker `# ews-env v1`.
 It writes the settings to `.env` and prints key names only. A changed `.env` recreates the `server` container.
 `scripts/test-deploy-env.sh` runs the tests for this part.
+
+## check_report.py
+
+Checks report files against `shared/report_schema.json`, so a wrong example or a wrong schema is found before the merge. CI runs it on every pull request. It needs Python 3.8 or newer and two packages:
+
+```bash
+pip install -r scripts/requirements-check.txt
+```
+
+A file holds one report (a JSON object) or a list of reports. Every report gets one line, `OK` or one `FAIL` line for each problem. The last line is a summary, for example `3 reports checked, 0 failed`.
+
+```bash
+python scripts/check_report.py                      # the files in shared/examples
+python scripts/check_report.py report.json          # one file
+python scripts/check_report.py a.json b.json        # several files
+```
+
+Exit codes: `0` all reports are valid, `1` at least one report is invalid, `2` a file or the schema cannot be read (the reason is on stderr).
