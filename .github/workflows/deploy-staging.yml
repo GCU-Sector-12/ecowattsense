@@ -76,7 +76,9 @@ jobs:
             esac
             printf '%s=%s\n' "$1" "$value"
           }
-          { echo "# ews-env v1"; for name in EWS_CLIENT_KEY EWS_ADMIN_USERNAME EWS_ADMIN_PASSWORD; do emit_setting "$name"; done; } | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
+          # Build the payload first. A bad secret stops the step before ssh runs.
+          payload="$({ echo "# ews-env v1"; for name in EWS_CLIENT_KEY EWS_ADMIN_USERNAME EWS_ADMIN_PASSWORD; do emit_setting "$name"; done; })"
+          printf '%s\n' "$payload" | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}" deploy
 
       - name: Tell Discord
         # One short message per run on the #github channel. Runs on success and on failure.
