@@ -27,8 +27,8 @@ Output, one line per report
 Exit codes
     0  every report is valid
     1  at least one report is invalid
-    2  usage or file problem (file missing, not valid JSON, schema missing);
-       the reason is printed on stderr
+    2  usage or file problem (file missing, not valid JSON, schema missing,
+       or no reports found to check); the reason is printed on stderr
 """
 
 import json
@@ -145,12 +145,24 @@ def default_files():
     return sorted(str(path) for path in EXAMPLES_DIR.glob("*.json"))
 
 
+def require_reports(results):
+    """Raise UsageError if no report was found to check.
+
+    Why: "0 reports checked, 0 failed" with exit code 0 looks like a pass, but
+    nothing was checked. This happens when shared/examples is empty or moved,
+    or when a file holds an empty list. CI must not go green in that case.
+    """
+    if sum(count for _, count, _ in results) == 0:
+        raise UsageError("no reports found, nothing was checked")
+
+
 def main(argv):
     """Run the checker for the files in argv (or the examples). Return the exit code."""
     paths = argv or default_files()
     try:
         validator = make_validator()
         results = [check_file(validator, path) for path in paths]
+        require_reports(results)
     except UsageError as error:
         print(error, file=sys.stderr)
         return 2
