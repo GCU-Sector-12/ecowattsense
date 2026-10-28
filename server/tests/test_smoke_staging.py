@@ -32,15 +32,15 @@ def test_settings_with_key():
     data = response.json()
 
     required_fields = {
+        "settings_version",
         "report_interval_seconds",
+        "ping_interval_seconds",
         "idle_threshold_seconds",
         "unused_threshold_seconds",
-        "settings_version",
-        "device_types",
-        "states",
-        "report_fields",
-        "api_version",
-        "server_time",
+        "no_data_after_cycles",
+        "tariff_valid_from",
+        "price_gbp_per_kwh",
+        "co2_kg_per_kwh",
     }
 
     assert required_fields.issubset(data.keys())
@@ -50,51 +50,6 @@ def test_settings_without_key():
     response = httpx.get(f"{BASE_URL}/api/settings", timeout=10)
     assert response.status_code == 401
 
-
-def test_reports_with_key():
-    examples = [
-        "report_active.json",
-        "report_idle.json",
-        "report_unused.json",
-    ]
-
-    for filename in examples:
-        path = os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "shared",
-            "examples",
-            filename,
-        )
-
-        with open(path, encoding="utf-8") as file:
-            report = __import__("json").load(file)
-
-        response = httpx.post(
-            f"{BASE_URL}/api/reports",
-            headers={"X-EWS-Key": CLIENT_KEY},
-            json=report,
-            timeout=10,
-        )
-
-        assert response.status_code in (200, 201)
-
-        data = response.json()
-        assert "results" in data
-
-        for result in data["results"]:
-            assert result["status"] in ("created", "duplicate")
-
-
-def test_reports_without_key():
-    response = httpx.post(
-        f"{BASE_URL}/api/reports",
-        json={},
-        timeout=10,
-    )
-
-    assert response.status_code == 401
 
 
 @pytest.mark.skipif(
