@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Energy Usage | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page" data-page="energy">
+  <aside class="sidebar">
+    <a class="logo sidebar-logo" href="dashboard.html">⚡ EcoWattSense</a>
+
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" href="dashboard.html">▦ <span>Dashboard</span></a>
+      <a data-page="computers" href="computers.html">🖥 <span>Computers</span></a>
+      <a data-page="energy" href="energy.html">⚡ <span>Energy Usage</span></a>
+      <a data-page="reports" href="reports.html">▤ <span>Reports</span></a>
+      <a data-page="settings" href="settings.html">⚙ <span>Settings</span></a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="system-online">
+        <i></i>
+        <span><strong>System online</strong><small>Monitoring active</small></span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="dashboard">
+    <header class="dash-head app-page-head">
+      <div>
+        <span class="page-kicker">ENERGY</span>
+        <h1>Energy Usage</h1>
+        <p>Explore estimated power consumption and usage trends across monitored computers.</p>
+      </div>
+      <div class="header-actions">
+        <span class="live">● Live</span>
+        <div class="user-pill">
+          <span class="user-avatar">A</span>
+          <span><strong>Administrator</strong><small>EcoWattSense</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats energy-stat-row">
+      <article class="stat">
+        <span>ENERGY TODAY</span>
+        <strong id="energyTodayValue">9.84 kWh</strong>
+        <small>All monitored computers</small>
+      </article>
+      <article class="stat">
+        <span>THIS WEEK</span>
+        <strong id="energyWeekValue">68.2 kWh</strong>
+        <small>Estimated total</small>
+      </article>
+      <article class="stat">
+        <span>ESTIMATED COST</span>
+        <strong id="energyCostValue">£17.05</strong>
+        <small>Current week</small>
+      </article>
+      <article class="stat stat-green">
+        <span>AVERAGE POWER</span>
+        <strong id="averagePowerValue">824 W</strong>
+        <small>Current estimate</small>
+      </article>
+    </section>
+
+    <section class="panel full-chart-panel">
+      <div class="panel-title-row">
+        <div>
+          <span class="panel-kicker">HISTORICAL TREND</span>
+          <h2>Energy consumption</h2>
+        </div>
+        <div class="period-tabs">
+          <button class="period-tab active-filter" data-period="day">Day</button>
+          <button class="period-tab" data-period="week">Week</button>
+          <button class="period-tab" data-period="month">Month</button>
+        </div>
+      </div>
+      <canvas id="energyUsageChart" width="1100" height="330"></canvas>
+    </section>
+
+    <section class="dashboard-grid energy-bottom-grid">
+      <article class="panel">
+        <span class="panel-kicker">TOP CONSUMERS</span>
+        <h2>Highest energy use</h2>
+        <div id="topConsumers" class="rank-list"></div>
+      </article>
+
+      <article class="panel">
+        <span class="panel-kicker">ESTIMATED IMPACT</span>
+        <h2>Energy summary</h2>
+        <div class="impact-box">
+          <div><span>Estimated cost today</span><strong id="impactCost">£2.46</strong></div>
+          <div><span>Estimated CO₂ today</span><strong id="impactCo2">1.92 kg</strong></div>
+          <div><span>Potential idle reduction</span><strong>12%</strong></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

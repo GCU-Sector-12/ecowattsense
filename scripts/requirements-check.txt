@@ -1,0 +1,14 @@
+# Packages for scripts/check_report.py (the report checker).
+#
+# Install with:  pip install -r scripts/requirements-check.txt
+#
+# This file is separate from server/requirements.txt on purpose. The checker
+# is a developer and CI tool. The server image must not get extra packages
+# that only a check needs, and the checker must not need the whole server.
+#
+# jsonschema          validates a report against shared/report_schema.json
+# rfc3339-validator   lets jsonschema check the "date-time" format
+#                     (check_report.py also checks the time zone itself,
+#                     so a missing package cannot hide a bad timestamp)
+jsonschema==4.26.0
+rfc3339-validator==0.1.4

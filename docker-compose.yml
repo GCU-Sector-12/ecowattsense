@@ -16,6 +16,8 @@ services:
       - ECOWATTSENSE_DB_PATH=/app/data/ecowattsense.db
     volumes:
       - ./data:/app/data
+      # The API contract file lives in shared/. The server shows it at /api/contract.
+      - ./shared:/app/shared:ro
     restart: unless-stopped
 
   # front: web server for the dashboard, proxies /api to the server (localhost only)

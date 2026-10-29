@@ -19,6 +19,8 @@ services:
     volumes:
       - ./server:/app/server
       - ./data:/app/data
+      # The API contract file lives in shared/. The server shows it at /api/contract.
+      - ./shared:/app/shared:ro
 
   front:
     image: node:22-alpine

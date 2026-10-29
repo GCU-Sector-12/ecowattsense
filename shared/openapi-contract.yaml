@@ -1,0 +1,1421 @@
+openapi: "3.1.0"
+
+info:
+  title: EcoWattSense API contract
+  version: "0.2"
+  description: |
+    This is the agreed API contract of EcoWattSense. It comes from `docs/design/api-contract.md`, version 0.2, dated 19 October 2026, by Dariusz Jaroch.
+
+    Some endpoints in this file may not be implemented yet. The API that the server really runs is described at `/api/docs`.
+
+    Basics from the contract:
+
+    * The base path is `/api`.
+    * Requests and replies are JSON.
+    * Times are ISO 8601 in UTC with a `Z` at the end, for example `2026-10-19T14:05:00Z`.
+    * All names are `snake_case`. The unit is the last part of the name, for example `_seconds`, `_uj`, `_watts`, `_gbp` and `_kg`.
+    * A `device_id` is a UUID in lower case with hyphens. The client makes it at first start. It never changes.
+    * An unknown field in a request gives 422. A client ignores a field it does not know in an answer.
+    * Numbers are JSON numbers. The text `"300"` is not accepted where a number is expected.
+    * There are two kinds of callers. The client sends the header `X-EWS-Key`. The admin uses the cookie `ews_session`.
+
+    Open points from the contract:
+
+    * A version in the path (`/api/v1`) before the first client ships.
+    * When the server answers 429 and 503, and with which `Retry-After`.
+    * Endpoints for the admin to change settings, energy rates, tariffs and locations, to rename or archive a computer and to queue commands. They come in the next version.
+
+servers:
+  - url: "/"
+    description: 'The host that serves this page. The paths include the `/api` prefix.'
+
+tags:
+  - name: client
+    description: 'Calls from the client on a laptop. They need the header `X-EWS-Key`.'
+  - name: admin
+    description: 'Calls from the admin, from the dashboard. They need the cookie `ews_session`. `POST /api/login` sets it.'
+  - name: public
+    description: 'Calls from anyone. They need no key and no login.'
+
+# Paths. The order is the order of the contract.
+
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [public]
+      summary: Check that the server is running
+      description: |
+        Caller: anyone. Auth: none.
+
+        The answer is the field `status`, always `ok`.
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/HealthOk'
+
+  /api/settings:
+    get:
+      operationId: getSettings
+      tags: [client]
+      summary: Get the settings and the tariff in force now
+      description: |
+        Caller: the client. Auth: the header `X-EWS-Key`.
+
+        The client calls it when it starts and whenever the answer to `POST /api/ping` has a `settings_version` it does not have. There are no parameters.
+
+        The defaults are placeholders. The admin changes them in the dashboard. The tariff here is the one in force now. Cost and CO2 of an old report use the tariff that was valid at the `timestamp` of that report.
+
+        The endpoints for the admin to change the settings are not in this version of the contract. The admin can also push a change at once with the command `set_interval` (see `POST /api/ping`).
+      security:
+        - clientKey: []
+      responses:
+        '200':
+          $ref: '#/components/responses/SettingsOk'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/devices/{device_id}:
+    put:
+      operationId: putDevice
+      tags: [client]
+      summary: Register a computer or change its name
+      description: |
+        Caller: the client. Auth: the header `X-EWS-Key`.
+
+        One call registers a computer or changes its name. It can be repeated safely. The client calls it when it first connects and when the user changes the name.
+
+        In the database and in the admin endpoints the name column is `display_name`. The client field keeps the name `device_name`. This is an open point: one word should win.
+
+        Rules:
+
+        * The call sets the name, `os` and `device_type`.
+        * A report never changes the name. The last call wins.
+        * A computer is also made known by its first report. It then has no name until it registers.
+        * A new computer registered before its first report gets `first_seen_at` and `last_seen_at` of the moment of registration.
+      security:
+        - clientKey: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceIdPath'
+      requestBody:
+        $ref: '#/components/requestBodies/DeviceBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/DeviceRegistered'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '422':
+          $ref: '#/components/responses/DeviceInvalid'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/reports:
+    post:
+      operationId: postReports
+      tags: [client]
+      summary: Send one report or a list of reports
+      description: |
+        Caller: the client. Auth: the header `X-EWS-Key`.
+
+        The request body is one report object, or a list of 1 to 100 report objects. A client that was offline sends what it queued, oldest first.
+
+        The fields come from the table `reports` in the database brief (section 5.3) plus three device fields (`os`, `device_type`, `machine_hash`). The list of fields is `shared/report_schema.json`. When the two differ, the schema wins.
+
+        Checks that the contract adds to the schema:
+
+        * A `timestamp` more than 5 minutes ahead of the server clock is rejected.
+        * `energy_uj` cannot be null.
+        * Unknown fields are rejected with 422.
+
+        `energy_uj` is the energy taken from the wall socket. A laptop on its battery reports 0. This is the number that is summed, billed and used for CO2. Energy is a whole number of microjoules. It needs a 64-bit integer.
+
+        When `energy_uj` is sent, also as 0, the server stores it as it is and `energy_source` is `measured`. When it is missing and `on_battery` is false, the server estimates it. It takes the watts for the state from `energy_rates`, and multiplies by `interval_seconds` and by 1 000 000. `energy_source` is `estimated`. When it is missing and `on_battery` is true, the server stores 0 and does not estimate. `energy_source` is `estimated`. A client that can measure sends `energy_uj` in every report, with 0 on battery. A `device_type` with no row in `energy_rates` needs a measured `energy_uj`. Without it that report is `rejected`.
+
+        Rules:
+
+        * The first report for a new `device_id` creates the device. `display_name` and the location are null. `first_seen_at` is `received_at`. A register step is not required and there is no client login.
+        * Every accepted report updates `last_seen_at`.
+        * A report with the same `device_id` and `timestamp` as a stored one is a duplicate. It is not stored again. It is not an error.
+        * A report with a `timestamp` older than the newest stored one is still stored (a late report).
+        * A report never changes `device_name`.
+
+        Open point: clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false. This is a transition rule, to confirm.
+
+        The settings come from `GET /api/settings`.
+      security:
+        - clientKey: []
+      requestBody:
+        $ref: '#/components/requestBodies/ReportsBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/ReportsCreated'
+        '200':
+          $ref: '#/components/responses/ReportsOk'
+        '401':
+          $ref: '#/components/responses/ReportsKeyInvalid'
+        '422':
+          $ref: '#/components/responses/ReportsInvalid'
+        '429':
+          $ref: '#/components/responses/ReportsTooManyRequests'
+        '503':
+          $ref: '#/components/responses/ReportsServiceUnavailable'
+
+  /api/ping:
+    post:
+      operationId: postPing
+      tags: [client]
+      summary: Say that the client is alive and get commands
+      description: |
+        Caller: the client. Auth: the header `X-EWS-Key`.
+
+        The client sends a ping every `ping_interval_seconds`. It is separate from the report.
+
+        Rules:
+
+        * A ping never creates a computer. For an unknown computer the answer is 200 with `registered` false and no commands.
+        * A command comes again on every ping until the client answers it in `acks` or it expires.
+        * A command past `expires_at` is not sent.
+        * A client that does not know a type answers `unsupported`.
+        * A computer can answer only its own commands.
+        * Commands come in the order of `id`.
+
+        The commands:
+
+        * `set_interval`: the param is `report_interval_seconds`, an integer more than 0. The client changes its report interval.
+        * `report_now`: no params. The client sends a report now.
+        * `flush_buffer`: no params. The client sends all unsent reports now.
+        * `clear_buffer`: no params. The client empties the buffer, sent and unsent.
+        * `pull_settings`: no params. The client pulls the settings now.
+      security:
+        - clientKey: []
+      requestBody:
+        $ref: '#/components/requestBodies/PingBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/PingOk'
+        '401':
+          $ref: '#/components/responses/KeyInvalid'
+        '422':
+          $ref: '#/components/responses/PingInvalid'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/login:
+    post:
+      operationId: postLogin
+      tags: [admin]
+      summary: Start an admin session
+      description: |
+        Caller: the admin. Auth: none, the password is the check.
+
+        There is one admin user. The user name and the password come from `EWS_ADMIN_USERNAME` and `EWS_ADMIN_PASSWORD`. The password in `.env` is plain text. The server compares it and never writes it anywhere. The table `users` with password hashes stays for later.
+
+        The answer sets the cookie `ews_session`.
+
+        Open point: the lifetime of the session cookie.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/LoginBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/LoginOk'
+        '401':
+          $ref: '#/components/responses/LoginFailed'
+        '422':
+          $ref: '#/components/responses/LoginInvalid'
+
+  /api/logout:
+    post:
+      operationId: postLogout
+      tags: [admin]
+      summary: End the admin session
+      description: |
+        Caller: the admin. Auth: the cookie `ews_session`.
+
+        Request: no body. Response: 204 with no body. The cookie is cleared.
+      security:
+        - adminSession: []
+      responses:
+        '204':
+          $ref: '#/components/responses/LoggedOut'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+
+  /api/devices:
+    get:
+      operationId: getDevices
+      tags: [admin]
+      summary: List the computers with their state now
+      description: |
+        Caller: the admin, from the dashboard. Auth: the cookie `ews_session`.
+
+        `display_name` is the name from `PUT /api/devices/{device_id}` (field `device_name`) or set by the admin. The last write wins.
+
+        `display_name`, `location_id`, `location_name` and `building` are null until an admin sets them.
+
+        `state_name` is `no_data` when there was no report for `no_data_after_cycles` times `report_interval_seconds` seconds. With the defaults this is 3 times 300 seconds, so 15 minutes. The dashboard shows the word, never only the colour.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/LocationId'
+        - $ref: '#/components/parameters/IncludeArchived'
+      responses:
+        '200':
+          $ref: '#/components/responses/DevicesOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '422':
+          $ref: '#/components/responses/DevicesInvalid'
+
+  /api/devices/{device_id}/history:
+    get:
+      operationId: getDeviceHistory
+      tags: [admin]
+      summary: Get the reports and totals of one computer
+      description: |
+        Caller: the admin, from the dashboard. Auth: the cookie `ews_session`.
+
+        The range is at most 31 days. A longer range gives 422.
+
+        Fields of each item in `reports`: `timestamp`, `interval_seconds`, `state`, `idle_seconds`, `cpu_percent`, `screen_locked`, `on_battery`, `energy_uj` and `energy_source`. They have the meaning given for `POST /api/reports`. `energy_source` is `estimated` or `measured`.
+
+        `battery_energy_uj` and `device_energy_uj` are not returned in this version.
+
+        The time in a state is the sum of `interval_seconds`, not the number of reports times the interval. This is the rule of the database brief. The totals end with `_time_seconds`, because `idle_seconds` in a report means something else (time without input). Cost and CO2 use the tariff that was valid at the `timestamp` of each report.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceIdPath'
+        - $ref: '#/components/parameters/HistoryFrom'
+        - $ref: '#/components/parameters/HistoryTo'
+      responses:
+        '200':
+          $ref: '#/components/responses/HistoryOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '404':
+          $ref: '#/components/responses/HistoryNotFound'
+        '422':
+          $ref: '#/components/responses/HistoryInvalid'
+
+  /api/summary:
+    get:
+      operationId: getSummary
+      tags: [admin]
+      summary: Get the counts, energy, cost and CO2 for one day
+      description: |
+        Caller: the admin. Auth: the cookie `ews_session`.
+
+        `counts` shows the state now (the newest report of each computer). It is not the state on the date.
+
+        `series` has one point for each 30 minutes of the date, so 48 points (46 or 50 on the days the clocks change). A bucket that has not happened yet is left out. `timestamp` is the start of the bucket, in UTC. In UK summer time the first bucket of the day starts at 23:00 UTC of the day before. Each point has `timestamp` and `energy_uj`.
+
+        The dashboard converts the units. 1 kWh is 3 600 000 000 000 microjoules (3.6e12). The average power in a 30-minute bucket in kW is `energy_uj` divided by 1.8e12.
+
+        Open point: how `series` looks for a day with no reports.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/SummaryDate'
+      responses:
+        '200':
+          $ref: '#/components/responses/SummaryOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '422':
+          $ref: '#/components/responses/SummaryInvalid'
+
+# Components. Everything that paths use more than once, or that would nest deep, lives here.
+
+components:
+
+  securitySchemes:
+    clientKey:
+      type: apiKey
+      in: header
+      name: X-EWS-Key
+      description: |
+        The client key. The client sends the header `X-EWS-Key: <key>`. The value is the setting `EWS_CLIENT_KEY` in the server `.env` file. One key is used by all clients. A wrong or missing key gives 401.
+
+        The client key is used by `GET /api/settings`, `PUT /api/devices/{device_id}`, `POST /api/reports` and `POST /api/ping`.
+    adminSession:
+      type: apiKey
+      in: cookie
+      name: ews_session
+      description: |
+        The admin session. `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. A missing or expired cookie gives 401.
+
+        The session is used by `/api/devices`, `/api/devices/{device_id}/history`, `/api/summary` and `/api/logout`.
+
+  parameters:
+    DeviceIdPath:
+      name: device_id
+      in: path
+      required: true
+      description: 'The computer.'
+      schema:
+        $ref: '#/components/schemas/DeviceId'
+      example: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+    LocationId:
+      name: location_id
+      in: query
+      required: false
+      description: 'Only the computers in this room.'
+      schema:
+        type: integer
+      example: 1
+    IncludeArchived:
+      name: include_archived
+      in: query
+      required: false
+      description: 'Default false. When true, archived computers are listed too.'
+      schema:
+        type: boolean
+        default: false
+    HistoryFrom:
+      name: from
+      in: query
+      required: false
+      description: 'Start of the range. Default: 24 hours before `to`.'
+      schema:
+        type: string
+        format: date-time
+      example: "2026-10-18T14:00:00Z"
+    HistoryTo:
+      name: to
+      in: query
+      required: false
+      description: 'End of the range. It is exclusive. Default: now.'
+      schema:
+        type: string
+        format: date-time
+      example: "2026-10-19T14:00:00Z"
+    SummaryDate:
+      name: date
+      in: query
+      required: false
+      description: 'The day, as YYYY-MM-DD. Default: today in UK local time. The day runs in UK local time, as the database brief says.'
+      schema:
+        type: string
+        format: date
+      example: "2026-10-19"
+
+  headers:
+    RetryAfter:
+      description: 'The seconds the client waits before it tries again.'
+      required: true
+      schema:
+        type: integer
+    SetCookie:
+      description: 'The cookie `ews_session`. It is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS.'
+      schema:
+        type: string
+
+  examples:
+    ReportLaptopOnGrid:
+      summary: One report from a laptop on the grid, with no energy_uj
+      value:
+        device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+        timestamp: "2026-10-19T14:05:00Z"
+        interval_seconds: 300
+        state: 2
+        idle_seconds: 12
+        cpu_percent: 37.5
+        screen_locked: false
+        on_battery: false
+        os: "windows"
+        device_type: "laptop"
+    ReportListOfTwo:
+      summary: A list of two reports. The second one was sent before and is a duplicate
+      value:
+        - device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+          timestamp: "2026-10-19T14:10:00Z"
+          interval_seconds: 300
+          state: 1
+          idle_seconds: 640
+          cpu_percent: 4.2
+          screen_locked: false
+          on_battery: true
+          os: "windows"
+          device_type: "laptop"
+          energy_uj: 0
+          battery_energy_uj: -2700000000
+          device_energy_uj: 2700000000
+        - device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+          timestamp: "2026-10-19T14:05:00Z"
+          interval_seconds: 300
+          state: 2
+          idle_seconds: 12
+          cpu_percent: 37.5
+          screen_locked: false
+          on_battery: false
+          os: "windows"
+          device_type: "laptop"
+    ReportActive:
+      summary: A desktop in use, with no energy fields (shared/examples/active.json)
+      value:
+        device_id: "2b7e1c44-5a3d-4f0e-9c6b-8d1a2e3f4a55"
+        timestamp: "2026-10-19T09:05:00Z"
+        interval_seconds: 300
+        state: 2
+        idle_seconds: 4
+        cpu_percent: 42.5
+        screen_locked: false
+        on_battery: false
+        os: "windows"
+        device_type: "desktop"
+    ReportIdle:
+      summary: A laptop idle on its battery (shared/examples/idle.json)
+      value:
+        device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+        timestamp: "2026-10-19T14:10:00Z"
+        interval_seconds: 300
+        state: 1
+        idle_seconds: 640
+        cpu_percent: 3.8
+        screen_locked: false
+        on_battery: true
+        os: "macos"
+        device_type: "laptop"
+        energy_uj: 0
+        battery_energy_uj: -2700000000
+        device_energy_uj: 2700000000
+        machine_hash: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    ReportUnused:
+      summary: A laptop that is unused and charging (shared/examples/unused.json)
+      value:
+        device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+        timestamp: "2026-10-19T16:35:00Z"
+        interval_seconds: 300
+        state: 0
+        idle_seconds: 3900
+        cpu_percent: 1.1
+        screen_locked: true
+        on_battery: false
+        os: "macos"
+        device_type: "laptop"
+        energy_uj: 12600000000
+        battery_energy_uj: 9000000000
+        device_energy_uj: 1800000000
+        machine_hash: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+
+  requestBodies:
+    DeviceBody:
+      required: true
+      description: 'The name, the operating system and the type of the computer.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceRegistration'
+          example:
+            device_name: "Lab 1 PC 03"
+            os: "macos"
+            device_type: "laptop"
+    ReportsBody:
+      required: true
+      description: 'One report object, or a list of 1 to 100 report objects.'
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/Report'
+              - $ref: '#/components/schemas/ReportBatch'
+          examples:
+            laptop_on_grid:
+              $ref: '#/components/examples/ReportLaptopOnGrid'
+            list_of_two:
+              $ref: '#/components/examples/ReportListOfTwo'
+            active:
+              $ref: '#/components/examples/ReportActive'
+            idle:
+              $ref: '#/components/examples/ReportIdle'
+            unused:
+              $ref: '#/components/examples/ReportUnused'
+    PingBody:
+      required: true
+      description: 'The computer, the reports that wait in its buffer and the commands it has finished.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PingRequest'
+          example:
+            device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+            unsent_reports: 2
+            acks:
+              - command_id: 41
+                result: "done"
+    LoginBody:
+      required: true
+      description: 'The admin user name and password.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoginRequest'
+          example:
+            username: "admin"
+            password: "change-me"
+
+  responses:
+    HealthOk:
+      description: 'The field `status`, always `ok`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Health'
+          example:
+            status: "ok"
+    SettingsOk:
+      description: 'The settings.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Settings'
+          example:
+            settings_version: 1
+            report_interval_seconds: 300
+            ping_interval_seconds: 60
+            idle_threshold_seconds: 600
+            unused_threshold_seconds: 3600
+            no_data_after_cycles: 3
+            tariff_valid_from: "2026-09-14T00:00:00Z"
+            price_gbp_per_kwh: 0.25
+            co2_kg_per_kwh: 0.207
+    KeyInvalid:
+      description: 'The key is wrong or missing.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: 'Too many requests. The client waits `Retry-After` seconds.'
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServiceUnavailable:
+      description: 'The server is down for a moment. The client waits `Retry-After` seconds.'
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    DeviceRegistered:
+      description: 'The computer is known and has the name.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceRegistered'
+          example:
+            device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+            device_name: "Lab 1 PC 03"
+            created: true
+    DeviceInvalid:
+      description: 'A field is wrong. This is a bug in the client. It must not send the same body again.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    ReportsCreated:
+      description: 'A single report was stored.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReportResults'
+          example:
+            results:
+              - index: 0
+                status: "created"
+                error: null
+    ReportsOk:
+      description: 'A single report was a duplicate, or the body was a list. For a list, 200 is always the answer, with one result for each report.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReportResults'
+          example:
+            results:
+              - index: 0
+                status: "created"
+                error: null
+              - index: 1
+                status: "duplicate"
+                error: null
+    ReportsKeyInvalid:
+      description: 'The key is wrong or missing. Nothing is stored.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ReportsInvalid:
+      description: |
+        A single report is wrong. The body is the FastAPI validation body, not a results list.
+
+        Also 422: the list has 0 or more than 100 items, or the body is not JSON. The body is then `{"detail": "..."}`.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/HTTPValidationError'
+              - $ref: '#/components/schemas/Error'
+    ReportsTooManyRequests:
+      description: 'Too many requests. Nothing was stored. The client waits `Retry-After` seconds and sends the same batch again.'
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ReportsServiceUnavailable:
+      description: 'The server is down for a moment. Nothing was stored. The client waits `Retry-After` seconds and sends the same batch again.'
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PingOk:
+      description: 'The ping was accepted.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PingResponse'
+          example:
+            settings_version: 8
+            registered: true
+            commands:
+              - id: 42
+                type: "report_now"
+                params: {}
+                expires_at: "2026-10-19T14:30:00Z"
+    PingInvalid:
+      description: 'A field is wrong.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    LoginOk:
+      description: 'Logged in. The cookie is set.'
+      headers:
+        Set-Cookie:
+          $ref: '#/components/headers/SetCookie'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoginResponse'
+          example:
+            username: "admin"
+    LoginFailed:
+      description: 'Wrong username or password.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Wrong username or password"
+    LoginInvalid:
+      description: 'A field is missing.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    LoggedOut:
+      description: 'Logged out. The cookie is cleared.'
+    SessionInvalid:
+      description: 'There is no valid cookie.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    DevicesOk:
+      description: 'The list, also when it is empty.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceList'
+          example:
+            devices:
+              - device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+                display_name: "Lab 1 PC 03"
+                location_id: 1
+                location_name: "Lab 1"
+                building: "George Moore"
+                os: "windows"
+                device_type: "laptop"
+                state: 2
+                state_name: "active"
+                last_seen_at: "2026-10-19T14:05:00Z"
+                first_seen_at: "2026-10-12T09:00:00Z"
+                archived: false
+    DevicesInvalid:
+      description: 'A query parameter has the wrong type.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    HistoryOk:
+      description: 'The history, also when there are no reports in the range.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeviceHistory'
+          example:
+            device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+            display_name: "Lab 1 PC 03"
+            from: "2026-10-18T14:00:00Z"
+            to: "2026-10-19T14:00:00Z"
+            reports:
+              - timestamp: "2026-10-19T14:05:00Z"
+                interval_seconds: 300
+                state: 2
+                idle_seconds: 12
+                cpu_percent: 37.5
+                screen_locked: false
+                on_battery: false
+                energy_uj: 9000000000
+                energy_source: "estimated"
+            totals:
+              active_time_seconds: 18000
+              idle_time_seconds: 3600
+              unused_time_seconds: 600
+              energy_uj: 123456789000
+              cost_gbp: 0.0086
+              co2_kg: 0.0071
+    HistoryNotFound:
+      description: 'The `device_id` is unknown.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Device not found"
+    HistoryInvalid:
+      description: 'A parameter has the wrong type, or the range is longer than 31 days.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    SummaryOk:
+      description: 'The summary.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Summary'
+          example:
+            date: "2026-10-19"
+            counts:
+              active: 12
+              idle: 5
+              unused: 2
+              no_data: 1
+              total: 20
+            energy_uj: 48600000000000
+            cost_gbp: 3.38
+            co2_kg: 2.79
+            price_gbp_per_kwh: 0.25
+            co2_kg_per_kwh: 0.207
+            series:
+              - timestamp: "2026-10-18T23:00:00Z"
+                energy_uj: 900000000000
+              - timestamp: "2026-10-18T23:30:00Z"
+                energy_uj: 950000000000
+    SummaryInvalid:
+      description: '`date` is not a date.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+
+  schemas:
+
+    # Small shared pieces
+
+    DeviceId:
+      type: string
+      format: uuid
+      description: 'The computer. A random UUID the client makes at its first start. It never changes.'
+
+    Os:
+      type: string
+      enum: [windows, linux, macos]
+      description: 'The operating system.'
+
+    DeviceType:
+      type: string
+      pattern: '^[a-z][a-z0-9_]*$'
+      maxLength: 40
+      description: 'For example `desktop` or `laptop`. More types can come later. It picks the row in `energy_rates`.'
+
+    State:
+      type: integer
+      enum: [2, 1, 0]
+      description: '2 active, 1 idle, 0 unused.'
+
+    # The report body. Same names, types, descriptions and required list as shared/report_schema.json.
+
+    Report:
+      title: EcoWattSense report
+      description: 'One report from one computer for one interval. Same shape alone and in a list. The names are the same in the database brief (docs/design/database-data-brief.md) and in the API contract (docs/design/api-contract.md).'
+      type: object
+      required:
+        - device_id
+        - timestamp
+        - interval_seconds
+        - state
+        - idle_seconds
+        - cpu_percent
+        - screen_locked
+        - on_battery
+        - os
+        - device_type
+      additionalProperties: false
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        timestamp:
+          type: string
+          format: date-time
+          description: 'The end of the interval, in UTC with a zone, for example `2026-10-19T14:05:00Z`. A time without a zone is rejected.'
+        interval_seconds:
+          type: integer
+          exclusiveMinimum: 0
+          description: 'The seconds the report covers. It can be shorter than the setting, for example before sleep.'
+        state:
+          $ref: '#/components/schemas/State'
+        idle_seconds:
+          type: integer
+          minimum: 0
+          description: 'Seconds since the last keyboard or mouse input.'
+        cpu_percent:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: 'Processor use in the interval.'
+        screen_locked:
+          type: boolean
+          description: 'True when the screen is locked.'
+        on_battery:
+          type: boolean
+          description: 'True when a laptop runs on its battery. A desktop always sends false.'
+        os:
+          $ref: '#/components/schemas/Os'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        energy_uj:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 'Energy taken from the wall socket in the interval, in microjoules. Only a client that can measure it sends it. On battery it is 0. When it is missing, the server estimates it from `energy_rates`, except when `on_battery` is true: then the server stores 0.'
+        battery_energy_uj:
+          type: integer
+          format: int64
+          description: 'Energy that went into the battery (above 0) or came out of it (below 0) in the interval, in microjoules. Only a client that can see the battery sends it. For analysis, not for cost.'
+        device_energy_uj:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 'Energy the computer used for its own work in the interval, from the grid or from the battery, in microjoules. For analysis, not for cost.'
+        machine_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: 'SHA-256 of a hardware id, in lower case hex. A fingerprint, so the admin can see that two device ids are the same machine. Optional.'
+
+    ReportBatch:
+      type: array
+      minItems: 1
+      maxItems: 100
+      description: 'A list of 1 to 100 report objects. A client that was offline sends what it queued, oldest first.'
+      items:
+        $ref: '#/components/schemas/Report'
+
+    # POST /api/reports answer
+
+    ReportResults:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          description: 'One item for each report, in the same order.'
+          items:
+            $ref: '#/components/schemas/ReportResult'
+
+    ReportResult:
+      type: object
+      required: [index, status, error]
+      properties:
+        index:
+          type: integer
+          description: 'The place of the report in the request. 0 for a single report.'
+        status:
+          type: string
+          enum: [created, duplicate, rejected]
+          description: |
+            `created`: The report is stored. The client marks it as sent.
+
+            `duplicate`: The server has it already. The client marks it as sent.
+
+            `rejected`: This one report is wrong. A retry will not help. The client marks it and does not send it again.
+        error:
+          type: [string, "null"]
+          description: 'The first problem, in words. A client must not parse it.'
+
+    # GET /api/settings answer
+
+    Settings:
+      type: object
+      description: 'The settings and the tariff in force now.'
+      required:
+        - settings_version
+        - report_interval_seconds
+        - ping_interval_seconds
+        - idle_threshold_seconds
+        - unused_threshold_seconds
+        - no_data_after_cycles
+        - tariff_valid_from
+        - price_gbp_per_kwh
+        - co2_kg_per_kwh
+      properties:
+        settings_version:
+          type: integer
+          description: 'Goes up by 1 when an admin changes a setting or the tariff. The default is 1.'
+        report_interval_seconds:
+          type: integer
+          description: 'How often the client sends a report. The default is 300.'
+        ping_interval_seconds:
+          type: integer
+          description: 'How often the client sends a ping. The default is 60.'
+        idle_threshold_seconds:
+          type: integer
+          description: 'Seconds without input before the state is idle. The default is 600.'
+        unused_threshold_seconds:
+          type: integer
+          description: 'Seconds without input before the state is unused. The default is 3600.'
+        no_data_after_cycles:
+          type: integer
+          description: 'Missing report cycles before a computer shows as no data. The server does not store "No data". It works it out when reports stop. The default is 3.'
+        tariff_valid_from:
+          type: string
+          format: date-time
+          description: 'When the tariff in force now started.'
+        price_gbp_per_kwh:
+          type: number
+          description: 'The price of 1 kWh in pounds. The default is 0.25.'
+        co2_kg_per_kwh:
+          type: number
+          description: 'Kilograms of CO2 for 1 kWh. The default is 0.207.'
+
+    # PUT /api/devices/{device_id}
+
+    DeviceRegistration:
+      type: object
+      additionalProperties: false
+      required: [os, device_type]
+      properties:
+        device_name:
+          type: [string, "null"]
+          maxLength: 60
+          description: 'At most 60 characters, no control characters. Spaces at both ends are removed. Empty, null or left out means no name. The name is what the user typed, never the network name of the computer.'
+        os:
+          $ref: '#/components/schemas/Os'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+
+    DeviceRegistered:
+      type: object
+      required: [device_id, device_name, created]
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        device_name:
+          type: [string, "null"]
+          description: 'The name now, or null.'
+        created:
+          type: boolean
+          description: 'True when this call made the computer known. False when it was known before.'
+
+    # POST /api/ping
+
+    PingRequest:
+      type: object
+      additionalProperties: false
+      required: [device_id, unsent_reports]
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        unsent_reports:
+          type: integer
+          minimum: 0
+          description: 'The reports that wait in the client buffer.'
+        acks:
+          type: array
+          description: 'The commands the client has finished.'
+          items:
+            $ref: '#/components/schemas/PingAck'
+
+    PingAck:
+      type: object
+      additionalProperties: false
+      required: [command_id, result]
+      properties:
+        command_id:
+          type: integer
+          description: 'The `id` of the command.'
+        result:
+          type: string
+          enum: [done, failed, unsupported]
+          description: 'How the command ended.'
+
+    PingResponse:
+      type: object
+      required: [settings_version, registered, commands]
+      properties:
+        settings_version:
+          type: integer
+          description: 'When it is not the number the client has, the client pulls `GET /api/settings`.'
+        registered:
+          type: boolean
+          description: 'False when the server has no registration of this computer. It lost its data or knows the computer only from reports. The client then calls `PUT /api/devices/{device_id}` again.'
+        commands:
+          type: array
+          description: 'Always there. Empty when there is nothing to do.'
+          items:
+            $ref: '#/components/schemas/Command'
+
+    Command:
+      type: object
+      required: [id, type, params, expires_at]
+      properties:
+        id:
+          type: integer
+          description: 'The id of the command.'
+        type:
+          type: string
+          description: 'The kind of command. The kinds are listed at `POST /api/ping`.'
+        params:
+          type: object
+          description: 'The parameters of the command. An empty object when there are none.'
+        expires_at:
+          type: string
+          format: date-time
+          description: 'After this time the command is not sent.'
+
+    # POST /api/login
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: 'The admin user name.'
+        password:
+          type: string
+          format: password
+          description: 'The admin password.'
+
+    LoginResponse:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+          description: 'The user who logged in.'
+
+    # GET /api/devices
+
+    DeviceList:
+      type: object
+      required: [devices]
+      properties:
+        devices:
+          type: array
+          description: 'The computers, sorted by `display_name`, then `device_id`.'
+          items:
+            $ref: '#/components/schemas/DeviceListItem'
+
+    DeviceListItem:
+      type: object
+      required:
+        - device_id
+        - display_name
+        - location_id
+        - location_name
+        - building
+        - os
+        - device_type
+        - state
+        - state_name
+        - last_seen_at
+        - first_seen_at
+        - archived
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        display_name:
+          type: [string, "null"]
+          description: 'The name set by the admin.'
+        location_id:
+          type: [integer, "null"]
+          description: 'The room.'
+        location_name:
+          type: [string, "null"]
+          description: 'The name of the room.'
+        building:
+          type: [string, "null"]
+          description: 'The building of the room.'
+        os:
+          $ref: '#/components/schemas/Os'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        state:
+          type: [integer, "null"]
+          enum: [2, 1, 0, null]
+          description: 'The state of the newest report. Null when the device has no data.'
+        state_name:
+          type: string
+          enum: [active, idle, unused, no_data]
+          description: '`no_data` means reports stopped. It is only in replies and is never stored.'
+        last_seen_at:
+          type: string
+          format: date-time
+          description: 'The time of the last report.'
+        first_seen_at:
+          type: string
+          format: date-time
+          description: 'The time of the first report.'
+        archived:
+          type: boolean
+          description: 'True when the admin archived the computer.'
+
+    # GET /api/devices/{device_id}/history
+
+    DeviceHistory:
+      type: object
+      required: [device_id, display_name, from, to, reports, totals]
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        display_name:
+          type: [string, "null"]
+          description: 'The name set by the admin.'
+        from:
+          type: string
+          format: date-time
+          description: 'The start of the range used.'
+        to:
+          type: string
+          format: date-time
+          description: 'The end of the range used.'
+        reports:
+          type: array
+          description: 'The reports in the range, oldest first.'
+          items:
+            $ref: '#/components/schemas/HistoryReport'
+        totals:
+          $ref: '#/components/schemas/HistoryTotals'
+
+    HistoryReport:
+      type: object
+      description: 'One report of the computer. The fields have the meaning given for `POST /api/reports`.'
+      required:
+        - timestamp
+        - interval_seconds
+        - state
+        - idle_seconds
+        - cpu_percent
+        - screen_locked
+        - on_battery
+        - energy_uj
+        - energy_source
+      properties:
+        timestamp:
+          $ref: '#/components/schemas/Report/properties/timestamp'
+        interval_seconds:
+          $ref: '#/components/schemas/Report/properties/interval_seconds'
+        state:
+          $ref: '#/components/schemas/State'
+        idle_seconds:
+          $ref: '#/components/schemas/Report/properties/idle_seconds'
+        cpu_percent:
+          $ref: '#/components/schemas/Report/properties/cpu_percent'
+        screen_locked:
+          $ref: '#/components/schemas/Report/properties/screen_locked'
+        on_battery:
+          $ref: '#/components/schemas/Report/properties/on_battery'
+        energy_uj:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 'Energy taken from the wall socket in the interval, in microjoules. On battery it is 0.'
+        energy_source:
+          type: string
+          enum: [estimated, measured]
+          description: '`measured` when the client sent `energy_uj`. `estimated` when the server filled it.'
+
+    HistoryTotals:
+      type: object
+      description: 'Sums for the range.'
+      required:
+        - active_time_seconds
+        - idle_time_seconds
+        - unused_time_seconds
+        - energy_uj
+        - cost_gbp
+        - co2_kg
+      properties:
+        active_time_seconds:
+          type: integer
+          description: 'Sum of `interval_seconds` of the reports in state 2.'
+        idle_time_seconds:
+          type: integer
+          description: 'Sum of `interval_seconds` of the reports in state 1.'
+        unused_time_seconds:
+          type: integer
+          description: 'Sum of `interval_seconds` of the reports in state 0.'
+        energy_uj:
+          type: integer
+          format: int64
+          description: 'Sum of `energy_uj`.'
+        cost_gbp:
+          type: number
+          description: 'Cost in pounds.'
+        co2_kg:
+          type: number
+          description: 'CO2 in kilograms.'
+
+    # GET /api/summary
+
+    Summary:
+      type: object
+      required:
+        - date
+        - counts
+        - energy_uj
+        - cost_gbp
+        - co2_kg
+        - price_gbp_per_kwh
+        - co2_kg_per_kwh
+        - series
+      properties:
+        date:
+          type: string
+          format: date
+          description: 'The day.'
+        counts:
+          $ref: '#/components/schemas/SummaryCounts'
+        energy_uj:
+          type: integer
+          format: int64
+          description: 'Energy of all computers for the date.'
+        cost_gbp:
+          type: number
+          description: 'Cost of all computers for the date.'
+        co2_kg:
+          type: number
+          description: 'CO2 of all computers for the date.'
+        price_gbp_per_kwh:
+          type: number
+          description: 'The price valid now.'
+        co2_kg_per_kwh:
+          type: number
+          description: 'The CO2 factor valid now.'
+        series:
+          type: array
+          description: 'The energy in steps of 30 minutes.'
+          items:
+            $ref: '#/components/schemas/SummaryPoint'
+
+    SummaryCounts:
+      type: object
+      description: 'Computers per state. It shows the state now (the newest report of each computer). It is not the state on the date.'
+      required: [active, idle, unused, no_data, total]
+      properties:
+        active:
+          type: integer
+          description: 'Computers in the state active.'
+        idle:
+          type: integer
+          description: 'Computers in the state idle.'
+        unused:
+          type: integer
+          description: 'Computers in the state unused.'
+        no_data:
+          type: integer
+          description: 'Computers in the state no_data.'
+        total:
+          type: integer
+          description: 'All computers.'
+
+    SummaryPoint:
+      type: object
+      required: [timestamp, energy_uj]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: 'The start of the bucket, in UTC.'
+        energy_uj:
+          type: integer
+          format: int64
+          description: 'The energy in the bucket of 30 minutes.'
+
+    # Errors
+
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: 'What went wrong, in words.'
+
+    HTTPValidationError:
+      type: object
+      description: 'The FastAPI validation body. `detail` is a list. Each item has `loc`, `msg` and `type`.'
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      required: [loc, msg, type]
+      properties:
+        loc:
+          type: array
+          description: 'The place of the wrong field in the request.'
+          items:
+            type: [string, integer]
+        msg:
+          type: string
+          description: 'What is wrong, in words.'
+        type:
+          type: string
+          description: 'The kind of error.'
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: 'Always `ok`.'
