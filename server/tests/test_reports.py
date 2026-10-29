@@ -5,9 +5,18 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from ecowattsense_server.config import settings
 from ecowattsense_server.main import app
 
-client = TestClient(app)
+KEY = "test-client-key"
+
+client = TestClient(app, headers={"X-EWS-Key": KEY})
+no_key_client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def client_key(monkeypatch):
+    monkeypatch.setattr(settings, "client_key", KEY)
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "shared" / "examples"
 
@@ -108,3 +117,23 @@ def test_no_body_is_422():
 def test_reply_holds_results_only():
     response = client.post("/api/reports", json=example("active"))
     assert set(response.json()) == {"results"}
+
+
+def test_missing_key_is_401():
+    response = no_key_client.post("/api/reports", json=example("active"))
+    assert response.status_code == 401
+
+
+def test_wrong_key_is_401():
+    response = client.post("/api/reports", json=example("active"), headers={"X-EWS-Key": "wrong"})
+    assert response.status_code == 401
+
+
+def test_list_without_key_is_401():
+    response = no_key_client.post("/api/reports", json=[example("active")])
+    assert response.status_code == 401
+
+
+def test_key_is_checked_before_the_body():
+    response = no_key_client.post("/api/reports", json=wrong(state=3))
+    assert response.status_code == 401

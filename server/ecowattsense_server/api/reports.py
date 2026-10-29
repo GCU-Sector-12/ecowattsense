@@ -5,14 +5,14 @@ Storage, duplicates and the energy rules come with EWS_API-13.
 """
 from typing import Any
 
-from fastapi import APIRouter, Body, Response, status
+from fastapi import APIRouter, Body, Depends, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
+from ..auth import require_client_key
 from ..schemas import MAX_REPORTS_PER_REQUEST, ReportIn, ReportResult, ReportResults
 
-# EWS_API-7: add dependencies=[Depends(...)] here for the X-EWS-Key check (401) when auth.py is in.
-router = APIRouter(prefix="/api", tags=["reports"])
+router = APIRouter(prefix="/api", tags=["reports"], dependencies=[Depends(require_client_key)])
 
 
 def validation_error(exc: ValidationError) -> RequestValidationError:
