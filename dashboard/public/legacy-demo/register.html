@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+  <a href="index.html" class="login-home-link">← Back to home</a>
+
+  <div class="login-box registration-box">
+    <div class="logo big">⚡ EcoWattSense</div>
+    <span class="login-kicker">CREATE YOUR ACCOUNT</span>
+    <h1>Register</h1>
+    <p>Create an account and link it to your computer already added our database.</p>
+
+    <form id="registerForm">
+      <label for="regFullName">Full name</label>
+      <input id="regFullName" type="text" placeholder="Your name" required>
+
+      <label for="regUsername">Username</label>
+      <input id="regUsername" type="text" placeholder="Choose a username" required>
+
+      <label for="regEmail">Email</label>
+      <input id="regEmail" type="email" placeholder="you@example.com" required>
+
+      <label for="regPcName">Computer ID</label>
+      <input id="regPcName" type="text" placeholder="Example: PC-LAB-04" required>
+      <small class="field-help">The computer must already exist in the system and cannot already belong to another user.</small>
+
+      <label for="regPassword">Password</label>
+      <input id="regPassword" type="password" placeholder="Minimum 6 characters" required>
+
+      <label for="regConfirmPassword">Confirm password</label>
+      <input id="regConfirmPassword" type="password" placeholder="Re-enter password" required>
+
+      <p id="registerError" class="error"></p>
+      <p id="registerSuccess" class="success-message"></p>
+
+      <button type="submit" class="btn full">Create Account</button>
+      <p class="auth-switch">Already registered? <a href="login.html">Log in</a></p>
+    </form>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

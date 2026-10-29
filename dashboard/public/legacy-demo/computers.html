@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Computers | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page" data-page="computers">
+  <aside class="sidebar">
+    <a class="logo sidebar-logo" href="dashboard.html">⚡ EcoWattSense</a>
+
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" href="dashboard.html">▦ <span>Dashboard</span></a>
+      <a data-page="computers" href="computers.html">🖥 <span>Computers</span></a>
+      <a data-page="energy" href="energy.html">⚡ <span>Energy Usage</span></a>
+      <a data-page="reports" href="reports.html">▤ <span>Reports</span></a>
+      <a data-page="settings" href="settings.html">⚙ <span>Settings</span></a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="system-online">
+        <i></i>
+        <span><strong>System online</strong><small>Monitoring active</small></span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="dashboard">
+    <header class="dash-head app-page-head">
+      <div>
+        <span class="page-kicker">DEVICES</span>
+        <h1>Monitored Computers</h1>
+        <p>View the current state and estimated energy usage of registered devices.</p>
+      </div>
+      <div class="header-actions">
+        <span class="live">● Live</span>
+        <div class="user-pill">
+          <span class="user-avatar">A</span>
+          <span><strong>Administrator</strong><small>EcoWattSense</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="page-toolbar">
+      <div class="toolbar-search">
+        <input id="computerSearch" placeholder="Search by computer name or status">
+      </div>
+      <div class="filter-buttons">
+        <button class="filter-btn active-filter" data-filter="All">All</button>
+        <button class="filter-btn" data-filter="Active">Active</button>
+        <button class="filter-btn" data-filter="Idle">Idle</button>
+        <button class="filter-btn" data-filter="Unused">Unused</button>
+      </div>
+    </section>
+
+
+    <section class="panel admin-pc-manager">
+      <div class="table-header">
+        <div>
+          <span class="panel-kicker">ADMIN DEVICE MANAGEMENT</span>
+          <h2>Add a computer</h2>
+          <p class="panel-description">Add a computer to the monitoring system and optionally assign it to a registered user.</p>
+        </div>
+      </div>
+
+      <form id="addComputerForm" class="pc-add-form">
+        <label>
+          Computer ID
+          <input id="newPcName" type="text" placeholder="Example: PC-LAB-21" required>
+        </label>
+        <label>
+          Initial status
+          <select id="newPcStatus">
+            <option value="Active">Active</option>
+            <option value="Idle">Idle</option>
+            <option value="Unused">Unused</option>
+          </select>
+        </label>
+        <label>
+          Owner username
+          <input id="newPcOwner" type="text" placeholder="Optional username">
+        </label>
+        <button type="submit" class="btn pc-add-button">Add Computer</button>
+      </form>
+      <p id="pcManagerMessage" class="manager-message"></p>
+    </section>
+
+    <section class="computer-grid" id="computerGrid"></section>
+
+    <section class="panel page-info-panel">
+      <span class="panel-kicker">DEVICE MANAGEMENT</span>
+      <h2>Monitoring overview</h2>
+      <p>
+        This prototype page uses simulated data from the JavaScript file. When your
+        backend is ready, the same cards can be populated from real monitoring data.
+      </p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

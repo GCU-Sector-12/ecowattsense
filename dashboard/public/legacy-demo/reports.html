@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-page" data-page="reports">
+  <aside class="sidebar">
+    <a class="logo sidebar-logo" href="dashboard.html">⚡ EcoWattSense</a>
+
+    <nav class="sidebar-nav">
+      <a data-page="dashboard" href="dashboard.html">▦ <span>Dashboard</span></a>
+      <a data-page="computers" href="computers.html">🖥 <span>Computers</span></a>
+      <a data-page="energy" href="energy.html">⚡ <span>Energy Usage</span></a>
+      <a data-page="reports" href="reports.html">▤ <span>Reports</span></a>
+      <a data-page="settings" href="settings.html">⚙ <span>Settings</span></a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="system-online">
+        <i></i>
+        <span><strong>System online</strong><small>Monitoring active</small></span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="dashboard">
+    <header class="dash-head app-page-head">
+      <div>
+        <span class="page-kicker">REPORTING</span>
+        <h1>Reports</h1>
+        <p>Create and export summaries of computer activity and estimated energy usage.</p>
+      </div>
+      <div class="header-actions">
+        <span class="live">● Live</span>
+        <div class="user-pill">
+          <span class="user-avatar">A</span>
+          <span><strong>Administrator</strong><small>EcoWattSense</small></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="report-builder panel">
+      <div>
+        <span class="panel-kicker">GENERATE REPORT</span>
+        <h2>Create an energy report</h2>
+        <p>Select a report range and export the current simulated monitoring data.</p>
+      </div>
+
+      <div class="report-controls">
+        <label>
+          Report period
+          <select id="reportPeriod">
+            <option value="Today">Today</option>
+            <option value="This Week">This Week</option>
+            <option value="This Month">This Month</option>
+          </select>
+        </label>
+        <button class="btn report-btn" id="downloadCsv">Download CSV</button>
+      </div>
+    </section>
+
+    <section class="report-summary-grid">
+      <article class="panel report-summary-card">
+        <span>Total monitored devices</span>
+        <strong id="reportDeviceCount">20</strong>
+      </article>
+      <article class="panel report-summary-card">
+        <span>Estimated energy today</span>
+        <strong id="reportEnergy">9.84 kWh</strong>
+      </article>
+      <article class="panel report-summary-card">
+        <span>Estimated cost today</span>
+        <strong id="reportCost">£2.46</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="table-header">
+        <div>
+          <span class="panel-kicker">PREVIEW</span>
+          <h2>Current report data</h2>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Computer</th>
+              <th>Status</th>
+              <th>Power</th>
+              <th>Energy Today</th>
+            </tr>
+          </thead>
+          <tbody id="reportTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

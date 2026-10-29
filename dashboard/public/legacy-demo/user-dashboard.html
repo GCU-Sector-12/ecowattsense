@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Computer | EcoWattSense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="user-dashboard-page">
+  <header class="user-topbar">
+    <a class="logo" href="user-dashboard.html">⚡ EcoWattSense</a>
+    <div class="user-topbar-actions">
+      <div class="user-pill">
+        <span class="user-avatar" id="userAvatar">U</span>
+        <span>
+          <strong id="userDisplayName">User</strong>
+          <small>Standard user</small>
+        </span>
+      </div>
+      <button id="logoutBtn" class="user-logout">Log out</button>
+    </div>
+  </header>
+
+  <main class="user-dashboard">
+    <header class="user-dashboard-heading">
+      <div>
+        <span class="page-kicker">MY COMPUTER</span>
+        <h1>Your energy dashboard</h1>
+        </div>
+      <span class="live">● Live</span>
+    </header>
+
+    <section id="userNoPc" class="panel user-no-pc" hidden>
+      <span class="panel-kicker">NO COMPUTER ASSIGNED</span>
+      <h2>Your account is not linked to a computer yet.</h2>
+      <p>Ask an administrator to add your computer and assign your username to it.</p>
+    </section>
+
+    <div id="userPcDashboard">
+      <section class="user-pc-hero panel">
+        <div>
+          <span class="panel-kicker">ASSIGNED DEVICE</span>
+          <h2 id="userPcName">PC</h2>
+          <span id="userPcStatus" class="status active-status">Active</span>
+        </div>
+        <!-- <div class="pc-icon-large">🖥</div> -->
+      </section>
+
+      <section class="stats user-stats">
+        <article class="stat">
+          <span>CURRENT STATUS</span>
+          <strong id="userStatusText">Active</strong>
+          <small>Current activity state</small>
+        </article>
+        <article class="stat">
+          <span>CURRENT POWER</span>
+          <strong><span id="userPowerNow">0</span> W</strong>
+          <small>Estimated live usage</small>
+        </article>
+        <article class="stat">
+          <span>ENERGY TODAY</span>
+          <strong id="userEnergyToday">0.00 kWh</strong>
+          <small>Energy consumption</small>
+        </article>
+        <article class="stat stat-green">
+          <span>ESTIMATED COST</span>
+          <strong id="userEstimatedCost">£0.00</strong>
+          <small>Today</small>
+        </article>
+      </section>
+
+      <section class="dashboard-grid user-dashboard-grid">
+        <article class="panel chart-panel">
+          <div class="panel-title-row">
+            <div>
+              <span class="panel-kicker">LIVE ENERGY</span>
+              <h2>Power usage</h2>
+            </div>
+          </div>
+          <canvas id="userEnergyChart" width="800" height="260"></canvas>
+        </article>
+
+        <article class="panel">
+          <span class="panel-kicker">TODAY</span>
+          <h2>My computer summary</h2>
+          <div class="impact-box">
+            <div><span>Computer</span><strong id="summaryPcName">—</strong></div>
+            <div><span>Status</span><strong id="summaryPcStatus">—</strong></div>
+            <div><span>Estimated CO₂</span><strong id="userCo2">0.00 kg</strong></div>
+          </div>
+        </article>
+      </section>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
