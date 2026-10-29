@@ -2,13 +2,20 @@ using EcoWattSense.Client.Monitoring;
 using EcoWattSense.Client.Reporting;
 using System.Diagnostics;
 using EcoWattSense.Client.Communication;
+using EcoWattSense.Client.Identity;
 
 namespace EcoWattSense.Client;
 
 public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonitor, CpuMonitor cpuMonitor,
     WindowsSessionMonitor sessionMonitor, WindowsPowerMonitor powerMonitor,
-    StateClassifier stateClassifier, ReportInterval reportInterval, ServerClient server) : BackgroundService
+    StateClassifier stateClassifier, ReportInterval reportInterval, ServerClient server,
+    TextReportWriter textReportWriter, JsonReportWriter jsonReportWriter,
+    ActivityHistoryWriter activityHistory, DeviceIdentity identity, ReportingSettings reportingSettings) : BackgroundService
 {
+    public event Action<MonitoringReading>? ReadingAvailable;
+    private readonly TaskCompletionSource firstReading = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task FirstReading => firstReading.Task;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         long clockOrigin = Stopwatch.GetTimestamp();
@@ -19,6 +26,8 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
             CpuReading? cpuReading = null;
             bool? isLocked = null;
             bool? isOnBattery = null;
+
+            // CPU
             try
             {
                 inactivitySeconds = activityMonitor.GetInactivitySeconds();
@@ -42,6 +51,7 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
             TimeSpan cpuBoundary = Stopwatch.GetElapsedTime(clockOrigin);
             DateTime utcEnd = DateTime.UtcNow;
 
+            // Screen lock and power
             try
             {
                 isLocked = sessionMonitor.IsLocked();
@@ -61,6 +71,23 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
             }
 
             ActivityState? state = stateClassifier.Classify(inactivitySeconds);
+            var reading = new MonitoringReading(utcEnd, inactivitySeconds, cpuPercentage, state, isLocked, isOnBattery);
+            // Observers must never interrupt reporting or sampling.
+            if (ReadingAvailable is { } observers)
+                foreach (Action<MonitoringReading> observer in observers.GetInvocationList())
+                    try { observer(reading); }
+                    catch (Exception exception) { logger.LogWarning(exception, "Live reading observer failed."); }
+            firstReading.TrySetResult();
+
+            try
+            {
+                activityHistory.Save(identity.Id, reportingSettings.DeviceType, utcEnd,
+                    inactivitySeconds, cpuPercentage, state, isLocked, isOnBattery);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                logger.LogError(exception, "ACTIVITY HISTORY NOT SAVED: {HistoryPath}", activityHistory.FilePath);
+            }
 
             logger.LogInformation(
                 "User inactivity: {InactivitySeconds} seconds; CPU usage: {CpuUsagePercent}; Screen lock: {ScreenLockStatus}; Power source: {PowerSource}; State: {ActivityState}",
@@ -78,6 +105,24 @@ public class Worker(ILogger<Worker> logger, WindowsActivityMonitor activityMonit
                 logger.LogWarning("Report skipped: {Reason}", reason);
             if (result.Report is { } report)
             {
+                try
+                {
+                    string historyPath = jsonReportWriter.Save(report);
+                    logger.LogInformation("JSON report saved to {ReportPath}; latest copy: {LatestPath}", historyPath, jsonReportWriter.LatestPath);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(exception, "Unable to save JSON report; monitoring continues.");
+                }
+                try
+                {
+                    textReportWriter.Save(report);
+                    logger.LogInformation("Readable report saved to {ReportPath}", textReportWriter.FilePath);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning(exception, "Unable to save the readable report; monitoring continues.");
+                }
                 if (!server.Enabled)
                     logger.LogInformation("Report generated locally (not sent or buffered): {ReportJson}", ReportJson.Serialize(report));
                 else
