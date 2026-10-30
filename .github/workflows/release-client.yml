@@ -1,0 +1,149 @@
+# Release: build, test and publish the Windows client as a GitHub Release.
+#
+# Why this file exists:
+#   GitHub Releases is the only place where the team keeps current versions of
+#   the software. Before this file, the Windows client was built by hand on one
+#   laptop, so nobody else could be sure which build was the current one. Now
+#   every version is built the same way, by a clean runner.
+#
+# What starts it:
+#   Only a manual run. Nothing starts it by itself, so the owner decides which
+#   version is built and from which code. Only people with write access to the
+#   repository can start it.
+#
+# How to use it:
+#   Open the Actions tab, pick "Release Windows client", press Run workflow,
+#   then type the version (for example 0.1.0-dev) and the ref (a branch or a
+#   commit sha, the default is dev). The workflow creates the tag
+#   client-v<version> itself. A version with a dash (for example -dev or -rc1)
+#   is published as a pre-release.
+#
+# Approval by the owner (a one time setup):
+#   In Settings, Environments, client-release, add Darek as a required
+#   reviewer. The job uses this environment, so every run waits for his
+#   approval before it builds anything.
+#
+# What it does (one job, one step after another):
+#   1. Checks that the version looks right and that the tag is still free.
+#   2. Runs all the client tests (tests/Test-*.ps1). A failing test stops
+#      the job, and nothing is published.
+#   3. Publishes the client as one self-contained exe for Windows x64.
+#   4. Computes the SHA-256 checksum of the exe.
+#   5. Creates the GitHub Release (and the tag) with the exe and the checksum
+#      file.
+#
+# What it does not do:
+#   It does not deploy anything to staging. Staging is handled by
+#   deploy-staging.yml and is not touched here.
+#
+# No secrets are needed except the built-in github.token. No third party
+# release action is used, only the gh command line tool of the runner.
+
+name: Release Windows client
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, for example 0.1.0-dev"
+        required: true
+        type: string
+      ref:
+        description: "Branch or commit sha to build"
+        required: true
+        default: dev
+        type: string
+
+# The job must create a release, so it needs write access to the contents.
+permissions:
+  contents: write
+
+# Only one release run at a time. A run that is already going is never
+# cancelled, because a half-finished release is worse than a waiting one.
+concurrency:
+  group: release-client
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    # The owner approves every run here (see the header comment).
+    environment: client-release
+    # A stuck job must not run for hours. Twenty minutes is far more than needed.
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      # Check the input before anything else. The version must look like
+      # 1.2.3 or 1.2.3-rc1, and the tag client-v<version> must not exist yet.
+      # The tag list is read from the repository address, so no checkout is
+      # needed for this step. The repository is public, so no token is needed.
+      - name: Check version and tag
+        env:
+          REPO_URL: https://github.com/${{ github.repository }}.git
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $valid = $env:VERSION -match '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$'
+          if (-not $valid) { throw "Bad version: $env:VERSION" }
+          $found = git ls-remote --tags $env:REPO_URL "refs/tags/client-v$env:VERSION"
+          if ($found) { throw "Tag client-v$env:VERSION already exists." }
+
+      # Download the code of the chosen ref, with the full history.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # Install .NET 10, the same version as the project (net10.0).
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Run every test script, one after another. Each one starts in a new
+      # pwsh process. A native command that returns an error code makes the
+      # step fail at once, so the first failing test stops the job.
+      - name: Run client tests
+        working-directory: client/windows/EcoWattSense.Client
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          Get-ChildItem ./tests/Test-*.ps1 | ForEach-Object { pwsh -NoProfile -File $_.FullName }
+
+      # Build one self-contained exe with the version typed by the owner.
+      - name: Publish client
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet publish ./client/windows/EcoWattSense.Client -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:Version=$env:VERSION -o publish
+
+      # Give the exe a name with the version, then write its SHA-256 into a
+      # file next to it. People can use the file to check their download.
+      - name: Name the exe and compute the checksum
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = "EcoWattSense.Client-$env:VERSION-win-x64.exe"
+          Rename-Item publish/EcoWattSense.Client.exe $exe
+          $hash = (Get-FileHash "publish/$exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $exe" | Set-Content "publish/$exe.sha256"
+
+      # Create the release with the gh tool. The tag does not exist yet, so
+      # gh creates it on the exact commit that was checked out (--target).
+      # The flag list has one item (--prerelease) when the version contains a
+      # dash, and no item when it does not. This way there is no if, only one
+      # gh call.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $exe = "EcoWattSense.Client-$env:VERSION-win-x64.exe"
+          $hash = (Get-Content "publish/$exe.sha256").Split(' ')[0]
+          $commit = git rev-parse HEAD
+          $notes = "Windows client $env:VERSION`n`nSHA-256: $hash`nCommit: $commit"
+          $flags = @('--prerelease') * [int]$env:VERSION.Contains('-')
+          gh release create "client-v$env:VERSION" "publish/$exe" "publish/$exe.sha256" --title "Windows client $env:VERSION" --notes $notes --target $commit @flags
