@@ -6,6 +6,14 @@
 #   laptop, so nobody else could be sure which build was the current one. Now
 #   every version is built the same way, by a clean runner.
 #
+# What is released:
+#   One ZIP file for Windows x64 with:
+#     - EcoWattSense.Client.Gui.exe  the WPF window (the normal way to run it)
+#     - EcoWattSense.Client.exe      the console client (same monitoring code)
+#     - appsettings.json             the default settings, so people can edit them
+#   Both exe files are self-contained, so .NET does not need to be installed.
+#   A .sha256 file next to the ZIP lets people check their download.
+#
 # What starts it:
 #   Only a manual run. Nothing starts it by itself, so the owner decides which
 #   version is built and from which code. Only people with write access to the
@@ -19,17 +27,19 @@
 #   is published as a pre-release.
 #
 # Approval by the owner (a one time setup):
-#   In Settings, Environments, client-release, add Darek as a required
-#   reviewer. The job uses this environment, so every run waits for his
-#   approval before it builds anything.
+#   In Settings, Environments, client-release, add the client lead as a
+#   required reviewer. The job uses this environment, so every run waits for
+#   that approval before it builds anything.
 #
 # What it does (one job, one step after another):
 #   1. Checks that the version looks right and that the tag is still free.
-#   2. Runs all the client tests (tests/Test-*.ps1). A failing test stops
-#      the job, and nothing is published.
-#   3. Publishes the client as one self-contained exe for Windows x64.
-#   4. Computes the SHA-256 checksum of the exe.
-#   5. Creates the GitHub Release (and the tag) with the exe and the checksum
+#   2. Runs all the client tests (tests/Test-*.ps1) and the live monitoring
+#      integration check. A failing test stops the job, and nothing is
+#      published.
+#   3. Publishes the GUI and the console client as single exe files.
+#   4. Puts both exe files and appsettings.json into one ZIP, and computes
+#      its SHA-256 checksum.
+#   5. Creates the GitHub Release (and the tag) with the ZIP and the checksum
 #      file.
 #
 # What it does not do:
@@ -69,13 +79,16 @@ jobs:
     runs-on: windows-latest
     # The owner approves every run here (see the header comment).
     environment: client-release
-    # A stuck job must not run for hours. Twenty minutes is far more than needed.
-    timeout-minutes: 20
+    # A stuck job must not run for hours. Thirty minutes is far more than needed.
+    timeout-minutes: 30
     defaults:
       run:
         shell: pwsh
     env:
       VERSION: ${{ inputs.version }}
+      CLIENT_DIR: client/windows/EcoWattSense.Client
+      GUI_DIR: client/windows/EcoWattSense.Client.Gui
+      INTEGRATION_DIR: client/windows/tests/MonitoringIntegration
     steps:
       # Check the input before anything else. The version must look like
       # 1.2.3 or 1.2.3-rc1, and the tag client-v<version> must not exist yet.
@@ -98,52 +111,94 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      # Install .NET 10, the same version as the project (net10.0).
+      # Install .NET 10, the same version as the projects (net10.0).
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
       # Run every test script, one after another. Each one starts in a new
-      # pwsh process. A native command that returns an error code makes the
-      # step fail at once, so the first failing test stops the job.
+      # pwsh process, and its exit code is checked, so the first failing test
+      # stops the job.
       - name: Run client tests
-        working-directory: client/windows/EcoWattSense.Client
+        working-directory: ${{ env.CLIENT_DIR }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem ./tests/Test-*.ps1 | ForEach-Object {
+            Write-Host "Running $($_.Name)"
+            pwsh -NoProfile -File $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Failed: $($_.Name)" }
+          }
+
+      # Start the shared monitoring host for real and wait for two live
+      # readings. This checks the code that the GUI uses.
+      - name: Run monitoring integration check
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          Get-ChildItem ./tests/Test-*.ps1 | ForEach-Object { pwsh -NoProfile -File $_.FullName }
+          dotnet run --project "$env:INTEGRATION_DIR" -c Release
 
-      # Build one self-contained exe with the version typed by the owner.
-      - name: Publish client
+      # Build both programs as single exe files with the version typed by the
+      # owner. WPF has native libraries; IncludeNativeLibrariesForSelfExtract
+      # puts them inside the GUI exe, so the exe can run on its own.
+      - name: Publish GUI and console client
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          dotnet publish ./client/windows/EcoWattSense.Client -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:Version=$env:VERSION -o publish
+          $common = @('-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
+                      '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
+                      "-p:Version=$env:VERSION")
+          dotnet publish "$env:GUI_DIR" @common -o publish/gui
+          dotnet publish "$env:CLIENT_DIR" @common -o publish/console
 
-      # Give the exe a name with the version, then write its SHA-256 into a
-      # file next to it. People can use the file to check their download.
-      - name: Name the exe and compute the checksum
+      # Put the two exe files and the default settings into one folder, zip it
+      # and write the SHA-256 of the ZIP into a file next to it. Only the
+      # files listed here go into the ZIP. If a publish folder holds any other
+      # .dll or .exe, a library was not packed into the exe, so the job stops
+      # instead of publishing a ZIP that would not start. Other files (debug
+      # symbols, settings, runtimeconfig of the referenced console project)
+      # are not needed and are left out.
+      - name: Make the ZIP and the checksum
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = "EcoWattSense.Client-$env:VERSION-win-x64.exe"
-          Rename-Item publish/EcoWattSense.Client.exe $exe
-          $hash = (Get-FileHash "publish/$exe" -Algorithm SHA256).Hash.ToLower()
-          "$hash  $exe" | Set-Content "publish/$exe.sha256"
+          $expected = @{ 'publish/gui' = 'EcoWattSense.Client.Gui.exe'; 'publish/console' = 'EcoWattSense.Client.exe' }
+          foreach ($folder in $expected.Keys) {
+            $extra = Get-ChildItem $folder -File -Recurse | Where-Object {
+              $_.Extension -in '.dll', '.exe' -and $_.Name -ne $expected[$folder]
+            }
+            if ($extra) { throw "Libraries not packed into the exe in ${folder}: $($extra.Name -join ', ')" }
+          }
+          $name = "EcoWattSense.Client-$env:VERSION-win-x64"
+          $stage = "stage/$name"
+          New-Item -ItemType Directory $stage | Out-Null
+          Copy-Item publish/gui/EcoWattSense.Client.Gui.exe $stage
+          Copy-Item publish/console/EcoWattSense.Client.exe $stage
+          Copy-Item "$env:CLIENT_DIR/appsettings.json" $stage
+          Get-ChildItem $stage | Format-Table Name, Length
+          Compress-Archive -Path $stage -DestinationPath "publish/$name.zip"
+          $hash = (Get-FileHash "publish/$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Set-Content "publish/$name.zip.sha256"
 
       # Create the release with the gh tool. The tag does not exist yet, so
       # gh creates it on the exact commit that was checked out (--target).
-      # The flag list has one item (--prerelease) when the version contains a
-      # dash, and no item when it does not. This way there is no if, only one
-      # gh call.
+      # A version with a dash is marked as a pre-release.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $exe = "EcoWattSense.Client-$env:VERSION-win-x64.exe"
-          $hash = (Get-Content "publish/$exe.sha256").Split(' ')[0]
+          $name = "EcoWattSense.Client-$env:VERSION-win-x64"
+          $hash = (Get-Content "publish/$name.zip.sha256").Split(' ')[0]
           $commit = git rev-parse HEAD
-          $notes = "Windows client $env:VERSION`n`nSHA-256: $hash`nCommit: $commit"
-          $flags = @('--prerelease') * [int]$env:VERSION.Contains('-')
-          gh release create "client-v$env:VERSION" "publish/$exe" "publish/$exe.sha256" --title "Windows client $env:VERSION" --notes $notes --target $commit @flags
+          $notes = @(
+            "Windows client $env:VERSION (GUI and console)."
+            ''
+            "Unzip into a folder you can write to (not Program Files), then run EcoWattSense.Client.Gui.exe."
+            'The exe files are not signed, so Windows SmartScreen may show a warning.'
+            ''
+            "SHA-256: $hash"
+            "Commit: $commit"
+          ) -join "`n"
+          $flags = @()
+          if ($env:VERSION.Contains('-')) { $flags += '--prerelease' }
+          gh release create "client-v$env:VERSION" "publish/$name.zip" "publish/$name.zip.sha256" --title "Windows client $env:VERSION" --notes $notes --target $commit @flags
