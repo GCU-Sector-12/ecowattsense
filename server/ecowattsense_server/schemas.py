@@ -78,7 +78,8 @@ class ReportIn(BaseModel):
 
 
 # The body of POST /api/reports: one report, or a list of 1 to 100 reports.
-ReportList = Annotated[list[ReportIn], Field(min_length=1, max_length=100)]
+MAX_REPORTS_PER_REQUEST = 100
+ReportList = Annotated[list[ReportIn], Field(min_length=1, max_length=MAX_REPORTS_PER_REQUEST)]
 ReportBody = Union[ReportIn, ReportList]
 
 
