@@ -2,6 +2,7 @@
 from sqlmodel import SQLModel, Session, create_engine
 
 from .config import ROOT, settings
+from .seed import seed_defaults
 
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
 
@@ -9,6 +10,8 @@ engine = create_engine(settings.database_url, connect_args={"check_same_thread":
 def init_db() -> None:
     (ROOT / "data").mkdir(exist_ok=True)
     SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_defaults(session)
 
 
 def get_session():

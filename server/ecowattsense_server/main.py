@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from . import models  # noqa: F401  (the import makes create_all see the tables)
 from .api import auth, contract, devices, health, history, ping, settings, summary
 from .db import init_db
 
