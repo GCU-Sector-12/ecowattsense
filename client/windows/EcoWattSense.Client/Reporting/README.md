@@ -1,5 +1,52 @@
 # Windows report model
 
+## Saved JSON and history
+
+Each completed report is saved as formatted JSON at
+`%LOCALAPPDATA%\EcoWattSense\Reports\latest-report.json` and as a separate file under
+`Reports\History\yyyy-MM-dd\` (UTC date). Each history filename includes the device UUID
+and UTC timestamp. Previous intervals survive restart; existing history files are not
+overwritten. The latest JSON copy is replaced after each successfully archived interval.
+Files use ReportJson's exact ten-field shape from shared/report_schema.json. The text
+summary remains available alongside them. No CSV conversion is involved.
+
+These files preserve local observations, not server acknowledgement or an upload queue.
+Skipped intervals produce no files. There is no automatic history deletion yet. Archive
+or remove old history manually when it is no longer needed. A filesystem write failure
+is logged and does not stop monitoring. Only completed intervals are saved; no history
+from before this feature can be reconstructed from the previous latest-report.txt.
+
+Open the latest JSON after a completed interval:
+
+```powershell
+notepad "$env:LOCALAPPDATA\EcoWattSense\Reports\latest-report.json"
+```
+
+## Readable report for demonstrations
+
+Each completed interval also saves an English summary and formatted JSON to
+`%LOCALAPPDATA%\EcoWattSense\Reports\latest-report.txt`. The next completed interval
+replaces that file. It is a presentation copy, not a queue or confirmation of server
+acceptance. Failed/skipped intervals leave the previous file unchanged, so check its
+UTC timestamp. Write failures are logged and do not stop monitoring or server sending.
+
+For a quick local demonstration, run from the repository root:
+
+```powershell
+dotnet run --project .\client\windows\EcoWattSense.Client -- --Server:Enabled=false --Reporting:IntervalSeconds=15 --DeviceIdentity:Directory="$env:TEMP\EcoWattSense-ManualIdentityTest"
+```
+
+Choose 1 or 2 if prompted. After the first valid report (about 15 seconds after the CPU
+baseline), open it in a second terminal:
+
+```powershell
+notepad "$env:LOCALAPPDATA\EcoWattSense\Reports\latest-report.txt"
+```
+
+Stop the client with Ctrl+C to keep a stable report for your tutor. An already-open
+Notepad window may need to reopen the file to display subsequent updates. No invented
+measurements are written when required readings are unavailable.
+
 `DeviceReport` is an immutable outbound model for exactly the ten required fields
 in `shared/report_schema.json`. Use `ReportJson.Serialize(report)` for the wire JSON.
 It uses built-in System.Text.Json. Worker now supplies measurements to ReportInterval
