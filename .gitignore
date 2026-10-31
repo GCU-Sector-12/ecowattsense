@@ -79,6 +79,10 @@ out/
 ### .NET (in case option C is chosen)
 bin/
 obj/
+/publish/
+# Client runtime output (local reports and activity history)
+Reports/
+activity-history.json*
 *.user
 *.suo
 
