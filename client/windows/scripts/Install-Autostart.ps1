@@ -62,7 +62,7 @@ try {
     Remove-Item -LiteralPath $probe -Force
 }
 catch {
-    throw "You cannot write to the folder $folder. The client needs to save files there. Unzip the release into $env:LOCALAPPDATA\Programs\EcoWattSense and run this script from there."
+    throw "You cannot write to the folder $folder. The client needs to save files there. Unzip the release into $env:LOCALAPPDATA\Programs\EcoWattSense and run this script from the folder it creates there."
 }
 
 $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
