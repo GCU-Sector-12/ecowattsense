@@ -97,8 +97,10 @@ Get-ChildItem "$env:LOCALAPPDATA\EcoWattSense\Reports" | Sort-Object LastWriteTi
 A new report file appears after each reporting interval (5 minutes by default). The activity
 history is in the `Reports` folder next to the exe.
 
-The client has no window, so errors go to Event Viewer: Windows Logs, Application, sources
-".NET Runtime" and "Application Error".
+The client has no window, so it writes to Event Viewer instead: Windows Logs, Application,
+source ".NET Runtime". At each start it writes a few lines (file paths, settings, device id).
+After that it writes only warnings and errors, not every reading, so the log does not fill up.
+A crash is also shown with the source "Application Error".
 
 To start it now without signing out: `Start-ScheduledTask -TaskName 'EcoWattSense Client'`.
 To stop it until the next login: `Stop-ScheduledTask -TaskName 'EcoWattSense Client'`
