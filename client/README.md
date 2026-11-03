@@ -102,6 +102,9 @@ source ".NET Runtime". At each start it writes a few lines (file paths, settings
 After that it writes only warnings and errors, not every reading, so the log does not fill up.
 A crash is also shown with the source "Application Error".
 
+If the client crashes or is ended, it does not start again by itself. It starts again at the
+next login. To start it at once, use the command below.
+
 To start it now without signing out: `Start-ScheduledTask -TaskName 'EcoWattSense Client'`.
 To stop it until the next login: `Stop-ScheduledTask -TaskName 'EcoWattSense Client'`
 (or end `EcoWattSense.Client.Background.exe` in Task Manager).

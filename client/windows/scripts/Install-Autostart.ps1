@@ -90,6 +90,9 @@ $trigger.Delay = 'PT1M'
 # The client must run in your session to see keyboard and mouse activity.
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
+# RestartCount/RestartInterval only help when the task fails to start. If the client
+# crashes or is ended after it has started, Task Scheduler does not start it again
+# (checked by hand). It then starts again at the next log on.
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
