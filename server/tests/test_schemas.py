@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from ecowattsense_server.schemas import ReportBody, ReportIn, ReportResult, ReportResults
+from ecowattsense_server.schemas import MAX_INT64, MIN_INT64, ReportBody, ReportIn, ReportResult, ReportResults
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "shared" / "examples"
 body = TypeAdapter(ReportBody)
@@ -131,3 +131,35 @@ def test_model_matches_the_schema_fields():
     assert set(fields) == set(schema["properties"])
     required = {name for name, field in fields.items() if field.is_required()}
     assert required == set(schema["required"])
+
+
+# The database stores whole numbers in 64 bits. A bigger number must be a wrong report (422),
+# not a crash when the report is stored.
+
+# Each case: the field, the biggest accepted value, and the first value that is too big.
+UPPER_LIMITS = {
+    "interval_seconds": (MAX_INT64, MAX_INT64 + 1),
+    "idle_seconds": (MAX_INT64, MAX_INT64 + 1),
+    "energy_uj": (MAX_INT64, MAX_INT64 + 1),
+    "battery_energy_uj": (MAX_INT64, MAX_INT64 + 1),
+    "device_energy_uj": (MAX_INT64, MAX_INT64 + 1),
+}
+
+
+@pytest.mark.parametrize("field", UPPER_LIMITS)
+def test_the_biggest_64_bit_number_is_accepted(field):
+    report = example("active") | {field: UPPER_LIMITS[field][0], "on_battery": False}
+    assert getattr(ReportIn.model_validate(report), field) == MAX_INT64
+
+
+@pytest.mark.parametrize("field", UPPER_LIMITS)
+def test_a_number_above_64_bits_is_rejected(field):
+    report = example("active") | {field: UPPER_LIMITS[field][1], "on_battery": False}
+    with pytest.raises(ValidationError):
+        ReportIn.model_validate(report)
+
+
+def test_battery_energy_has_a_lower_limit_too():
+    assert ReportIn.model_validate(example("active") | {"battery_energy_uj": MIN_INT64}).battery_energy_uj == MIN_INT64
+    with pytest.raises(ValidationError):
+        ReportIn.model_validate(example("active") | {"battery_energy_uj": MIN_INT64 - 1})

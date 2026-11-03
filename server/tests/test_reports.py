@@ -346,3 +346,31 @@ def test_reports_of_a_list_from_different_computers_make_different_devices(engin
 def test_a_report_without_the_key_stores_nothing(engine):
     assert no_key_client.post("/api/reports", json=example("active")).status_code == 401
     assert stored(engine, Report) == []
+
+
+# A number bigger than 64 bits used to crash the insert (HTTP 500). It is a wrong report (422) now.
+
+TOO_BIG = 2**63
+
+
+@pytest.mark.parametrize(
+    "field", ["interval_seconds", "idle_seconds", "energy_uj", "battery_energy_uj", "device_energy_uj"]
+)
+def test_a_number_above_64_bits_is_422_not_500(engine, field):
+    response = client.post("/api/reports", json=wrong(**{field: TOO_BIG}))
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+    assert stored(engine, Report) == []
+
+
+def test_a_number_above_64_bits_in_a_list_is_rejected_and_does_not_stop_the_others(engine):
+    response = client.post("/api/reports", json=[example("idle"), wrong(energy_uj=TOO_BIG), example("unused")])
+    assert response.status_code == 200
+    assert [r["status"] for r in response.json()["results"]] == ["created", "rejected", "created"]
+    assert response.json()["results"][1]["error"].startswith("energy_uj:")
+
+
+def test_the_biggest_64_bit_energy_is_stored(engine):
+    biggest = 2**63 - 1
+    assert client.post("/api/reports", json=wrong(energy_uj=biggest)).status_code == 201
+    assert stored(engine, Report)[0].energy_uj == biggest
