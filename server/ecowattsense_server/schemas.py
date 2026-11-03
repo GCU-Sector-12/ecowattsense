@@ -24,6 +24,11 @@ from pydantic import (
 # A report may be at most this far ahead of the server clock (contract 5.4).
 MAX_CLOCK_AHEAD = timedelta(minutes=5)
 
+# The database stores whole numbers in 64 bits. A bigger number would crash the insert (HTTP 500),
+# so a number above these limits is a wrong report (422) instead.
+MAX_INT64 = 2**63 - 1
+MIN_INT64 = -(2**63)
+
 # Fields the client may leave out. They may be missing, but never null.
 OPTIONAL_FIELDS = ("energy_uj", "battery_energy_uj", "device_energy_uj", "machine_hash")
 
@@ -37,20 +42,20 @@ class ReportIn(BaseModel):
     device_id: UUID
     # AwareDatetime: a time without a zone is rejected.
     timestamp: AwareDatetime
-    interval_seconds: Annotated[StrictInt, Field(gt=0)]
+    interval_seconds: Annotated[StrictInt, Field(gt=0, le=MAX_INT64)]
     # 2 active, 1 idle, 0 unused.
     state: Literal[2, 1, 0]
-    idle_seconds: Annotated[StrictInt, Field(ge=0)]
+    idle_seconds: Annotated[StrictInt, Field(ge=0, le=MAX_INT64)]
     cpu_percent: Annotated[float, Field(ge=0, le=100)]
     screen_locked: StrictBool
     on_battery: StrictBool
     os: Literal["windows", "linux", "macos"]
     device_type: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=40)]
 
-    energy_uj: Optional[Annotated[StrictInt, Field(ge=0)]] = None
+    energy_uj: Optional[Annotated[StrictInt, Field(ge=0, le=MAX_INT64)]] = None
     # Negative = energy out of the battery, positive = into it.
-    battery_energy_uj: Optional[StrictInt] = None
-    device_energy_uj: Optional[Annotated[StrictInt, Field(ge=0)]] = None
+    battery_energy_uj: Optional[Annotated[StrictInt, Field(ge=MIN_INT64, le=MAX_INT64)]] = None
+    device_energy_uj: Optional[Annotated[StrictInt, Field(ge=0, le=MAX_INT64)]] = None
     machine_hash: Optional[Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]] = None
 
     @model_validator(mode="before")
