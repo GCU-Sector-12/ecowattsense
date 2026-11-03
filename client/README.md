@@ -43,10 +43,14 @@ same client as `EcoWattSense.Client.exe`, but it opens no window.
 
 1. Unzip the release into `%LOCALAPPDATA%\Programs\EcoWattSense`. The client saves files next
    to the exe, so use a folder you can write to (not Program Files).
-2. Open PowerShell in that folder. Windows blocks scripts that come from a downloaded ZIP, so unblock them once:
+   The ZIP has one folder inside, `EcoWattSense.Client-<version>-win-x64`, so the files end up in
+   `%LOCALAPPDATA%\Programs\EcoWattSense\EcoWattSense.Client-<version>-win-x64`.
+2. Open PowerShell in the folder that contains `Install-Autostart.ps1` (the folder named
+   `EcoWattSense.Client-<version>-win-x64`). Windows blocks files that come from a downloaded ZIP,
+   so unblock all of them once:
 
    ```powershell
-   Get-ChildItem *.ps1 | Unblock-File
+   Get-ChildItem -Recurse | Unblock-File
    ```
 
 3. Install the task. Use `desktop` instead of `laptop` when appropriate:
@@ -58,6 +62,9 @@ same client as `EcoWattSense.Client.exe`, but it opens no window.
 The task is called `EcoWattSense Client`. It starts the client one minute after you log in,
 so that Wi-Fi is up first. Run the same command again to change the device type or after you
 move the folder. It updates the task.
+
+A new version unzips into a new folder. Run `Uninstall-Autostart.ps1` from the old folder first,
+then the steps above in the new folder.
 
 Do not start `EcoWattSense.Client.Background.exe` by double-click. Without the task it gets no
 device type and has no window to ask for one. So it stops at once and shows nothing.

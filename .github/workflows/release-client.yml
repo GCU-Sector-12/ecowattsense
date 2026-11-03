@@ -213,7 +213,7 @@ jobs:
           $notes = @(
             "Windows client $env:VERSION (GUI and console)."
             ''
-            'Unzip into %LOCALAPPDATA%\Programs\EcoWattSense (a folder you can write to, not Program Files), then run EcoWattSense.Client.Gui.exe.'
+            "Unzip into %LOCALAPPDATA%\Programs\EcoWattSense (a folder you can write to, not Program Files). The files are in the folder $name inside it. Run EcoWattSense.Client.Gui.exe from there."
             'To start the client automatically at login, run Install-Autostart.ps1 (see client/README.md).'
             'The exe files are not signed, so Windows SmartScreen may show a warning.'
             ''
