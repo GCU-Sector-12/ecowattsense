@@ -35,7 +35,9 @@ param(
     [ValidateSet('laptop', 'desktop')]
     [string]$DeviceType,
 
-    [string]$ExePath = (Join-Path $PSScriptRoot 'EcoWattSense.Client.Background.exe'),
+    # Empty means: the exe next to this script. It is set below, not here, because
+    # Windows PowerShell 5.1 can leave $PSScriptRoot empty in default values.
+    [string]$ExePath = '',
 
     [string]$TaskName = 'EcoWattSense Client',
 
@@ -46,6 +48,12 @@ $ErrorActionPreference = 'Stop'
 
 # ValidateSet ignores case, but the client only accepts lowercase device types.
 $DeviceType = $DeviceType.ToLowerInvariant()
+
+if ([string]::IsNullOrEmpty($ExePath)) {
+    $scriptFolder = $PSScriptRoot
+    if ([string]::IsNullOrEmpty($scriptFolder)) { $scriptFolder = Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $ExePath = Join-Path $scriptFolder 'EcoWattSense.Client.Background.exe'
+}
 
 # Turn a relative path into a full path, based on the current PowerShell folder.
 $exe = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ExePath)
