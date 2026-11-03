@@ -28,12 +28,24 @@ try {
     $exe = Join-Path $appFolder 'EcoWattSense.Client.Background.exe'
     Set-Content -LiteralPath $exe -Value 'dummy exe for the test'
 
+    # A copy of the release folder: both scripts next to a dummy background exe.
+    $releaseFolder = Join-Path $directory 'Release Folder'
+    $null = New-Item -ItemType Directory -Path $releaseFolder
+    $releaseExe = Join-Path $releaseFolder 'EcoWattSense.Client.Background.exe'
+    Set-Content -LiteralPath $releaseExe -Value 'dummy exe for the test'
+    Copy-Item -LiteralPath $install, $uninstall -Destination $releaseFolder
+    $releaseInstall = Join-Path $releaseFolder 'Install-Autostart.ps1'
+    $releaseUninstall = Join-Path $releaseFolder 'Uninstall-Autostart.ps1'
+
     # Prints the task definition as JSON, so both engines can be checked the same way.
     $summary = Join-Path $directory 'summary.ps1'
     Set-Content -LiteralPath $summary -Encoding ascii -Value @'
 param([string]$Install, [string]$Exe, [string]$DeviceType)
 $ErrorActionPreference = 'Stop'
-$task = & $Install -DeviceType $DeviceType -ExePath $Exe -DefinitionOnly
+# Without -Exe, the script must find the exe next to itself (the default of -ExePath).
+$arguments = @{ DeviceType = $DeviceType; DefinitionOnly = $true }
+if ($Exe) { $arguments.ExePath = $Exe }
+$task = & $Install @arguments
 $s = $task.Settings
 [ordered]@{
     TriggerCount = @($task.Triggers).Count
@@ -79,6 +91,26 @@ $s = $task.Settings
             $checks++
         }
         if ($t.Arguments -match 'ClientKey|X-EWS-Key') { throw "${name}: the client key must never be a task argument" }
+        $checks++
+
+        # Without -ExePath, the script uses the exe in its own folder, as in the release ZIP.
+        # The script is started with -File, as in the README.
+        $json = & $engine -NoProfile -ExecutionPolicy Bypass -File $summary -Install $releaseInstall -DeviceType desktop 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "${name}: install without -ExePath failed: $json" }
+        $d = ($json -join "`n") | ConvertFrom-Json
+        if ($d.Execute -ne '"' + $releaseExe + '"') { throw "${name}: default exe is '$($d.Execute)', expected '$releaseExe'" }
+        if ($d.WorkingDirectory -ne $releaseFolder) { throw "${name}: default working directory is '$($d.WorkingDirectory)'" }
+        if ($d.Arguments -ne '--Reporting:DeviceType=desktop') { throw "${name}: default arguments are '$($d.Arguments)'" }
+        $checks += 3
+
+        # The same, with the script run directly by -File (no wrapper script in between).
+        $out = & $engine -NoProfile -ExecutionPolicy Bypass -File $releaseInstall -DeviceType laptop -DefinitionOnly 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "${name}: install -File without -ExePath failed: $out" }
+        $checks++
+
+        # Uninstall started by -File from the release folder (no path parameters to resolve).
+        $out = & $engine -NoProfile -ExecutionPolicy Bypass -File $releaseUninstall -TaskName $taskName 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($out -join ' ') -notmatch 'not installed') { throw "${name}: uninstall from the release folder failed: $out" }
         $checks++
 
         # A missing exe stops the script with a clear message.
