@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -58,6 +59,17 @@ public partial class MainWindow : Window
             _ = ObserveCompletionAsync(execution);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
+        catch (ClientAlreadyRunningException)
+        {
+            // Not an error: another copy already monitors this computer, so this window only closes.
+            // EWS-109 can later ask the running copy to show its window here instead.
+            if (closing) return;
+            ReportStatusValue.Text = "EcoWattSense is already running on this computer.";
+            MessageBox.Show(this,
+                "EcoWattSense is already running on this computer (maybe started at login by the autostart task). This window will close.",
+                "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
+            Close();
+        }
         catch (Exception exception)
         {
             if (!closing) ShowFailure("Monitoring could not start", exception);
