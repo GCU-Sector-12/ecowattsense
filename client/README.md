@@ -69,7 +69,8 @@ then the steps above in the new folder.
 Do not start `EcoWattSense.Client.Background.exe` by double-click. Without the task it gets no
 device type and has no window to ask for one. So it stops at once and shows nothing.
 The error is only in Event Viewer. If a device type was saved before (for example by the GUI),
-it does start, but you cannot see it, and it runs next to the task as a second copy.
+it does start, but you cannot see it. If the task is already running, it does not start
+a second copy (see "Only one copy runs" below).
 
 ### Server key
 
@@ -109,8 +110,29 @@ To start it now without signing out: `Start-ScheduledTask -TaskName 'EcoWattSens
 To stop it until the next login: `Stop-ScheduledTask -TaskName 'EcoWattSense Client'`
 (or end `EcoWattSense.Client.Background.exe` in Task Manager).
 
-Do not open the GUI while the task is running. Then two copies would monitor the same computer
-and the server would get two sets of reports.
+### Only one copy runs
+
+Only one copy of the client monitors a computer at a time. This is the console exe, the
+background exe or the GUI, whichever starts first. Another copy started later does not
+monitor and sends nothing:
+
+- The console exe and the background exe write the warning "EcoWattSense is already running
+  on this computer" and stop with exit code 2. The console exe shows it in the window. The
+  background exe writes it to Event Viewer (Windows Logs, Application, source ".NET Runtime").
+  Task Scheduler then shows the last run result `0x2`.
+- The GUI shows the message "EcoWattSense is already running on this computer" and closes.
+
+So, while the task is running, the GUI does not show live data. To use the GUI, stop the task
+first (`Stop-ScheduledTask -TaskName 'EcoWattSense Client'`). When a copy stops or crashes,
+the next copy can start.
+
+The lock is the file `instance.lock` in `%ProgramData%\EcoWattSense\Client`, next to the device id.
+Windows frees it when the copy ends, also after a crash. You do not need to delete it.
+
+Known limitation: the lock is for the whole computer, like the device id. If two Windows users
+are logged in at the same time (fast user switching), only the copy of the user who started it
+first monitors. The copy of the second user says it is already running, so the second user's
+activity is not reported.
 
 ### Uninstall
 
