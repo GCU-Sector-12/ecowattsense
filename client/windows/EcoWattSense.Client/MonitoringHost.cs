@@ -10,15 +10,22 @@ public static class MonitoringHost
     public static async Task<IHost> CreateAsync(HostApplicationBuilder builder, Func<string> selectDeviceType, CancellationToken cancellationToken = default)
     {
         var identityDirectory = DeviceIdentityStore.ResolveDirectory(builder.Configuration["DeviceIdentity:Directory"]);
-        var deviceType = DeviceTypeSelection.Resolve(builder.Configuration["Reporting:DeviceType"],
-        identityDirectory, selectDeviceType);
-        var server = new ServerClient(new ServerOptions(
-        builder.Configuration.GetValue<bool>("Server:Enabled", false),
-        builder.Configuration["Server:BaseUrl"], builder.Configuration["Server:ClientKey"]));
-        builder.Services.AddSingleton<ServerClient>(_ => server);
+        // Take the lock first: a second copy must not ask for the device type or call the server.
+        // Throws ClientAlreadyRunningException when another copy is running.
+        var instanceLock = SingleInstanceLock.Acquire(identityDirectory);
+        ServerClient? server = null;
         IHost? host = null;
         try
         {
+            // A factory registration, so the host disposes the lock (and frees it) when the host is disposed.
+            builder.Services.AddSingleton<SingleInstanceLock>(_ => instanceLock);
+            var deviceType = DeviceTypeSelection.Resolve(builder.Configuration["Reporting:DeviceType"],
+            identityDirectory, selectDeviceType);
+            server = new ServerClient(new ServerOptions(
+            builder.Configuration.GetValue<bool>("Server:Enabled", false),
+            builder.Configuration["Server:BaseUrl"], builder.Configuration["Server:ClientKey"]));
+            var registeredServer = server;
+            builder.Services.AddSingleton<ServerClient>(_ => registeredServer);
             StartupSettings? remote = null;
             if (server.Enabled)
             {
@@ -50,6 +57,8 @@ public static class MonitoringHost
 
             cancellationToken.ThrowIfCancellationRequested();
             host = builder.Build();
+            // The container disposes only factory singletons it has created, so create it now.
+            host.Services.GetRequiredService<SingleInstanceLock>();
             host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ActivityHistory")
             .LogInformation("Every activity check is saved to {HistoryPath} (JSON array, retained after shutdown and restart).",
             host.Services.GetRequiredService<ActivityHistoryWriter>().FilePath);
@@ -75,7 +84,8 @@ public static class MonitoringHost
                 .LogWarning("Startup settings unavailable ({Reason}); using local defaults 300/600/3600. No retry.", reason);
             return host;
         }
-        catch { host?.Dispose(); server.Dispose(); throw; }
+        // Any failure after the lock was taken (cancelled prompt, settings error) frees the lock.
+        catch { host?.Dispose(); server?.Dispose(); instanceLock.Dispose(); throw; }
 
     }
 }
