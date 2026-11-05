@@ -8,7 +8,7 @@ import EnergyChart from '../components/EnergyChart.jsx'
 import StatusDonut from '../components/StatusDonut.jsx'
 import ComputerTable from '../components/ComputerTable.jsx'
 import { getSummary, getDevices } from '../data/index.js'
-import { stateDisplay } from '../data/ui.js'
+import { sampleScreen, stateDisplay } from '../data/ui.js'
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState(null)
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   }, [])
 
   if (!summary) return <div>Loading dashboard...</div>
-  const referenceTime = '2025-03-10T14:32:00Z'
+  const referenceTime = sampleScreen.generated_at
   const cards = [
     { state: 'active', icon: Monitor },
     { state: 'idle', icon: Clock },
@@ -36,7 +36,7 @@ export default function DashboardPage() {
     <Stack gap="md">
       <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
-        generatedAt={referenceTime} userName="Admin" />
+        generatedAt={referenceTime} userName={sampleScreen.user_name} />
       <SimpleGrid cols={4} spacing="md">
         {cards.map(({ state, icon }) => (
           <StatCard key={state} state={state} icon={icon}

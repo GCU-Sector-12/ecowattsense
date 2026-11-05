@@ -21,13 +21,14 @@ it('opens Settings from the hash and switches to the dark theme', async () => {
   const menuItem = screen.getByRole('link', { name: 'Settings' })
   expect(menuItem).toHaveAttribute('data-active', 'true')
 
+  expect(await screen.findByText('Report interval: 300 seconds')).toBeInTheDocument()
   await userEvent.click(screen.getByText('Dark'))
   expect(document.documentElement).toHaveAttribute('data-mantine-color-scheme', 'dark')
 })
 
-it('shows the dashboard when there is no hash', () => {
+it('shows the dashboard when there is no hash', async () => {
   renderWithMantine(<App />)
-  expect(screen.getByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
 })
 
 // EWS_WEB-23: every sidebar item has its own page, an unknown address shows "Page not found",
@@ -81,11 +82,12 @@ it('has no Reports page: the menu has no Reports item and #reports is "Page not 
   expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
 })
 
-it('highlights Dashboard when there is no hash, and Computers on #computers', () => {
+it('highlights Dashboard when there is no hash, and Computers on #computers', async () => {
   renderWithMantine(<App />)
   expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('data-active', 'true')
 
   goToHash('#computers')
+  expect(await screen.findByText('All 20 monitored computers and their current state.')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Computers' })).toHaveAttribute('data-active', 'true')
 })

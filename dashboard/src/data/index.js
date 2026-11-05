@@ -4,24 +4,51 @@ import summary from './summary.json'
 import devices from './devices.json'
 import history from './history.json'
 import settings from './settings.json'
+import { ujToKwh } from './units.js'
 
-export async function getSummary(date) {
-  return structuredClone(date && date !== summary.date
-    ? { ...summary, date }
-    : summary)
+export async function getSummary(date = summary.date) {
+  // Only one day is recorded in the sample. Do not relabel its readings as
+  // another day; device counts still describe the current sample devices.
+  return structuredClone(date === summary.date ? summary : {
+    ...summary, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [],
+  })
 }
 
 export async function getDevices() {
   return structuredClone(devices)
 }
 
-export async function getDeviceHistory(device_id, from, to) {
-  const result = structuredClone(history)
-  if (device_id && device_id !== result.device_id) return null
-  if (from || to) {
-    result.reports = result.reports.filter(({ timestamp }) =>
-      (!from || timestamp >= from) && (!to || timestamp <= to))
+export async function getDeviceHistory(device_id, from = history.from, to = history.to) {
+  if (device_id !== history.device_id) return null
+  const start = Date.parse(from)
+  const end = Date.parse(to)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end ||
+      end - start > 31 * 24 * 60 * 60 * 1000) {
+    throw new RangeError('History range must be valid and no longer than 31 days')
   }
+  const result = structuredClone(history)
+  result.from = from
+  result.to = to
+  // The contract includes from and excludes to, comparing instants rather
+  // than strings so equivalent ISO timestamps behave the same way.
+  result.reports = result.reports.filter(({ timestamp }) => {
+    const time = Date.parse(timestamp)
+    return time >= start && time < end
+  })
+  const totals = {
+    active_time_seconds: 0, idle_time_seconds: 0, unused_time_seconds: 0,
+    energy_uj: 0, cost_gbp: 0, co2_kg: 0,
+  }
+  const timeFields = ['unused_time_seconds', 'idle_time_seconds', 'active_time_seconds']
+  for (const report of result.reports) {
+    totals[timeFields[report.state]] += report.interval_seconds
+    totals.energy_uj += report.energy_uj
+  }
+  // All sample reports use the single tariff in settings.json.
+  const energy_kwh = ujToKwh(totals.energy_uj)
+  totals.cost_gbp = Number((energy_kwh * settings.price_gbp_per_kwh).toFixed(4))
+  totals.co2_kg = Number((energy_kwh * settings.co2_kg_per_kwh).toFixed(4))
+  result.totals = totals
   return result
 }
 

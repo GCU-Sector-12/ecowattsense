@@ -12,3 +12,16 @@ export const stateDisplay = {
   unused: { label: 'Unused Computers', caption: 'No activity for 1+ hour' },
   no_data: { label: 'No Data', caption: 'No recent reports' },
 }
+
+// Fixed display context for the sample screens; neither field is API data.
+export const sampleScreen = {
+  generated_at: '2025-03-10T14:32:00Z',
+  user_name: 'Admin',
+}
+
+export const stateLabels = {
+  active: 'Active',
+  idle: 'Idle',
+  unused: 'Unused',
+  no_data: 'No data',
+}

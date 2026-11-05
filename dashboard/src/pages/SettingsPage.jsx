@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Stack } from '@mantine/core'
 import Header from '../components/Header.jsx'
+import { sampleScreen } from '../data/ui.js'
 import AppearanceCard from '../components/AppearanceCard.jsx'
 import { getSettings } from '../data/index.js'
 
@@ -16,7 +17,7 @@ export default function SettingsPage() {
     <Stack gap="md">
       <Header title="Settings"
         subtitle="Change how EcoWattSense looks."
-        generatedAt="2025-03-10T14:32:00Z" userName="Admin" />
+        generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
       <AppearanceCard />
       {settings && <div>Report interval: {settings.report_interval_seconds} seconds</div>}
     </Stack>

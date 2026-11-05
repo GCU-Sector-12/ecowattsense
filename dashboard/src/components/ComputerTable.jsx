@@ -2,7 +2,7 @@ import { Button, Card, Group, Table, Text } from '@mantine/core'
 import StatusDot from './StatusDot.jsx'
 import { timeAgo } from '../data/units.js'
 
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused', no_data: 'No data' }
+import { stateLabels } from '../data/ui.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -17,7 +17,7 @@ function ComputerRow({ computer, referenceTime }) {
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
           <StatusDot state={computer.state_name} size={14} />
-          <Text fz="sm">{LABELS[computer.state_name]}</Text>
+          <Text fz="sm">{stateLabels[computer.state_name]}</Text>
         </Group>
       </Table.Td>
       <Table.Td>{timeAgo(computer.last_seen_at, referenceTime)}</Table.Td>

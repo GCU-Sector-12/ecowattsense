@@ -3,7 +3,7 @@ import { DonutChart } from '@mantine/charts'
 import StatusDot from './StatusDot.jsx'
 
 const STATES = ['active', 'idle', 'unused', 'no_data']
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused', no_data: 'No data' }
+import { stateLabels } from '../data/ui.js'
 
 // One row of the legend: dot, word, count and share in percent.
 function LegendRow({ state, stat, total }) {
@@ -11,7 +11,7 @@ function LegendRow({ state, stat, total }) {
     <Group justify="space-between" wrap="nowrap" gap="md">
       <Group gap="xs" wrap="nowrap">
         <StatusDot state={state} size={16} />
-        <Text fz="sm">{LABELS[state]}</Text>
+        <Text fz="sm">{stateLabels[state]}</Text>
       </Group>
       <Group gap="xs" wrap="nowrap">
         <Text fz="sm" fw={700}>
@@ -28,7 +28,7 @@ function LegendRow({ state, stat, total }) {
 // "Computer Status" card: donut of active / idle / unused with the total in the centre.
 export default function StatusDonut({ summary }) {
   const data = STATES.map((state) => ({
-    name: LABELS[state],
+    name: stateLabels[state],
     value: summary.counts[state],
     color: state === 'no_data' ? 'gray' : state,
   }))

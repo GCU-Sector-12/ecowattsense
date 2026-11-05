@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Stack } from '@mantine/core'
 import Header from '../components/Header.jsx'
+import { sampleScreen } from '../data/ui.js'
 import ComputerTable from '../components/ComputerTable.jsx'
 import { getDevices } from '../data/index.js'
 
@@ -16,9 +17,9 @@ export default function ComputersPage() {
     <Stack gap="md">
       <Header title="Computers"
         subtitle={`All ${devices.length} monitored computers and their current state.`}
-        generatedAt="2025-03-10T14:32:00Z" userName="Admin" />
+        generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
       <ComputerTable title="All Computers" computers={devices}
-        referenceTime="2025-03-10T14:32:00Z" />
+        referenceTime={sampleScreen.generated_at} />
     </Stack>
   )
 }
