@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, SmallInteger, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, SmallInteger, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -46,3 +46,56 @@ class Report(SQLModel, table=True):
     energy_source: str
     battery_energy_uj: int | None = Field(default=None, sa_type=BigInteger)
     device_energy_uj: int | None = Field(default=None, sa_type=BigInteger)
+
+class Location(SQLModel, table=True):
+    """A room that holds computers. A computer can be in no room."""
+
+    __tablename__ = "locations"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(unique=True)
+    building: str | None = None
+
+
+class EnergyRate(SQLModel, table=True):
+    """Estimated watts for one device type, for a computer that is plugged in."""
+
+    __tablename__ = "energy_rates"
+    # The watts are 0 or more (brief 5.4).
+    __table_args__ = (
+        CheckConstraint("active_watts >= 0", name="ck_energy_rates_active_watts"),
+        CheckConstraint("idle_watts >= 0", name="ck_energy_rates_idle_watts"),
+        CheckConstraint("unused_watts >= 0", name="ck_energy_rates_unused_watts"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    device_type: str = Field(unique=True)
+    active_watts: float
+    idle_watts: float
+    unused_watts: float
+
+
+class Tariff(SQLModel, table=True):
+    """The price and the CO2 of 1 kWh from a moment on. A row is valid until the next row starts."""
+
+    __tablename__ = "tariffs"
+    # The price and the CO2 are 0 or more (brief 5.5).
+    __table_args__ = (
+        CheckConstraint("price_gbp_per_kwh >= 0", name="ck_tariffs_price_gbp_per_kwh"),
+        CheckConstraint("co2_kg_per_kwh >= 0", name="ck_tariffs_co2_kg_per_kwh"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    valid_from: datetime = Field(unique=True)
+    price_gbp_per_kwh: float
+    co2_kg_per_kwh: float
+
+
+class Setting(SQLModel, table=True):
+    """One setting of the system, as text. Example: key report_interval_seconds, value 300."""
+
+    __tablename__ = "settings"
+
+    id: int | None = Field(default=None, primary_key=True)
+    key: str = Field(unique=True)
+    value: str
