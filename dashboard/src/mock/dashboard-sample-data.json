@@ -55,7 +55,6 @@
     { "key": "dashboard", "label": "Dashboard", "icon": "home" },
     { "key": "computers", "label": "Computers", "icon": "monitor" },
     { "key": "energy",    "label": "Energy Usage", "icon": "bar-chart" },
-    { "key": "reports",   "label": "Reports", "icon": "file-text" },
     { "key": "settings",  "label": "Settings", "icon": "settings" }
   ]
 }
