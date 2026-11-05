@@ -2,11 +2,11 @@ import { Box, Card, Center, Group, Stack, Text } from '@mantine/core'
 import { DonutChart } from '@mantine/charts'
 import StatusDot from './StatusDot.jsx'
 
-const STATES = ['active', 'idle', 'unused']
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused' }
+const STATES = ['active', 'idle', 'unused', 'no_data']
+const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused', no_data: 'No data' }
 
 // One row of the legend: dot, word, count and share in percent.
-function LegendRow({ state, stat }) {
+function LegendRow({ state, stat, total }) {
   return (
     <Group justify="space-between" wrap="nowrap" gap="md">
       <Group gap="xs" wrap="nowrap">
@@ -18,7 +18,7 @@ function LegendRow({ state, stat }) {
           {stat.count}
         </Text>
         <Text fz="sm" c="var(--ews-text-muted)" style={{ whiteSpace: 'nowrap' }}>
-          ({Math.round(stat.share * 100)}%)
+          ({Math.round((stat.count / (total || 1)) * 100)}%)
         </Text>
       </Group>
     </Group>
@@ -29,8 +29,8 @@ function LegendRow({ state, stat }) {
 export default function StatusDonut({ summary }) {
   const data = STATES.map((state) => ({
     name: LABELS[state],
-    value: summary[state].count,
-    color: state,
+    value: summary.counts[state],
+    color: state === 'no_data' ? 'gray' : state,
   }))
 
   return (
@@ -52,7 +52,7 @@ export default function StatusDonut({ summary }) {
           <Center pos="absolute" inset={0}>
             <Stack gap={0} align="center">
               <Text fz={28} fw={700} lh={1.1}>
-                {summary.totalComputers}
+                {summary.counts.total}
               </Text>
               <Text fz="sm" c="var(--ews-text-muted)">
                 Computers
@@ -63,7 +63,7 @@ export default function StatusDonut({ summary }) {
 
         <Stack gap="sm" style={{ flex: 1 }}>
           {STATES.map((state) => (
-            <LegendRow key={state} state={state} stat={summary[state]} />
+            <LegendRow key={state} state={state} stat={{ count: summary.counts[state] }} total={summary.counts.total} />
           ))}
         </Stack>
       </Group>
