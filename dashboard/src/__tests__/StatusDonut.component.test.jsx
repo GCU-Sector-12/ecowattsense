@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
 import { DonutChart } from '@mantine/charts'
 import { MantineProvider } from '@mantine/core'
 import { theme } from '../theme.js'
@@ -13,7 +13,26 @@ vi.mock('@mantine/charts', async (importOriginal) => {
   return { ...charts, DonutChart: vi.fn((props) => <charts.DonutChart {...props} />) }
 })
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // jsdom has no layout. Give ResponsiveContainer a measured chart area
+  // so the real chart renders its SVG rather than stopping at width zero.
+  vi.spyOn(Element.prototype, 'getBoundingClientRect')
+    .mockImplementation(() => new DOMRect(0, 0, 160, 160))
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback) { this.callback = callback }
+    observe(target) {
+      this.callback([{ target, contentRect: new DOMRect(0, 0, 160, 160) }])
+    }
+    unobserve() {}
+    disconnect() {}
+  })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 function legendRows() {
   return within(screen.getByRole('list', { name: 'Computer status breakdown' }))
@@ -37,14 +56,20 @@ describe('four-state status donut', () => {
     expect(DonutChart.mock.lastCall[0].data.map(({ value }) => value)).toEqual([12, 5, 3, 0])
   })
 
-  it('uses the required muted token for a non-zero No data segment and legend dot', () => {
+  it('uses the required muted token for a non-zero No data segment and legend dot', async () => {
     renderWithMantine(<StatusDonut summary={{
       counts: { active: 12, idle: 5, unused: 2, no_data: 1, total: 20 },
     }} />)
     const row = legendRows()[3]
     expect(row).toHaveTextContent('No data1 (5%)')
-    expect(row.querySelector('[aria-hidden="true"]'))
-      .toHaveStyle({ background: 'var(--ews-text-muted)' })
+    // Inspect the authored token; jsdom does not resolve the app stylesheet's
+    // CSS custom properties when toHaveStyle reads computed styles.
+    expect(row.querySelector('[aria-hidden="true"]').style.background)
+      .toBe('var(--ews-text-muted)')
+    await waitFor(() => {
+      const chart = screen.getByRole('img', { name: '20 computers in total' })
+      expect(chart.querySelector('svg [fill="var(--ews-text-muted)"]')).toBeInTheDocument()
+    })
     expect(DonutChart.mock.lastCall[0].data).toEqual([
       { name: 'Active', value: 12, color: 'var(--ews-active)' },
       { name: 'Idle', value: 5, color: 'var(--ews-idle)' },
