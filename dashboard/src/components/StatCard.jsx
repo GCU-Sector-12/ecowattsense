@@ -25,7 +25,7 @@ export default function StatCard({ state, icon: Icon, count, total, label, capti
           radius="xl"
           mt="xs"
           styles={{ root: { backgroundColor: 'var(--ews-track)' } }}
-          aria-label={`${stat.label}: ${Math.round(stat.share * 100)}%`}
+          aria-label={`${label}: ${Math.round((count / (total || 1)) * 100)}%`}
         />
       </Stack>
     </Card>

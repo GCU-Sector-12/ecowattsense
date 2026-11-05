@@ -29,6 +29,12 @@ it('opens Settings from the hash and switches to the dark theme', async () => {
 it('shows the dashboard when there is no hash', async () => {
   renderWithMantine(<App />)
   expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(screen.getByLabelText('Active Computers: 60%')).toBeInTheDocument()
+  expect(screen.getByLabelText('Idle Computers: 25%')).toBeInTheDocument()
+  expect(screen.getByLabelText('Unused Computers: 15%')).toBeInTheDocument()
+  expect(screen.getByText('4.8 kWh')).toBeInTheDocument()
+  expect(screen.getByText('£1.20')).toBeInTheDocument()
+  expect(screen.getAllByRole('row')).toHaveLength(6)
 })
 
 // EWS_WEB-23: every sidebar item has its own page, an unknown address shows "Page not found",
