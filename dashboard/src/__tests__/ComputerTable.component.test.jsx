@@ -1,11 +1,9 @@
-// COMPONENT TEST: renders one React component alone and checks what the user sees.
-// Proves: ComputerTable shows every computer, shows status as a word, and accepts a title.
 import { screen } from '@testing-library/react'
-import data from '../mock/dashboard-sample-data.json'
+import devices from '../data/devices.json'
 import ComputerTable from '../components/ComputerTable.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 
-const computers = data.computers
+const computers = devices.devices
 
 it('shows one row per computer plus the header', () => {
   renderWithMantine(<ComputerTable computers={computers} />)
