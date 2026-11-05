@@ -25,3 +25,10 @@ export const stateLabels = {
   unused: 'Unused',
   no_data: 'No data',
 }
+
+export const stateColors = {
+  active: 'var(--ews-active)',
+  idle: 'var(--ews-idle)',
+  unused: 'var(--ews-unused)',
+  no_data: 'var(--ews-text-muted)',
+}

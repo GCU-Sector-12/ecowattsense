@@ -1,36 +1,35 @@
 import { Box, Card, Center, Group, Stack, Text } from '@mantine/core'
 import { DonutChart } from '@mantine/charts'
 import StatusDot from './StatusDot.jsx'
+import { stateColors, stateLabels } from '../data/ui.js'
+import { statusPercentages } from './statusPercentages.js'
 
 const STATES = ['active', 'idle', 'unused', 'no_data']
-import { stateLabels } from '../data/ui.js'
 
-// One row of the legend: dot, word, count and share in percent.
-function LegendRow({ state, stat, total }) {
+// Every state keeps its word and count, including a zero-count state.
+function LegendRow({ state, count, percent }) {
   return (
-    <Group justify="space-between" wrap="nowrap" gap="md">
+    <Group component="li" justify="space-between" wrap="nowrap" gap="md">
       <Group gap="xs" wrap="nowrap">
         <StatusDot state={state} size={16} />
         <Text fz="sm">{stateLabels[state]}</Text>
       </Group>
-      <Group gap="xs" wrap="nowrap">
-        <Text fz="sm" fw={700}>
-          {stat.count}
-        </Text>
-        <Text fz="sm" c="var(--ews-text-muted)" style={{ whiteSpace: 'nowrap' }}>
-          ({Math.round((stat.count / (total || 1)) * 100)}%)
-        </Text>
-      </Group>
+      <Text fz="sm" style={{ whiteSpace: 'nowrap' }}>
+        <Text span fw={700}>{count}</Text>{' '}
+        <Text span c="var(--ews-text-muted)">({percent}%)</Text>
+      </Text>
     </Group>
   )
 }
 
-// "Computer Status" card: donut of active / idle / unused with the total in the centre.
+// The four-state chart and legend both read the same summary counts.
 export default function StatusDonut({ summary }) {
+  const { counts } = summary
+  const percentages = statusPercentages(STATES.map((state) => counts[state]), counts.total)
   const data = STATES.map((state) => ({
     name: stateLabels[state],
-    value: summary.counts[state],
-    color: state === 'no_data' ? 'gray' : state,
+    value: counts[state],
+    color: stateColors[state],
   }))
 
   return (
@@ -39,7 +38,7 @@ export default function StatusDonut({ summary }) {
         Computer Status
       </Text>
       <Group justify="space-between" align="center" wrap="nowrap" gap="sm" mt="xs">
-        <Box pos="relative">
+        <Box pos="relative" role="img" aria-label={`${counts.total} computers in total`}>
           <DonutChart
             data={data}
             size={160}
@@ -52,7 +51,7 @@ export default function StatusDonut({ summary }) {
           <Center pos="absolute" inset={0}>
             <Stack gap={0} align="center">
               <Text fz={28} fw={700} lh={1.1}>
-                {summary.counts.total}
+                {counts.total}
               </Text>
               <Text fz="sm" c="var(--ews-text-muted)">
                 Computers
@@ -61,9 +60,10 @@ export default function StatusDonut({ summary }) {
           </Center>
         </Box>
 
-        <Stack gap="sm" style={{ flex: 1 }}>
-          {STATES.map((state) => (
-            <LegendRow key={state} state={state} stat={{ count: summary.counts[state] }} total={summary.counts.total} />
+        <Stack component="ul" aria-label="Computer status breakdown" gap="sm"
+          m={0} p={0} style={{ flex: 1, listStyle: 'none' }}>
+          {STATES.map((state, index) => (
+            <LegendRow key={state} state={state} count={counts[state]} percent={percentages[index]} />
           ))}
         </Stack>
       </Group>
