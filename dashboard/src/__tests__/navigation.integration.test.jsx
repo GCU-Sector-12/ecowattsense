@@ -81,6 +81,14 @@ it('has no Reports page: the menu has no Reports item and #reports is "Page not 
   expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
 })
 
+it('shows "Page not found" for #/computers, not the Dashboard', () => {
+  renderWithMantine(<App />)
+  goToHash('#/computers')
+
+  expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+  expect(highlightedItems()).toHaveLength(0)
+})
+
 it('highlights Dashboard when there is no hash, and Computers on #computers', () => {
   renderWithMantine(<App />)
   expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('data-active', 'true')

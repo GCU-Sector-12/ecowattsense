@@ -13,9 +13,9 @@ import SettingsPage from './pages/SettingsPage.jsx'
 
 const SIDEBAR_WIDTH = 300
 
-// The page for each page name that resolveRoute() gives. Reports has no page, so its address
-// is "not-found".
-const PAGES = {
+// The component for each page name in PAGE_NAMES (useHash.js). It is exported so a test can check
+// that every name has a component. Reports has no page, so its address is "not-found".
+export const PAGES = {
   dashboard: DashboardPage,
   computers: ComputersPage,
   history: HistoryPage,
