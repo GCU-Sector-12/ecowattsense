@@ -8,7 +8,7 @@ import { renderWithMantine } from '../test/render.jsx'
 
 vi.mock('../data/index.js', () => ({ getDevices: vi.fn() }))
 
-const archived = {
+const noData = {\n  ...devicesFixture.devices[0],\n  device_id: 'no-data-0001',\n  display_name: 'No Report PC',\n  state: null,\n  state_name: 'no_data',\n}\n\nconst archived = {
   ...devicesFixture.devices[0],
   device_id: 'archived-0001',
   display_name: 'Archived PC',
@@ -17,7 +17,7 @@ const archived = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getDevices.mockResolvedValue({ devices: [...devicesFixture.devices, archived] })
+  getDevices.mockResolvedValue({ devices: [...devicesFixture.devices, archived, noData] })
 })
 
 it('searches by the displayed name and sorts by name in both directions', async () => {
@@ -59,4 +59,19 @@ it('shows archived computers only after enabling the switch', async () => {
   await user.click(screen.getByRole('checkbox', { name: 'Show archived' }))
   expect(screen.getByRole('cell', { name: 'Archived PC' })).toBeInTheDocument()
   expect(screen.getByText('Showing 21 of 21 monitored computers.')).toBeInTheDocument()
+})
+
+it('sorts by status and filters the No data state', async () => {
+  const user = userEvent.setup()
+  renderWithMantine(<ComputersPage />)
+  await screen.findByRole('cell', { name: 'PC-01' })
+
+  await user.click(screen.getByRole('button', { name: 'Sort by Status' }))
+  let rows = screen.getAllByRole('row')
+  expect(within(rows[1]).getByRole('cell', { name: 'Active' })).toBeInTheDocument()
+
+  await user.click(screen.getByRole('combobox', { name: 'Filter by state' }))
+  await user.click(screen.getByRole('option', { name: 'No data' }))
+  expect(screen.getByRole('cell', { name: 'No Report PC' })).toBeInTheDocument()
+  expect(screen.getAllByRole('row')).toHaveLength(2)
 })
