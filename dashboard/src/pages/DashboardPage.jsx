@@ -43,7 +43,9 @@ export default function DashboardPage() {
             count={summary.counts[state]} total={summary.counts.total}
             label={stateDisplay[state].label} caption={stateDisplay[state].caption} />
         ))}
-        <EnergyCard energy_uj={summary.energy_uj} cost_gbp={summary.cost_gbp} />
+        <EnergyCard energy_uj={summary.energy_uj} cost_gbp={summary.cost_gbp}
+          co2_kg={summary.co2_kg} price_gbp_per_kwh={summary.price_gbp_per_kwh}
+          co2_kg_per_kwh={summary.co2_kg_per_kwh} />
       </SimpleGrid>
       <Grid gutter="md">
         <Grid.Col span={8}><EnergyChart points={summary.series} /></Grid.Col>

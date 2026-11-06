@@ -34,6 +34,7 @@ it('shows the dashboard when there is no hash', async () => {
   expect(screen.getByLabelText('Unused Computers: 15%')).toBeInTheDocument()
   expect(screen.getByText('4.8 kWh')).toBeInTheDocument()
   expect(screen.getByText('£1.20')).toBeInTheDocument()
+  expect(screen.getByText('0.99 kg')).toBeInTheDocument()
   expect(screen.getAllByRole('row')).toHaveLength(6)
 })
 
