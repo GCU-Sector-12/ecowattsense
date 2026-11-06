@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Group, Select, Stack, Switch, TextInput } from '@mantine/core'
+import { Group, NativeSelect, Stack, Switch, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import ComputerTable from '../components/ComputerTable.jsx'
@@ -63,8 +63,9 @@ export default function ComputersPage() {
       <Group align="end" gap="md" wrap="wrap">
         <TextInput label="Search by computer name" placeholder="Search computers"
           aria-label="Search computers" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-        <Select label="Filter by state" aria-label="Filter by state" data={STATE_OPTIONS}
-          value={stateFilter} onChange={(value) => setStateFilter(value ?? 'all')} />
+        <NativeSelect label="Filter by state" aria-label="Filter by state"
+          data={STATE_OPTIONS} value={stateFilter}
+          onChange={(event) => setStateFilter(event.currentTarget.value)} />
         <Switch label="Show archived" checked={showArchived}
           onChange={(event) => setShowArchived(event.currentTarget.checked)} />
       </Group>
