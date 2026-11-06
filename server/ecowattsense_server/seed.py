@@ -21,11 +21,14 @@ FIRST_TARIFF = {
     "co2_kg_per_kwh": 0.207,
 }
 
-# PLACEHOLDER watts for a computer that is plugged in. The data brief gives no values, so these
-# are guesses until the team has real figures. The admin can change them (brief 5.4).
+# Starting watts for a computer that is plugged in (brief 5.4). Source: Planning Report [1],
+# Bray (2006), which summarises Kawamoto et al. (2001). Active and unused are the "active" and
+# "low power" values of that study. Idle is not in the study: it is the middle value, which is
+# our own assumption. The admin can change these, and a measured energy_uj from the client
+# replaces the estimate.
 ENERGY_RATES = [
-    {"device_type": "desktop", "active_watts": 120, "idle_watts": 60, "unused_watts": 5},
-    {"device_type": "laptop", "active_watts": 40, "idle_watts": 20, "unused_watts": 2},
+    {"device_type": "desktop", "active_watts": 55, "idle_watts": 40, "unused_watts": 25},
+    {"device_type": "laptop", "active_watts": 15, "idle_watts": 9, "unused_watts": 3},
 ]
 
 # The default settings, as text (brief 5.6).
