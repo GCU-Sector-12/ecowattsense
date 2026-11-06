@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
     private readonly CancellationTokenSource shutdown = new();
     private readonly Forms.ContextMenuStrip trayMenu = new();
     private readonly Forms.NotifyIcon trayIcon;
+    private GuiActivationPipe? activation;
     private IHost? host;
     private Worker? worker;
     private Task startup = Task.CompletedTask;
@@ -24,12 +26,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        trayMenu.Items.Add("Open", null, (_, _) =>
-        {
-            Show();
-            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-            Activate();
-        });
+        trayMenu.Items.Add("Open", null, (_, _) => RestoreWindow());
         trayMenu.Items.Add("Exit", null, async (_, _) => await ExitAsync());
         trayIcon = new Forms.NotifyIcon
         {
@@ -42,7 +39,6 @@ public partial class MainWindow : Window
             if (closing || started) return;
             started = true;
             startup = StartMonitoringAsync();
-            trayIcon.Visible = !closing && !allowClose;
         };
         Closing += (_, e) =>
         {
@@ -58,8 +54,36 @@ public partial class MainWindow : Window
         };
     }
 
+    private bool RestoreWindow()
+    {
+        if (closing || allowClose) return false;
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        foreach (Window dialog in OwnedWindows)
+            if (dialog.IsVisible) dialog.Activate();
+        return true;
+    }
+
+    private async Task StartActivationAsync(string lockPath)
+    {
+        activation = await Task.Run(() => new GuiActivationPipe(lockPath,
+            token => Dispatcher.InvokeAsync(RestoreWindow, DispatcherPriority.Normal, token).Task));
+        trayIcon.Visible = !closing;
+    }
+
+    private async Task StopActivationAsync()
+    {
+        if (activation is null) return;
+        var listener = activation;
+        activation = null;
+        await listener.DisposeAsync();
+    }
+
     private async Task StartMonitoringAsync()
     {
+        // Let Loaded record this task before a modal prompt can process tray commands.
+        await Task.Yield();
         try
         {
             ReportStatusValue.Text = "Starting monitoring…";
@@ -68,7 +92,7 @@ public partial class MainWindow : Window
                 Args = Environment.GetCommandLineArgs().Skip(1).ToArray(),
                 ContentRootPath = AppContext.BaseDirectory
             });
-            host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token);
+            host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token, StartActivationAsync);
             shutdown.Token.ThrowIfCancellationRequested();
             worker = host.Services.GetRequiredService<Worker>();
             worker.ReadingAvailable += OnReading;
@@ -86,22 +110,30 @@ public partial class MainWindow : Window
             _ = ObserveCompletionAsync(execution);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
-        catch (ClientAlreadyRunningException)
+        catch (ClientAlreadyRunningException duplicate)
         {
-            // Not an error: another copy already monitors this computer, so this window only closes.
-            // EWS-109 can later ask the running copy to show its window here instead.
+            bool opened = await Task.Run(() => GuiActivationPipe.RequestAsync(duplicate.LockPath, shutdown.Token));
             if (closing) return;
-            ReportStatusValue.Text = "EcoWattSense is already running on this computer.";
-            MessageBox.Show(this,
-                "EcoWattSense is already running on this computer (maybe started at login by the autostart task). This window will close.",
-                "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (!opened)
+            {
+                Show();
+                MessageBox.Show(this,
+                    "EcoWattSense is already running, but its window could not be opened in this Windows session. " +
+                    "It may be running in the background or in another session. This copy will close.",
+                    "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
             allowClose = true;
             await Dispatcher.InvokeAsync(Close);
         }
         catch (Exception exception)
         {
-            if (!closing) ShowFailure("Monitoring could not start", exception);
-            await StopHostAsync();
+            try { await StopActivationAsync(); }
+            finally { await StopHostAsync(); }
+            if (!closing)
+            {
+                trayIcon.Visible = true;
+                ShowFailure("Monitoring could not start", exception);
+            }
         }
     }
 
@@ -194,7 +226,13 @@ public partial class MainWindow : Window
         trayMenu.Enabled = false;
         ReportStatusValue.Text = "Stopping monitoring…";
         shutdown.Cancel();
-        try { await startup; await StopHostAsync(); }
+        foreach (Window dialog in OwnedWindows) dialog.Close();
+        try
+        {
+            await startup;
+            try { await StopActivationAsync(); }
+            finally { await StopHostAsync(); }
+        }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Monitoring shutdown failed"); }
         finally { allowClose = true; Close(); }
     }
