@@ -1,5 +1,6 @@
 import { Card, Text, useMantineTheme } from '@mantine/core'
 import { AreaChart } from '@mantine/charts'
+import { ujToKw } from '../data/units.js'
 
 // Points are every 30 minutes, so a tick every 8 points shows 00:00, 04:00, 08:00...
 const X_AXIS = { interval: 7, tickMargin: 8 }
@@ -21,9 +22,9 @@ export default function EnergyChart({ points }) {
       </Text>
       <AreaChart
         h={240}
-        data={points}
-        dataKey="t"
-        series={[{ name: 'kw', label: 'Power', color: theme.other.chartLine }]}
+        data={points.map(({ timestamp, energy_uj }) => ({ timestamp: timestamp.slice(11, 16), power_kw: ujToKw(energy_uj, 1800) }))}
+        dataKey="timestamp"
+        series={[{ name: 'power_kw', label: 'Power', color: theme.other.chartLine }]}
         curveType="linear"
         withDots={false}
         withGradient
