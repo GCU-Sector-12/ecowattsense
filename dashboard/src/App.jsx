@@ -1,6 +1,5 @@
-// The app shell: the sidebar on the left and the page for the current address on the right.
+// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
 import { AppShell } from '@mantine/core'
-import data from './mock/dashboard-sample-data.json'
 import useHash, { resolveRoute } from './useHash.js'
 import Sidebar from './components/Sidebar.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
@@ -10,11 +9,9 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
+import { navigation } from './data/ui.js'
 
 const SIDEBAR_WIDTH = 300
-
-// The page for each page name that resolveRoute() gives. Reports has no page, so its address
-// is "not-found".
 const PAGES = {
   dashboard: DashboardPage,
   computers: ComputersPage,
@@ -26,22 +23,19 @@ const PAGES = {
 }
 
 /**
- * Shows the sidebar and the page that belongs to the address in the browser (the hash).
- *
+ * Shows the sidebar and the page selected by the browser hash.
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
   const route = resolveRoute(useHash())
   const Page = PAGES[route.page]
-
   return (
     <AppShell navbar={{ width: SIDEBAR_WIDTH, breakpoint: 0 }} padding={32}>
       <AppShell.Navbar bg="var(--ews-green-900)" withBorder={false}>
-        <Sidebar items={data.navigation} activeKey={route.menuKey} />
+        <Sidebar items={navigation} activeKey={route.menuKey} />
       </AppShell.Navbar>
-
       <AppShell.Main bg="var(--ews-page)">
-        <Page data={data} deviceId={route.deviceId} />
+        <Page deviceId={route.deviceId} />
       </AppShell.Main>
     </AppShell>
   )
