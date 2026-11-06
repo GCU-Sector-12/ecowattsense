@@ -38,6 +38,16 @@ _ = Task.Run(async () =>
 string unauthorizedUrl = $"http://127.0.0.1:{((IPEndPoint)unauthorized.LocalEndpoint).Port}";
 try
 {
+    try
+    {
+        using var unexpected = await MonitoringHost.CreateAsync(NewBuilder(unauthorizedUrl),
+            () => throw new Exception("Prompted after listener setup failed"),
+            onLockAcquired: _ => Task.FromException(new IOException("Test listener failure")));
+        throw new Exception("Started after listener setup failed");
+    }
+    catch (IOException ex) when (ex.Message == "Test listener failure") { }
+    Check(serverCalls == 0, "Listener setup failure precedes server calls");
+    CheckLockFree("Lock is free after listener setup fails");
     {
         int prompts = 0;
         using var host = await MonitoringHost.CreateAsync(NewBuilder(), () => { prompts++; return "laptop"; });
