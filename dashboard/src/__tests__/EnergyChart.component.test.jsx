@@ -36,7 +36,7 @@ it('passes converted data, UK time ticks and a detailed tooltip to the chart', (
     payload: [{ payload: props.data[0] }],
   })
   expect(tooltip.props.children.props.children.map((child) => child.props.children))
-    .toEqual(['01:00', 'Power: 1.0 kW', 'Energy: 0.500 kWh'])
+    .toEqual(['01:00', ['Power: ', '1.0', ' kW'], ['Energy: ', '0.500', ' kWh']])
 })
 
 it('scales the Y axis to a rounded maximum for higher power readings', () => {
