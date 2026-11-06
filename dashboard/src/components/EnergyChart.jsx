@@ -1,9 +1,9 @@
 import { Card, Text, useMantineTheme } from '@mantine/core'
 import { AreaChart } from '@mantine/charts'
-import { ujToKw } from '../data/units.js'
+import { formatUkTime, toEnergyChartData } from './energyChartData.js'
 
 // Points are every 30 minutes, so a tick every 8 points shows 00:00, 04:00, 08:00...
-const X_AXIS = { interval: 7, tickMargin: 8 }
+const X_AXIS = { interval: 7, tickMargin: 8, tickFormatter: formatUkTime }
 const Y_AXIS = { domain: [0, 2], ticks: [0, 0.5, 1, 1.5, 2], tickMargin: 8, width: 36 }
 
 // Ticks and tooltip values are shown with one decimal, as in the mockup (0.5, 1.0, 1.5, 2.0).
@@ -14,15 +14,16 @@ function formatKw(value) {
 // "Energy Usage (Today)" card with an area chart of power in kW.
 export default function EnergyChart({ points }) {
   const theme = useMantineTheme()
+  const data = toEnergyChartData(points)
 
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)" h="100%">
       <Text fz="lg" fw={700} mb="md">
         Energy Usage (Today)
       </Text>
-      <AreaChart
+      {data.length === 0 ? <Text>No data for this day</Text> : <AreaChart
         h={240}
-        data={points.map(({ timestamp, energy_uj }) => ({ timestamp: timestamp.slice(11, 16), power_kw: ujToKw(energy_uj, 1800) }))}
+        data={data}
         dataKey="timestamp"
         series={[{ name: 'power_kw', label: 'Power', color: theme.other.chartLine }]}
         curveType="linear"
@@ -35,10 +36,11 @@ export default function EnergyChart({ points }) {
         gridColor="var(--ews-chart-grid)"
         tickLine="none"
         xAxisProps={X_AXIS}
+        tooltipProps={{ labelFormatter: formatUkTime }}
         yAxisProps={Y_AXIS}
         yAxisLabel="Power (kW)"
         valueFormatter={formatKw}
-      />
+      />}
     </Card>
   )
 }
