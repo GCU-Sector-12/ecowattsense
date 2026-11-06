@@ -1,8 +1,12 @@
-import { Card, Group, Stack, Text } from '@mantine/core'
+import { ActionIcon, Card, Group, Stack, Text, Tooltip } from '@mantine/core'
 import { Info, Leaf } from 'lucide-react'
+import { ujToKwh, formatGbp } from '../data/units.js'
 
-// Summary card: estimated energy and cost for today. Grey background (card-alt).
-export default function EnergyCard({ kwh, cost }) {
+// Summary card: API energy, cost, CO2 and the tariff used for estimates.
+export default function EnergyCard({
+  energy_uj, cost_gbp, co2_kg, price_gbp_per_kwh, co2_kg_per_kwh,
+}) {
+  const estimate = `Estimate. Price ${price_gbp_per_kwh} GBP per kWh, ${co2_kg_per_kwh} kg CO2 per kWh`
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card-alt)">
       <Stack gap="md" justify="space-between" h="100%">
@@ -13,7 +17,7 @@ export default function EnergyCard({ kwh, cost }) {
               Estimated Energy Usage
             </Text>
             <Text fz={36} fw={700} lh={1.1}>
-              {kwh} kWh
+              {ujToKwh(energy_uj).toFixed(1)} kWh
             </Text>
             <Text fz="sm" c="var(--ews-text-muted)">
               Today
@@ -25,11 +29,20 @@ export default function EnergyCard({ kwh, cost }) {
           <Text fz="sm">
             Estimated Cost:{' '}
             <Text span fw={700}>
-              £{cost.toFixed(2)}
+              {formatGbp(cost_gbp)}
             </Text>
           </Text>
-          <Info size={20} color="var(--ews-text-muted)" aria-label="How the estimate is made" />
+          <Tooltip label={estimate} events={{ hover: true, focus: true, touch: true }}
+            multiline w={280} withArrow>
+            <ActionIcon variant="subtle" color="gray" aria-label="How the estimate is made">
+              <Info size={20} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
+        <Text fz="sm">
+          Estimated CO₂:{' '}
+          <Text span fw={700}>{co2_kg.toFixed(2)} kg</Text>
+        </Text>
       </Stack>
     </Card>
   )
