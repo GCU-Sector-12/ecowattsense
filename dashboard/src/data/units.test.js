@@ -1,3 +1,4 @@
+// Tests for API unit conversions, currency and relative-time boundaries.
 import { describe, expect, it } from 'vitest'
 import { formatGbp, timeAgo, ujToKwh, ujToKw } from './units.js'
 

@@ -1,3 +1,4 @@
+// Tests for contract device rows and accessible table content.
 import { screen } from '@testing-library/react'
 import devices from '../data/devices.json'
 import ComputerTable from '../components/ComputerTable.jsx'
@@ -26,4 +27,11 @@ it('shows a custom title', () => {
   renderWithMantine(<ComputerTable computers={computers} title="Lab 3" />)
   expect(screen.getByText('Lab 3')).toBeInTheDocument()
   expect(screen.queryByText('Computer List')).not.toBeInTheDocument()
+})
+
+it('omits power because the device-list contract supplies no power value', () => {
+  renderWithMantine(<ComputerTable computers={computers} />)
+  expect(screen.queryByRole('columnheader', { name: /estimated power/i })).not.toBeInTheDocument()
+  expect(screen.getAllByRole('columnheader')).toHaveLength(4)
+  expect(screen.getAllByRole('cell')).toHaveLength(computers.length * 4)
 })

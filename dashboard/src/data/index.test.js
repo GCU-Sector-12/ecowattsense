@@ -1,3 +1,4 @@
+// Tests for sample provider contracts, cloning and history range boundaries.
 import { describe, expect, it } from 'vitest'
 import { getSummary, getDevices, getDeviceHistory, getSettings } from './index.js'
 import history from './history.json'

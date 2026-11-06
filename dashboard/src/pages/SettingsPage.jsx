@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react'
-import { Stack } from '@mantine/core'
+// Settings page, rendered by App.jsx for #settings.
+// Keeps appearance controls available while the sample report interval loads.
+import useSampleData from '../useSampleData.js'
+import { Stack, Text } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import AppearanceCard from '../components/AppearanceCard.jsx'
 import { getSettings } from '../data/index.js'
 
+/**
+ * Settings page with appearance controls and the sample report interval.
+ * @returns {JSX.Element} The page.
+ */
 export default function SettingsPage() {
-  const [settings, setSettings] = useState(null)
-  useEffect(() => {
-    let mounted = true
-    getSettings().then((value) => { if (mounted) setSettings(value) })
-    return () => { mounted = false }
-  }, [])
+  const { data: settings, error } = useSampleData(getSettings)
 
   return (
     <Stack gap="md">
@@ -19,7 +20,8 @@ export default function SettingsPage() {
         subtitle="Change how EcoWattSense looks."
         generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
       <AppearanceCard />
-      {settings && <div>Report interval: {settings.report_interval_seconds} seconds</div>}
+      {error && <Text role="alert">Unable to load settings.</Text>}
+      {settings && <Text>Report interval: {settings.report_interval_seconds} seconds</Text>}
     </Stack>
   )
 }

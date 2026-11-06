@@ -1,3 +1,4 @@
+// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
 import { AppShell } from '@mantine/core'
 import useHash, { resolveRoute } from './useHash.js'
 import Sidebar from './components/Sidebar.jsx'
@@ -21,6 +22,10 @@ const PAGES = {
   'not-found': NotFoundPage,
 }
 
+/**
+ * Shows the sidebar and the page selected by the browser hash.
+ * @returns {JSX.Element} The whole app.
+ */
 export default function App() {
   const route = resolveRoute(useHash())
   const Page = PAGES[route.page]

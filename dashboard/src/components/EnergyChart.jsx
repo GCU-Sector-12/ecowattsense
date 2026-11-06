@@ -1,3 +1,4 @@
+// Plots sample half-hour energy buckets as average power.
 import { Card, Text, useMantineTheme } from '@mantine/core'
 import { AreaChart } from '@mantine/charts'
 import { ujToKw } from '../data/units.js'
@@ -7,11 +8,21 @@ const X_AXIS = { interval: 7, tickMargin: 8 }
 const Y_AXIS = { domain: [0, 2], ticks: [0, 0.5, 1, 1.5, 2], tickMargin: 8, width: 36 }
 
 // Ticks and tooltip values are shown with one decimal, as in the mockup (0.5, 1.0, 1.5, 2.0).
+/**
+ * Formats power ticks and tooltip values with one decimal place.
+ * @param {number} value - Power in kW.
+ * @returns {string} Formatted value.
+ */
 function formatKw(value) {
   return value.toFixed(1)
 }
 
 // "Energy Usage (Today)" card with an area chart of power in kW.
+/**
+ * Plots sample half-hour energy buckets as average power.
+ * @param {object} props - Contract series points with timestamp and energy_uj.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function EnergyChart({ points }) {
   const theme = useMantineTheme()
 

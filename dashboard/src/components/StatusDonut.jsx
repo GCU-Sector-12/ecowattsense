@@ -1,11 +1,18 @@
+// Renders a state label, count and percentage of all devices.
 import { Box, Card, Center, Group, Stack, Text } from '@mantine/core'
 import { DonutChart } from '@mantine/charts'
 import StatusDot from './StatusDot.jsx'
 
-const STATES = ['active', 'idle', 'unused', 'no_data']
 import { stateLabels } from '../data/ui.js'
 
+const STATES = ['active', 'idle', 'unused', 'no_data']
+
 // One row of the legend: dot, word, count and share in percent.
+/**
+ * Renders a state label, count and percentage of all devices.
+ * @param {object} props - State, count object and total device count.
+ * @returns {JSX.Element} Rendered content.
+ */
 function LegendRow({ state, stat, total }) {
   return (
     <Group justify="space-between" wrap="nowrap" gap="md">
@@ -26,6 +33,11 @@ function LegendRow({ state, stat, total }) {
 }
 
 // "Computer Status" card: donut of active / idle / unused with the total in the centre.
+/**
+ * Renders the distribution of all four device states.
+ * @param {object} props - Summary containing contract counts.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function StatusDonut({ summary }) {
   const data = STATES.map((state) => ({
     name: stateLabels[state],

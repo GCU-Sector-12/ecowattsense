@@ -1,3 +1,4 @@
+// Tests for consistency between the sample endpoint fixtures.
 import { getSummary, getDevices, getDeviceHistory, getSettings } from '../data/index.js'
 
 it('sample endpoint fixtures agree on device counts', async () => {

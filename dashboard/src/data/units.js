@@ -1,6 +1,19 @@
-// Energy values in the API are microjoules (µJ), not kWh or watts.
+// API-unit and display helpers shared by dashboard cards, charts and tables.
+// Import these functions to convert microjoules or format currency and last-seen times.
 const MICROJOULES_PER_KWH = 3_600_000_000_000
 
+/**
+ * Converts API microjoules to kilowatt-hours.
+ * @param {number} energy_uj - Energy in microjoules.
+ * @returns {number} Energy in kWh.
+ */
+/**
+ * Converts interval energy to average power in kilowatts.
+ * @param {number} energy_uj - Energy in microjoules.
+ * @param {number} seconds - Finite, positive interval duration.
+ * @returns {number} Average power in kW.
+ * @throws {RangeError} If the duration is not finite and positive.
+ */
 export function ujToKwh(energy_uj) {
   return energy_uj / MICROJOULES_PER_KWH
 }
@@ -12,6 +25,11 @@ export function ujToKw(energy_uj, seconds) {
   return ujToKwh(energy_uj) * 3600 / seconds
 }
 
+/**
+ * Formats an amount as British pounds using UK currency conventions.
+ * @param {number} amount - Amount in pounds.
+ * @returns {string} Formatted currency.
+ */
 export function formatGbp(amount) {
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
@@ -19,6 +37,12 @@ export function formatGbp(amount) {
   }).format(amount)
 }
 
+/**
+ * Formats elapsed time; missing timestamps return Never and invalid dates return Unknown.
+ * @param {string|Date|null} last_seen_at - Last report timestamp.
+ * @param {string|Date} [now=new Date()] - Reference instant.
+ * @returns {string} Relative time, treating future timestamps as just now.
+ */
 export function timeAgo(last_seen_at, now = new Date()) {
   if (!last_seen_at) return 'Never'
   const elapsed = new Date(now).getTime() - new Date(last_seen_at).getTime()

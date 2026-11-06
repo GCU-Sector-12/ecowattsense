@@ -1,7 +1,13 @@
+// Shows a state count and its proportion of all devices.
 import { Card, Progress, Stack, Text } from '@mantine/core'
 
 // Stat card for one state (active, idle, unused). Tinted background, icon and
 // progress bar use the status colour. `state` is also a theme colour name.
+/**
+ * Shows a state count and its proportion of all devices.
+ * @param {object} props - State, icon, count, total, label and caption.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function StatCard({ state, icon: Icon, count, total, label, caption }) {
   return (
     <Card radius="lg" padding="lg" bg={`var(--ews-${state}-bg)`}>

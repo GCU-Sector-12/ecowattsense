@@ -1,11 +1,16 @@
-// Local Promise-based sample provider. The API implementation can replace this
-// module later without changing the pages that consume these functions.
+// Sample providers used by dashboard pages instead of importing JSON in the UI.
+// Await the exported functions for independent copies of API-shaped responses.
 import summary from './summary.json'
 import devices from './devices.json'
 import history from './history.json'
 import settings from './settings.json'
 import { ujToKwh } from './units.js'
 
+/**
+ * Returns an independent sample summary; unrecorded dates have empty energy data.
+ * @param {string} [date=summary.date] - Requested YYYY-MM-DD day.
+ * @returns {Promise<object>} Summary using API contract field names.
+ */
 export async function getSummary(date = summary.date) {
   // Only one day is recorded in the sample. Do not relabel its readings as
   // another day; device counts still describe the current sample devices.
@@ -14,10 +19,22 @@ export async function getSummary(date = summary.date) {
   })
 }
 
+/**
+ * Returns an independent copy of the sample device-list response.
+ * @returns {Promise<{devices: object[]}>} Devices in API contract form.
+ */
 export async function getDevices() {
   return structuredClone(devices)
 }
 
+/**
+ * Returns sample reports in the inclusive-from, exclusive-to range and recomputes totals.
+ * @param {string} device_id - Device identifier; unknown devices return null.
+ * @param {string} [from=history.from] - Inclusive ISO timestamp.
+ * @param {string} [to=history.to] - Exclusive ISO timestamp.
+ * @returns {Promise<object|null>} Filtered history or null for an unknown device.
+ * @throws {RangeError} If the range is invalid or exceeds 31 days.
+ */
 export async function getDeviceHistory(device_id, from = history.from, to = history.to) {
   if (device_id !== history.device_id) return null
   const start = Date.parse(from)
@@ -52,6 +69,10 @@ export async function getDeviceHistory(device_id, from = history.from, to = hist
   return result
 }
 
+/**
+ * Returns an independent copy of the sample tariff and threshold settings.
+ * @returns {Promise<object>} Settings using API contract field names.
+ */
 export async function getSettings() {
   return structuredClone(settings)
 }

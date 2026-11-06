@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Grid, SimpleGrid, Stack } from '@mantine/core'
+// Dashboard page built from docs/design/dashboard-mockup.png with sample data.
+// App.jsx renders this page for #dashboard; providers supply counts, energy and devices.
+import useSampleData from '../useSampleData.js'
+import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Monitor, Clock, Power } from 'lucide-react'
 import Header from '../components/Header.jsx'
 import StatCard from '../components/StatCard.jsx'
@@ -10,21 +12,23 @@ import ComputerTable from '../components/ComputerTable.jsx'
 import { getSummary, getDevices } from '../data/index.js'
 import { sampleScreen, stateDisplay } from '../data/ui.js'
 
-export default function DashboardPage() {
-  const [summary, setSummary] = useState(null)
-  const [devices, setDevices] = useState([])
-  useEffect(() => {
-    let mounted = true
-    Promise.all([getSummary(), getDevices()]).then(([nextSummary, nextDevices]) => {
-      if (mounted) {
-        setSummary(nextSummary)
-        setDevices(nextDevices.devices)
-      }
-    })
-    return () => { mounted = false }
-  }, [])
+/**
+ * Loads the summary and devices together using a stable hook dependency.
+ * @returns {Promise<Array>} Summary and device-list responses.
+ */
+function loadDashboard() {
+  return Promise.all([getSummary(), getDevices()])
+}
 
-  if (!summary) return <div>Loading dashboard...</div>
+/**
+ * Dashboard built from docs/design/dashboard-mockup.png with sample data.
+ * @returns {JSX.Element} The page.
+ */
+export default function DashboardPage() {
+  const { data, error } = useSampleData(loadDashboard)
+  if (error) return <Text role="alert">Unable to load dashboard.</Text>
+  if (!data) return <Text>Loading dashboard...</Text>
+  const [summary, { devices }] = data
   const referenceTime = sampleScreen.generated_at
   const cards = [
     { state: 'active', icon: Monitor },

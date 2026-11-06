@@ -1,8 +1,14 @@
+// Displays sample energy in kWh and the supplied estimated cost.
 import { Card, Group, Stack, Text } from '@mantine/core'
 import { Info, Leaf } from 'lucide-react'
 import { ujToKwh, formatGbp } from '../data/units.js'
 
 // Summary card: estimated energy and cost for today. Grey background (card-alt).
+/**
+ * Displays sample energy in kWh and the supplied estimated cost.
+ * @param {object} props - Contract energy_uj and cost_gbp values.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function EnergyCard({ energy_uj, cost_gbp }) {
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card-alt)">

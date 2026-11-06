@@ -1,7 +1,7 @@
+// Renders a device row using fields available in the device-list contract.
 import { Button, Card, Group, Table, Text } from '@mantine/core'
 import StatusDot from './StatusDot.jsx'
 import { timeAgo } from '../data/units.js'
-
 import { stateLabels } from '../data/ui.js'
 
 const headerStyle = {
@@ -10,6 +10,11 @@ const headerStyle = {
   fontSize: 'var(--ews-text-sm)',
 }
 
+/**
+ * Renders a device row using fields available in the device-list contract.
+ * @param {object} props - Device and reference timestamp.
+ * @returns {JSX.Element} Rendered content.
+ */
 function ComputerRow({ computer, referenceTime }) {
   return (
     <Table.Tr>
@@ -21,7 +26,6 @@ function ComputerRow({ computer, referenceTime }) {
         </Group>
       </Table.Td>
       <Table.Td>{timeAgo(computer.last_seen_at, referenceTime)}</Table.Td>
-      <Table.Td>—</Table.Td>
       <Table.Td>
         <Button variant="default" size="xs" bg="var(--ews-button)" fw={500}>
           View
@@ -32,6 +36,11 @@ function ComputerRow({ computer, referenceTime }) {
 }
 
 // "Computer List" card with a table of computers. Status is a dot plus a word.
+/**
+ * Renders the computer list with textual status and relative last activity.
+ * @param {object} props - Computers, optional title and reference timestamp.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function ComputerTable({ computers, title = 'Computer List', referenceTime }) {
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
@@ -49,7 +58,6 @@ export default function ComputerTable({ computers, title = 'Computer List', refe
             <Table.Th>Computer Name</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Last Activity</Table.Th>
-            <Table.Th>Estimated Power</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>

@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 
+/** Changes the hash and notifies the mounted router. @param {string} hash - Target route. */
 function goToHash(hash) {
   window.location.hash = hash
   act(() => {
@@ -41,6 +42,7 @@ it('shows the dashboard when there is no hash', async () => {
 // and the right menu item is highlighted.
 
 // The menu items that are highlighted right now (the sidebar marks them with data-active).
+/** @returns {NodeListOf<Element>} Currently highlighted navigation items. */
 function highlightedItems() {
   return document.querySelectorAll('[data-active="true"]')
 }
