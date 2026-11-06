@@ -64,6 +64,7 @@ def test_seed_adds_the_first_tariff_the_watts_and_the_settings(engine):
     rates = {rate.device_type: rate for rate in rows(engine, EnergyRate)}
     assert set(rates) == {"desktop", "laptop"}
     assert all(rate.active_watts > rate.idle_watts > rate.unused_watts > 0 for rate in rates.values())
+    assert [(r.active_watts, r.idle_watts, r.unused_watts) for r in (rates["desktop"], rates["laptop"])] == [(55, 40, 25), (15, 9, 3)]
 
     assert {setting.key: setting.value for setting in rows(engine, Setting)} == DEFAULT_SETTINGS
 
@@ -118,12 +119,17 @@ WRONG_ROWS = {
 }
 
 
+def refuse(session, row):
+    """Add one row and expect the database to refuse it."""
+    session.add(row)
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
 @pytest.mark.parametrize("make_row", WRONG_ROWS.values(), ids=WRONG_ROWS.keys())
 def test_a_wrong_row_is_refused(engine, make_row):
     with Session(engine) as session:
-        session.add(make_row())
-        with pytest.raises(IntegrityError):
-            session.commit()
+        refuse(session, make_row())
 
 
 # The same value twice in a column that must be unique.
@@ -147,9 +153,7 @@ def test_the_same_value_twice_is_refused(engine, first, second):
         session.add(first())
         session.commit()
     with Session(engine) as session:
-        session.add(second())
-        with pytest.raises(IntegrityError):
-            session.commit()
+        refuse(session, second())
 
 
 def test_the_dashboard_code_reads_the_real_tables(engine):
