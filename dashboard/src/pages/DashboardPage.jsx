@@ -49,7 +49,7 @@ export default function DashboardPage() {
         <Grid.Col span={8}><EnergyChart points={summary.series} /></Grid.Col>
         <Grid.Col span={4}><StatusDonut summary={summary} /></Grid.Col>
       </Grid>
-      <ComputerTable computers={devices.slice(0, 5)} referenceTime={referenceTime} />
+      <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} />
     </Stack>
   )
 }

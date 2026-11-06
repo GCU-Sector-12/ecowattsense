@@ -1,8 +1,6 @@
-import { Button, Card, Group, Table, Text } from '@mantine/core'
-import StatusDot from './StatusDot.jsx'
+import { Anchor, Button, Card, Group, Table, Text } from '@mantine/core'
+import StateBadge from '../StateBadge.jsx'
 import { timeAgo } from '../data/units.js'
-
-import { stateLabels } from '../data/ui.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -11,19 +9,24 @@ const headerStyle = {
 }
 
 function ComputerRow({ computer, referenceTime }) {
+  const name = computer.display_name ?? computer.device_id.slice(0, 8)
+  const location = [computer.location_name, computer.building].filter(Boolean).join(', ') || 'not set'
+
   return (
     <Table.Tr>
-      <Table.Td>{computer.display_name}</Table.Td>
+      <Table.Td>{name}</Table.Td>
+      <Table.Td><StateBadge state={computer.state_name} /></Table.Td>
       <Table.Td>
-        <Group gap="xs" wrap="nowrap">
-          <StatusDot state={computer.state_name} size={14} />
-          <Text fz="sm">{stateLabels[computer.state_name]}</Text>
-        </Group>
+        <Text span title={computer.last_seen_at}>
+          {timeAgo(computer.last_seen_at, referenceTime)}
+        </Text>
       </Table.Td>
-      <Table.Td>{timeAgo(computer.last_seen_at, referenceTime)}</Table.Td>
-      <Table.Td>—</Table.Td>
+      <Table.Td>{location}</Table.Td>
+      <Table.Td>{computer.os} / {computer.device_type}</Table.Td>
       <Table.Td>
-        <Button variant="default" size="xs" bg="var(--ews-button)" fw={500}>
+        <Button component="a" href={`#computers/${computer.device_id}`}
+          aria-label={`View ${name}`} variant="default" size="xs"
+          bg="var(--ews-button)" fw={500}>
           View
         </Button>
       </Table.Td>
@@ -31,13 +34,20 @@ function ComputerRow({ computer, referenceTime }) {
   )
 }
 
-// "Computer List" card with a table of computers. Status is a dot plus a word.
-export default function ComputerTable({ computers, title = 'Computer List', referenceTime }) {
+// showArchived is ready for the page switch; limit is for the dashboard preview.
+export default function ComputerTable({
+  computers, title = 'Computer List', referenceTime,
+  showArchived = false, limit, showAllLink = false,
+}) {
+  const visible = computers.filter((computer) => showArchived || !computer.archived)
+  const rows = limit === undefined ? visible : visible.slice(0, limit)
+
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
-      <Text fz="lg" fw={700} mb="sm">
-        {title}
-      </Text>
+      <Group justify="space-between" mb="sm">
+        <Text fz="lg" fw={700}>{title}</Text>
+        {showAllLink && <Anchor href="#computers" fz="sm">All computers</Anchor>}
+      </Group>
       <Table
         verticalSpacing="sm"
         horizontalSpacing="sm"
@@ -48,13 +58,14 @@ export default function ComputerTable({ computers, title = 'Computer List', refe
           <Table.Tr>
             <Table.Th>Computer Name</Table.Th>
             <Table.Th>Status</Table.Th>
-            <Table.Th>Last Activity</Table.Th>
-            <Table.Th>Estimated Power</Table.Th>
+            <Table.Th>Last seen</Table.Th>
+            <Table.Th>Location</Table.Th>
+            <Table.Th>OS and type</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {computers.map((computer) => (
+          {rows.map((computer) => (
             <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
           ))}
         </Table.Tbody>
