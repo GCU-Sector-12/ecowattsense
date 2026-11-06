@@ -6,8 +6,11 @@ The clients call this endpoint with the header X-EWS-Key. The body is one report
 and timestamp) is a "duplicate": it is not stored again and it is not an error. A wrong report
 is "rejected" (in a list) or a 422 (alone).
 
-When energy_uj is missing the server stores 0 as "estimated". The real estimate from
-energy_rates is the W7 task "energy_uj filled at write".
+Energy (contract 5.4): a sent energy_uj is stored as it is and is "measured", also 0. When it is
+missing and the computer is on its battery, the server stores 0 as "estimated". When it is missing
+and the computer is on the grid, the server estimates it from energy_rates: the watts of the
+device type and the state, times interval_seconds, times 1 000 000. A report whose device_type
+has no row in energy_rates needs a measured energy_uj, or the report is refused.
 
 Every function here has at most one block (if, for, try, with), see KB EWS-A-25.
 """
@@ -22,12 +25,37 @@ from sqlmodel import Session, select
 
 from ..auth import require_client_key
 from ..db import get_session
-from ..models import Device, Report
-from ..schemas import MAX_REPORTS_PER_REQUEST, ReportIn, ReportResult, ReportResults
+from ..models import Device, EnergyRate, Report
+from ..schemas import MAX_INT64, MAX_REPORTS_PER_REQUEST, ReportIn, ReportResult, ReportResults
 
 router = APIRouter(prefix="/api", tags=["reports"], dependencies=[Depends(require_client_key)])
 
 Outcome = Literal["created", "duplicate"]
+
+# The watts column of energy_rates to use for each state of a report: 2 active, 1 idle, 0 unused.
+WATTS_COLUMN = {2: "active_watts", 1: "idle_watts", 0: "unused_watts"}
+
+MICROJOULES_PER_JOULE = 1_000_000
+
+
+class ReportRejected(Exception):
+    """A report with the right shape that the server still refuses.
+
+    Attributes:
+        field: The field of the report that is the reason.
+        message: The reason, in words.
+    """
+
+    def __init__(self, field: str, message: str) -> None:
+        """Keep the field and the reason.
+
+        Args:
+            field: The field of the report that is the reason.
+            message: The reason, in words.
+        """
+        super().__init__(message)
+        self.field = field
+        self.message = message
 
 
 def utc_now() -> datetime:
@@ -146,21 +174,84 @@ def device_for(session: Session, report: ReportIn, received_at: datetime) -> Dev
     return device
 
 
-def new_report(report: ReportIn, timestamp: datetime, received_at: datetime) -> Report:
-    """Make the database row of a report.
+def estimate_energy_uj(rate: EnergyRate, report: ReportIn) -> int:
+    """Estimate the energy of a report that is on the grid and sent no energy_uj.
 
-    A sent energy_uj is stored as it is, also 0, and the source is "measured". Without it the
-    server stores 0 and the source is "estimated" (see the top of the file).
+    Args:
+        rate: The watts of the device type of the report.
+        report: The checked report.
+
+    Returns:
+        The watts of the state, times the interval in seconds, in microjoules.
+
+    Raises:
+        ReportRejected: When the estimate does not fit in 64 bits, because the database could
+            not store it.
+    """
+    watts = getattr(rate, WATTS_COLUMN[report.state])
+    energy_uj = round(watts * report.interval_seconds * MICROJOULES_PER_JOULE)
+    if energy_uj > MAX_INT64:
+        raise ReportRejected("interval_seconds", "the energy estimate is too large to store")
+    return energy_uj
+
+
+def energy_for(session: Session, report: ReportIn) -> tuple[int, str]:
+    """Give the energy_uj and the energy_source to store for a report.
+
+    A sent energy_uj is kept and is "measured", also 0, for any device_type. Without it, a
+    device_type with no row in energy_rates is refused (contract 5.4: it needs a measured
+    energy_uj). Otherwise a computer on its battery is 0 "estimated", and a computer on the grid
+    is estimated from energy_rates.
+
+    Args:
+        session: The database session.
+        report: The checked report.
+
+    Returns:
+        The energy_uj and the energy_source ("measured" or "estimated").
+
+    Raises:
+        ReportRejected: When energy_uj is missing and the device_type has no row in
+            energy_rates, or when the estimate is too large.
+    """
+    if report.energy_uj is not None:
+        return report.energy_uj, "measured"
+    query = select(EnergyRate).where(EnergyRate.device_type == report.device_type)
+    rate = session.exec(query).first()
+    if rate is None:
+        raise ReportRejected("device_type", f"no energy rate for '{report.device_type}': send energy_uj")
+    if report.on_battery:
+        return 0, "estimated"
+    return estimate_energy_uj(rate, report), "estimated"
+
+
+def rejection_error(exc: ReportRejected) -> RequestValidationError:
+    """Turn a refused report into the usual FastAPI 422 error.
+
+    Args:
+        exc: The reason the report is refused.
+
+    Returns:
+        An error that FastAPI answers with the code 422 and the reason.
+    """
+    return RequestValidationError(
+        [{"type": "value_error", "loc": ("body", exc.field), "msg": exc.message, "input": None}]
+    )
+
+
+def new_report(report: ReportIn, timestamp: datetime, received_at: datetime, energy: tuple[int, str]) -> Report:
+    """Make the database row of a report.
 
     Args:
         report: The checked report.
         timestamp: The end of the interval, in UTC.
         received_at: The server time of the request.
+        energy: The energy_uj and the energy_source to store, from energy_for().
 
     Returns:
         A Report that is not saved yet.
     """
-    measured = report.energy_uj is not None
+    energy_uj, energy_source = energy
     return Report(
         device_id=report.device_id,
         timestamp=timestamp,
@@ -171,8 +262,8 @@ def new_report(report: ReportIn, timestamp: datetime, received_at: datetime) -> 
         cpu_percent=report.cpu_percent,
         screen_locked=report.screen_locked,
         on_battery=report.on_battery,
-        energy_uj=report.energy_uj if measured else 0,
-        energy_source="measured" if measured else "estimated",
+        energy_uj=energy_uj,
+        energy_source=energy_source,
         battery_energy_uj=report.battery_energy_uj,
         device_energy_uj=report.device_energy_uj,
     )
@@ -193,14 +284,17 @@ def save(session: Session, report: ReportIn, received_at: datetime) -> Outcome:
         "created" when the report is stored, "duplicate" when the server had it already.
 
     Raises:
+        ReportRejected: When the device_type has no energy rate, or the estimate is too large.
+            Nothing is stored.
         IntegrityError: When two requests with the same new computer or the same report are
             saved at the same moment. store_report() handles it.
     """
     timestamp = report.timestamp.astimezone(timezone.utc)
     if is_known(session, report.device_id, timestamp):
         return "duplicate"
+    energy = energy_for(session, report)
     session.add(device_for(session, report, received_at))
-    session.add(new_report(report, timestamp, received_at))
+    session.add(new_report(report, timestamp, received_at, energy))
     session.commit()
     return "created"
 
@@ -260,9 +354,13 @@ def store_single(session: Session, body: Any, response: Response, received_at: d
         The reply with one result, index 0.
 
     Raises:
-        RequestValidationError: When the report is wrong. FastAPI answers 422.
+        RequestValidationError: When the report is wrong or refused. FastAPI answers 422.
     """
-    outcome = store_report(session, validate_report(body), received_at)
+    report = validate_report(body)
+    try:
+        outcome = store_report(session, report, received_at)
+    except ReportRejected as exc:
+        raise rejection_error(exc) from exc
     if outcome == "duplicate":
         response.status_code = status.HTTP_200_OK
     return ReportResults(results=[ReportResult(index=0, status=outcome)])
@@ -293,7 +391,8 @@ def check_list_size(body: list) -> None:
 def store_item(session: Session, index: int, item: Any, received_at: datetime) -> ReportResult:
     """Handle one report of a list.
 
-    A wrong report is "rejected" with the first problem in words. It does not stop the others.
+    A wrong or refused report is "rejected" with the first problem in words. It does not stop the
+    others.
 
     Args:
         session: The database session.
@@ -308,7 +407,11 @@ def store_item(session: Session, index: int, item: Any, received_at: datetime) -
         report = ReportIn.model_validate(item)
     except ValidationError as exc:
         return ReportResult(index=index, status="rejected", error=first_problem(exc))
-    return ReportResult(index=index, status=store_report(session, report, received_at))
+    try:
+        outcome = store_report(session, report, received_at)
+    except ReportRejected as exc:
+        return ReportResult(index=index, status="rejected", error=f"{exc.field}: {exc.message}")
+    return ReportResult(index=index, status=outcome)
 
 
 def store_list(session: Session, body: list, received_at: datetime) -> ReportResults:
