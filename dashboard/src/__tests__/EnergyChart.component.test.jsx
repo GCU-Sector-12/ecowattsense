@@ -54,3 +54,27 @@ it('keeps a useful Y axis for an all-zero series', () => {
   ]} />)
   expect(AreaChart.mock.lastCall[0].yAxisProps.domain).toEqual([0, 0.5])
 })
+
+it('places ticks on UK four-hour boundaries across the spring clock change', () => {
+  const points = Array.from({ length: 46 }, (_, index) => ({
+    timestamp: new Date(Date.parse('2025-03-30T00:00:00Z') + index * 30 * 60 * 1000).toISOString(),
+    energy_uj: 0,
+  }))
+  renderWithMantine(<EnergyChart points={points} />)
+  expect(AreaChart.mock.lastCall[0].xAxisProps.ticks).toEqual([
+    '2025-03-30T00:00:00.000Z',
+    '2025-03-30T03:00:00.000Z',
+    '2025-03-30T07:00:00.000Z',
+    '2025-03-30T11:00:00.000Z',
+    '2025-03-30T15:00:00.000Z',
+    '2025-03-30T19:00:00.000Z',
+  ])
+})
+
+it('keeps a useful tick when a partial day has no four-hour boundary', () => {
+  renderWithMantine(<EnergyChart points={[
+    { timestamp: '2025-03-10T13:30:00Z', energy_uj: 0 },
+    { timestamp: '2025-03-10T14:00:00Z', energy_uj: 0 },
+  ]} />)
+  expect(AreaChart.mock.lastCall[0].xAxisProps.ticks).toEqual(['2025-03-10T13:30:00Z'])
+})
