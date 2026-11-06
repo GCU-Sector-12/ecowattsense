@@ -1,34 +1,61 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Forms = System.Windows.Forms;
 
 namespace EcoWattSense.Client.Gui;
 
 public partial class MainWindow : Window
 {
     private readonly CancellationTokenSource shutdown = new();
+    private readonly Forms.ContextMenuStrip trayMenu = new();
+    private readonly Forms.NotifyIcon trayIcon;
     private IHost? host;
     private Worker? worker;
     private Task startup = Task.CompletedTask;
     private bool closing;
-    private bool stopped;
+    private bool allowClose;
     private bool started;
     private bool failed;
 
     public MainWindow()
     {
         InitializeComponent();
+        trayMenu.Items.Add("Open", null, (_, _) =>
+        {
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Activate();
+        });
+        trayMenu.Items.Add("Exit", null, async (_, _) => await ExitAsync());
+        trayIcon = new Forms.NotifyIcon
+        {
+            Text = "EcoWattSense",
+            Icon = System.Drawing.SystemIcons.Application,
+            ContextMenuStrip = trayMenu
+        };
         Loaded += (_, _) =>
         {
             if (closing || started) return;
             started = true;
             startup = StartMonitoringAsync();
+            trayIcon.Visible = !closing && !allowClose;
         };
-        Closing += OnClosing;
+        Closing += (_, e) =>
+        {
+            if (allowClose) return;
+            e.Cancel = true;
+            Hide();
+        };
+        Closed += (_, _) =>
+        {
+            trayIcon.Dispose();
+            trayMenu.Dispose();
+            shutdown.Dispose();
+        };
     }
 
     private async Task StartMonitoringAsync()
@@ -68,7 +95,8 @@ public partial class MainWindow : Window
             MessageBox.Show(this,
                 "EcoWattSense is already running on this computer (maybe started at login by the autostart task). This window will close.",
                 "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
-            Close();
+            allowClose = true;
+            await Dispatcher.InvokeAsync(Close);
         }
         catch (Exception exception)
         {
@@ -159,16 +187,15 @@ public partial class MainWindow : Window
         finally { host.Dispose(); host = null; }
     }
 
-    private async void OnClosing(object? sender, CancelEventArgs e)
+    private async Task ExitAsync()
     {
-        if (stopped) return;
-        e.Cancel = true;
         if (closing) return;
         closing = true;
+        trayMenu.Enabled = false;
         ReportStatusValue.Text = "Stopping monitoring…";
         shutdown.Cancel();
         try { await startup; await StopHostAsync(); }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Monitoring shutdown failed"); }
-        finally { stopped = true; shutdown.Dispose(); Close(); }
+        finally { allowClose = true; Close(); }
     }
 }
