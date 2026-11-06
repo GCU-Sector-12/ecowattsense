@@ -33,6 +33,6 @@ This branch includes the tested prerequisites in PR #49 (WEB-25 data module) and
 
 From a clean checkout, fetch the branch and switch to it. Run `npm ci`, `npm test` and `npm run build` from `dashboard/` after your changes. Check the latest PR CI result as well as the relevant screens in a real browser.
 
-Keep this PR as a draft and the task In Progress until the remaining items are implemented and tested. Then request the team's review; do not merge without that review.
+Keep this PR as a draft until the remaining items are implemented and tested. YouTrack currently prevents In Progress until EWS_WEB-25 is Done, so this task remains Open while that prerequisite awaits review. Once the dependency is Done, move this task to In Progress. When the joint implementation is complete, request the team's review; do not merge without that review.
 
 WEB-26 and WEB-27 both touch DashboardPage and the navigation test file in different places. When integrating them after the prerequisites land, keep both the added EnergyCard props and the ComputerTable preview props/tests if Git asks for conflict resolution.
