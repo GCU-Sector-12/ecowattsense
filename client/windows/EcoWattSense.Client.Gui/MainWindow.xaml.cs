@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
@@ -20,7 +21,6 @@ public partial class MainWindow : Window
     private Task startup = Task.CompletedTask;
     private bool closing;
     private bool allowClose;
-    private bool started;
     private bool failed;
 
     public MainWindow()
@@ -33,12 +33,6 @@ public partial class MainWindow : Window
             Text = "EcoWattSense",
             Icon = System.Drawing.SystemIcons.Application,
             ContextMenuStrip = trayMenu
-        };
-        Loaded += (_, _) =>
-        {
-            if (closing || started) return;
-            started = true;
-            startup = StartMonitoringAsync();
         };
         Closing += (_, e) =>
         {
@@ -80,16 +74,19 @@ public partial class MainWindow : Window
         await listener.DisposeAsync();
     }
 
-    private async Task StartMonitoringAsync()
+    internal void StartMonitoring(string[] hostArgs, bool startHidden)
+        => startup = StartMonitoringAsync(hostArgs, startHidden);
+
+    private async Task StartMonitoringAsync(string[] hostArgs, bool startHidden)
     {
-        // Let Loaded record this task before a modal prompt can process tray commands.
+        // Record the startup task before a modal prompt can process tray commands.
         await Task.Yield();
         try
         {
             ReportStatusValue.Text = "Starting monitoring…";
             var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
             {
-                Args = Environment.GetCommandLineArgs().Skip(1).ToArray(),
+                Args = hostArgs,
                 ContentRootPath = AppContext.BaseDirectory
             });
             host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token, StartActivationAsync);
@@ -112,6 +109,12 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
         catch (ClientAlreadyRunningException duplicate)
         {
+            if (startHidden)
+            {
+                allowClose = true;
+                Close();
+                return;
+            }
             bool opened = await Task.Run(() => GuiActivationPipe.RequestAsync(duplicate.LockPath, shutdown.Token));
             if (closing) return;
             if (!opened)
@@ -131,8 +134,9 @@ public partial class MainWindow : Window
             finally { await StopHostAsync(); }
             if (!closing)
             {
-                trayIcon.Visible = true;
-                ShowFailure("Monitoring could not start", exception);
+                trayIcon.Visible = false;
+                try { ShowFailure("Monitoring could not start", exception); }
+                finally { allowClose = true; Close(); }
             }
         }
     }
@@ -155,6 +159,7 @@ public partial class MainWindow : Window
         failed = true;
         ReportStatusValue.Text = title + ": " + exception.Message;
         ClearReadings();
+        new WindowInteropHelper(this).EnsureHandle();
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
@@ -185,10 +190,13 @@ public partial class MainWindow : Window
 
     private string SelectDeviceType()
     {
+        // WPF needs an owner handle even if the main window has never been shown.
+        new WindowInteropHelper(this).EnsureHandle();
         var dialog = new Window
         {
             Title = "Choose device type", Owner = this, Width = 360, Height = 190,
-            ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
         };
         var panel = new StackPanel { Margin = new Thickness(20) };
         panel.Children.Add(new TextBlock { Text = "What type of computer is this?", Margin = new Thickness(0, 0, 0, 16) });

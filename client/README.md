@@ -9,20 +9,21 @@ Server communication is disabled by default. The default reporting interval is 3
 ```text
 client/
   windows/
-    EcoWattSense.Client/        Windows monitoring client
-    EcoWattSense.Client.Gui/    WPF window for the same client
+    EcoWattSense.Client/        Shared monitoring code and development console client
+    EcoWattSense.Client.Gui/    Windows tray app and monitoring window
     scripts/                    Start automatically at login (install and uninstall)
-    EcoWattSense.Client.Tray/   Future tray app, if needed
   linux/                       Future Linux client
   macos/                       Future macOS client
   spike/                       Small test scripts
 ```
 
-The tray app, Linux client and macOS client are not implemented yet.
-
 ## Run on Windows
 
-Requires the .NET 10 SDK. From the repository root:
+Extract the release ZIP and open `EcoWattSense.Client.Gui.exe` to see live readings.
+Closing the window with **X** keeps monitoring in the tray. Choose **Open** from the
+tray menu or launch the EXE again to restore the window. Choose **Exit** to stop monitoring.
+
+To run the development console client from the repository root, use the .NET 10 SDK:
 
 ```powershell
 dotnet run --project ./client/windows/EcoWattSense.Client -- --Reporting:DeviceType=laptop
@@ -36,8 +37,9 @@ The client can start by itself every time you log in to Windows. It then runs al
 no window, on battery too. This uses a Task Scheduler task for your own account.
 You do not need admin rights and no password is stored.
 
-The release ZIP has a special exe for this, `EcoWattSense.Client.Background.exe`. It is the
-same client as `EcoWattSense.Client.exe`, but it opens no window.
+The ZIP contains the GUI EXE, `appsettings.json`, and the install and uninstall scripts.
+The task runs the same GUI with `--start-hidden` and the selected device type.
+Monitoring starts before you first open the window.
 
 ### Install
 
@@ -63,14 +65,15 @@ The task is called `EcoWattSense Client`. It starts the client one minute after 
 so that Wi-Fi is up first. Run the same command again to change the device type or after you
 move the folder. It updates the task.
 
-A new version unzips into a new folder. Run `Uninstall-Autostart.ps1` from the old folder first,
-then the steps above in the new folder.
+### Upgrade from the background EXE
 
-Do not start `EcoWattSense.Client.Background.exe` by double-click. Without the task it gets no
-device type and has no window to ask for one. So it stops at once and shows nothing.
-The error is only in Event Viewer. If a device type was saved before (for example by the GUI),
-it does start, but you cannot see it. If the task is already running, it does not start
-a second copy (see "Only one copy runs" below).
+1. In the old release folder, run `powershell -ExecutionPolicy Bypass -File .\Uninstall-Autostart.ps1`.
+   This stops the scheduled `EcoWattSense.Client.Background.exe` and removes its task.
+   If you started that EXE separately, stop that copy too so it releases the monitoring lock.
+2. Extract the new release into its own folder. Keep the old folder if you need its
+   activity history, and carry over any custom settings from its `appsettings.json`.
+3. Run the install command above from the **new** folder with your device type.
+   The task now points at the new GUI. It reuses the machine's existing device identity.
 
 ### Server key
 
@@ -91,15 +94,15 @@ After you log in, wait a minute, then:
 
 ```powershell
 Get-ScheduledTask -TaskName 'EcoWattSense Client' | Select-Object State        # Running
-Get-Process EcoWattSense.Client.Background                                    # the client process
+Get-Process EcoWattSense.Client.Gui                                           # the tray client
 Get-ChildItem "$env:LOCALAPPDATA\EcoWattSense\Reports" | Sort-Object LastWriteTime | Select-Object -Last 3
 ```
 
 A new report file appears after each reporting interval (5 minutes by default). The activity
 history is in the `Reports` folder next to the exe.
 
-The client has no window, so it writes to Event Viewer instead: Windows Logs, Application,
-source ".NET Runtime". At each start it writes a few lines (file paths, settings, device id).
+For startup diagnostics, open Event Viewer, Windows Logs, Application,
+source ".NET Runtime". At each start the client writes a few lines (file paths, settings, device id).
 After that it writes only warnings and errors, not every reading, so the log does not fill up.
 A crash is also shown with the source "Application Error".
 
@@ -107,32 +110,22 @@ If the client crashes or is ended, it does not start again by itself. It starts 
 next login. To start it at once, use the command below.
 
 To start it now without signing out: `Start-ScheduledTask -TaskName 'EcoWattSense Client'`.
-To stop it until the next login: `Stop-ScheduledTask -TaskName 'EcoWattSense Client'`
-(or end `EcoWattSense.Client.Background.exe` in Task Manager).
+To stop it until the next login, choose **Exit** from the tray menu.
 
 ### Only one copy runs
 
-Only one copy of the client monitors a computer at a time. This is the console exe, the
-background exe or the GUI, whichever starts first. Another copy started later does not
-monitor and sends nothing:
-
-- The console exe and the background exe write the warning "EcoWattSense is already running
-  on this computer" and stop with exit code 2. The console exe shows it in the window. The
-  background exe writes it to Event Viewer (Windows Logs, Application, source ".NET Runtime").
-  Task Scheduler then shows the last run result `0x2`.
-- The GUI shows the message "EcoWattSense is already running on this computer" and closes.
-
-So, while the task is running, the GUI does not show live data. To use the GUI, stop the task
-first (`Stop-ScheduledTask -TaskName 'EcoWattSense Client'`). When a copy stops or crashes,
-the next copy can start.
+Only one copy monitors a computer at a time. A manual GUI launch opens the running
+GUI in your Windows session. If the development console, an old background EXE,
+or a GUI in another session owns the lock, the manual launch explains why it cannot
+open the window and exits. A hidden launch that finds the lock held exits quietly.
+The development console still exits with code 2 when the lock is held.
 
 The lock is the file `instance.lock` in `%ProgramData%\EcoWattSense\Client`, next to the device id.
 Windows frees it when the copy ends, also after a crash. You do not need to delete it.
 
 Known limitation: the lock is for the whole computer, like the device id. If two Windows users
 are logged in at the same time (fast user switching), only the copy of the user who started it
-first monitors. The copy of the second user says it is already running, so the second user's
-activity is not reported.
+first monitors. The second user's session does not produce readings.
 
 ### Uninstall
 
