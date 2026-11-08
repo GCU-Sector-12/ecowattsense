@@ -12,7 +12,11 @@ import SettingsPage from './pages/SettingsPage.jsx'
 import { navigation } from './data/ui.js'
 
 const SIDEBAR_WIDTH = 300
-const PAGES = {
+
+// The one list of every page: its name and its component. To add a page, add one line here.
+// The names go to resolveRoute(). It is exported so a test can check them. Reports has no page,
+// so its address is "not-found".
+export const PAGES = {
   dashboard: DashboardPage,
   computers: ComputersPage,
   history: HistoryPage,
@@ -27,7 +31,7 @@ const PAGES = {
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
-  const route = resolveRoute(useHash())
+  const route = resolveRoute(useHash(), Object.keys(PAGES))
   const Page = PAGES[route.page]
   return (
     <AppShell navbar={{ width: SIDEBAR_WIDTH, breakpoint: 0 }} padding={32}>

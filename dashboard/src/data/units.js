@@ -7,6 +7,10 @@ const MICROJOULES_PER_KWH = 3_600_000_000_000
  * @param {number} energy_uj - Energy in microjoules.
  * @returns {number} Energy in kWh.
  */
+export function ujToKwh(energy_uj) {
+  return energy_uj / MICROJOULES_PER_KWH
+}
+
 /**
  * Converts interval energy to average power in kilowatts.
  * @param {number} energy_uj - Energy in microjoules.
@@ -14,10 +18,6 @@ const MICROJOULES_PER_KWH = 3_600_000_000_000
  * @returns {number} Average power in kW.
  * @throws {RangeError} If the duration is not finite and positive.
  */
-export function ujToKwh(energy_uj) {
-  return energy_uj / MICROJOULES_PER_KWH
-}
-
 export function ujToKw(energy_uj, seconds) {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new RangeError('seconds must be greater than zero')

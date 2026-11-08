@@ -12,6 +12,7 @@ from ecowattsense_server.config import settings
 from ecowattsense_server.db import get_session
 from ecowattsense_server.main import app
 from ecowattsense_server.models import Device, Report
+from ecowattsense_server.seed import seed_defaults
 
 KEY = "test-client-key"
 
@@ -26,9 +27,11 @@ def client_key(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def engine(tmp_path):
-    """Every test gets its own temporary SQLite file, never the real database."""
+    """Every test gets its own temporary SQLite file, never the real database. It has the seed rows."""
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        seed_defaults(session)
 
     def session_for_test():
         with Session(engine) as session:
@@ -292,10 +295,56 @@ def test_a_laptop_on_battery_without_energy_is_stored_as_zero_estimated(engine):
     assert (saved.energy_uj, saved.energy_source) == (0, "estimated")
 
 
-def test_a_report_without_energy_on_the_grid_is_zero_estimated_until_the_w7_task(engine):
+def test_a_desktop_on_the_grid_without_energy_is_stored_with_an_estimate(engine):
     client.post("/api/reports", json=example("active"))
     saved = stored(engine, Report)[0]
-    assert (saved.energy_uj, saved.energy_source) == (0, "estimated")
+    assert (saved.energy_uj, saved.energy_source) == (16_500_000_000, "estimated")
+
+
+# The seed watts (active, idle, unused), 300 seconds: watts * 300 * 1 000 000.
+@pytest.mark.parametrize(
+    "device_type,state,watts",
+    [
+        ("desktop", 2, 55), ("desktop", 1, 40), ("desktop", 0, 25),
+        ("laptop", 2, 15), ("laptop", 1, 9), ("laptop", 0, 3),
+    ],
+)
+def test_the_estimate_uses_the_watts_of_the_device_type_and_the_state(engine, device_type, state, watts):
+    client.post("/api/reports", json=wrong(device_type=device_type, state=state))
+    saved = stored(engine, Report)[0]
+    assert (saved.energy_uj, saved.energy_source) == (watts * 300 * 1_000_000, "estimated")
+
+
+def test_a_device_type_without_energy_rates_is_422_and_stores_nothing(engine):
+    response = client.post("/api/reports", json=wrong(device_type="server"))
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "device_type"]
+    assert stored(engine, Report) == []
+    assert stored(engine, Device) == []
+
+
+def test_a_device_type_without_energy_rates_is_stored_when_it_sends_energy(engine):
+    response = client.post("/api/reports", json=wrong(device_type="server", energy_uj=5))
+    saved = stored(engine, Report)[0]
+    assert response.status_code == 201
+    assert (saved.energy_uj, saved.energy_source) == (5, "measured")
+
+
+def test_a_device_type_without_energy_rates_in_a_list_is_rejected_and_does_not_stop_the_others(engine):
+    bad = wrong(device_type="server")
+    good = wrong(timestamp="2026-10-19T09:10:00Z")
+    response = client.post("/api/reports", json=[bad, good])
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert [result["status"] for result in results] == ["rejected", "created"]
+    assert results[0]["error"].startswith("device_type: ")
+    assert len(stored(engine, Report)) == 1
+
+
+def test_an_estimate_too_big_for_64_bits_is_422_not_500(engine):
+    response = client.post("/api/reports", json=wrong(interval_seconds=2**63 - 1))
+    assert response.status_code == 422
+    assert stored(engine, Report) == []
 
 
 def test_battery_and_device_energy_are_stored(engine):
