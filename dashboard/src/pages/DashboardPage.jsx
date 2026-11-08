@@ -1,4 +1,7 @@
-import { Grid, SimpleGrid, Stack } from '@mantine/core'
+// Dashboard page built from docs/design/dashboard-mockup.png with sample data.
+// App.jsx renders this page for #dashboard; providers supply counts, energy and devices.
+import useSampleData from '../useSampleData.js'
+import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Monitor, Clock, Power } from 'lucide-react'
 import Header from '../components/Header.jsx'
 import StatCard from '../components/StatCard.jsx'
@@ -6,37 +9,51 @@ import EnergyCard from '../components/EnergyCard.jsx'
 import EnergyChart from '../components/EnergyChart.jsx'
 import StatusDonut from '../components/StatusDonut.jsx'
 import ComputerTable from '../components/ComputerTable.jsx'
+import { getSummary, getDevices } from '../data/index.js'
+import { sampleScreen, stateDisplay } from '../data/ui.js'
 
-// Dashboard page built from docs/design/dashboard-mockup.png with sample data.
-export default function DashboardPage({ data }) {
-  const { summary } = data
+/**
+ * Loads the summary and devices together using a stable hook dependency.
+ * @returns {Promise<Array>} Summary and device-list responses.
+ */
+function loadDashboard() {
+  return Promise.all([getSummary(), getDevices()])
+}
+
+/**
+ * Dashboard built from docs/design/dashboard-mockup.png with sample data.
+ * @returns {JSX.Element} The page.
+ */
+export default function DashboardPage() {
+  const { data, error } = useSampleData(loadDashboard)
+  if (error) return <Text role="alert">Unable to load dashboard.</Text>
+  if (!data) return <Text>Loading dashboard...</Text>
+  const [summary, { devices }] = data
+  const referenceTime = sampleScreen.generated_at
+  const cards = [
+    { state: 'active', icon: Monitor },
+    { state: 'idle', icon: Clock },
+    { state: 'unused', icon: Power },
+  ]
 
   return (
     <Stack gap="md">
-      <Header
-        title="Welcome to EcoWattSense!"
+      <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
-        generatedAt={data.generatedAt}
-        userName={data.user.name}
-      />
-
+        generatedAt={referenceTime} userName={sampleScreen.user_name} />
       <SimpleGrid cols={4} spacing="md">
-        <StatCard state="active" icon={Monitor} stat={summary.active} />
-        <StatCard state="idle" icon={Clock} stat={summary.idle} />
-        <StatCard state="unused" icon={Power} stat={summary.unused} />
-        <EnergyCard kwh={summary.energyTodayKWh} cost={summary.estimatedCostGBP} />
+        {cards.map(({ state, icon }) => (
+          <StatCard key={state} state={state} icon={icon}
+            count={summary.counts[state]} total={summary.counts.total}
+            label={stateDisplay[state].label} caption={stateDisplay[state].caption} />
+        ))}
+        <EnergyCard energy_uj={summary.energy_uj} cost_gbp={summary.cost_gbp} />
       </SimpleGrid>
-
       <Grid gutter="md">
-        <Grid.Col span={8}>
-          <EnergyChart points={data.energyToday.points} />
-        </Grid.Col>
-        <Grid.Col span={4}>
-          <StatusDonut summary={summary} />
-        </Grid.Col>
+        <Grid.Col span={8}><EnergyChart points={summary.series} /></Grid.Col>
+        <Grid.Col span={4}><StatusDonut summary={summary} /></Grid.Col>
       </Grid>
-
-      <ComputerTable computers={data.computers.slice(0, 5)} />
+      <ComputerTable computers={devices.slice(0, 5)} referenceTime={referenceTime} />
     </Stack>
   )
 }

@@ -1,0 +1,11 @@
+{
+  "settings_version": 1,
+  "report_interval_seconds": 300,
+  "ping_interval_seconds": 60,
+  "idle_threshold_seconds": 600,
+  "unused_threshold_seconds": 3600,
+  "no_data_after_cycles": 3,
+  "tariff_valid_from": "2025-03-01T00:00:00Z",
+  "price_gbp_per_kwh": 0.25,
+  "co2_kg_per_kwh": 0.207
+}

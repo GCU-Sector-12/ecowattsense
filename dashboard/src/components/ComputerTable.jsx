@@ -1,7 +1,8 @@
+// Renders a device row using fields available in the device-list contract.
 import { Button, Card, Group, Table, Text } from '@mantine/core'
 import StatusDot from './StatusDot.jsx'
-
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused' }
+import { timeAgo } from '../data/units.js'
+import { stateLabels } from '../data/ui.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -9,18 +10,22 @@ const headerStyle = {
   fontSize: 'var(--ews-text-sm)',
 }
 
-function ComputerRow({ computer }) {
+/**
+ * Renders a device row using fields available in the device-list contract.
+ * @param {object} props - Device and reference timestamp.
+ * @returns {JSX.Element} Rendered content.
+ */
+function ComputerRow({ computer, referenceTime }) {
   return (
     <Table.Tr>
-      <Table.Td>{computer.name}</Table.Td>
+      <Table.Td>{computer.display_name}</Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap">
-          <StatusDot state={computer.status} size={14} />
-          <Text fz="sm">{LABELS[computer.status]}</Text>
+          <StatusDot state={computer.state_name} size={14} />
+          <Text fz="sm">{stateLabels[computer.state_name]}</Text>
         </Group>
       </Table.Td>
-      <Table.Td>{computer.lastActivityText}</Table.Td>
-      <Table.Td>{computer.estimatedPowerW} W</Table.Td>
+      <Table.Td>{timeAgo(computer.last_seen_at, referenceTime)}</Table.Td>
       <Table.Td>
         <Button variant="default" size="xs" bg="var(--ews-button)" fw={500}>
           View
@@ -31,7 +36,12 @@ function ComputerRow({ computer }) {
 }
 
 // "Computer List" card with a table of computers. Status is a dot plus a word.
-export default function ComputerTable({ computers, title = 'Computer List' }) {
+/**
+ * Renders the computer list with textual status and relative last activity.
+ * @param {object} props - Computers, optional title and reference timestamp.
+ * @returns {JSX.Element} Rendered content.
+ */
+export default function ComputerTable({ computers, title = 'Computer List', referenceTime }) {
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
       <Text fz="lg" fw={700} mb="sm">
@@ -48,13 +58,12 @@ export default function ComputerTable({ computers, title = 'Computer List' }) {
             <Table.Th>Computer Name</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Last Activity</Table.Th>
-            <Table.Th>Estimated Power</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {computers.map((computer) => (
-            <ComputerRow key={computer.id} computer={computer} />
+            <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
           ))}
         </Table.Tbody>
       </Table>
