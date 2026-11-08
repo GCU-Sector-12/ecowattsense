@@ -28,3 +28,44 @@
   font-size: var(--ews-text-md);
   font-weight: 500;
 }
+
+.navbar.navbar {
+  transition-property: transform, top, height, width;
+}
+
+.sidebar {
+  position: relative;
+}
+
+.link.link[data-collapsed] {
+  justify-content: center;
+  padding: 14px 0;
+}
+
+.link[data-collapsed] .section {
+  margin: 0;
+}
+
+.link[data-collapsed] .linkBody {
+  display: none;
+}
+
+.toggle.toggle {
+  align-self: center;
+  color: var(--ews-text-on-dark);
+  --ai-hover: var(--ews-green-700);
+}
+
+.resizeHandle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizeHandle:hover,
+.resizeHandle:active {
+  background-color: var(--ews-green-700);
+}
