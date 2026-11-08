@@ -1,0 +1,57 @@
+// Integration checks for the dashboard sidebar and its saved browser preference.
+import { fireEvent, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import App from '../App.jsx'
+import { renderWithMantine } from '../test/render.jsx'
+
+it('collapses with the keyboard, keeps icon links accessible and restores the mode after remounting', async () => {
+  const user = userEvent.setup()
+  const view = renderWithMantine(<App />)
+  const collapse = screen.getByRole('button', { name: 'Collapse sidebar' })
+  const navbar = collapse.closest('nav')
+  expect(navbar).toHaveAttribute('data-width', '300')
+
+  collapse.focus()
+  await user.keyboard('{Enter}')
+  expect(navbar).toHaveAttribute('data-width', '72')
+  expect(within(navbar).queryByText('Computers')).not.toBeInTheDocument()
+  const computers = within(navbar).getByRole('link', { name: 'Computers' })
+  await user.hover(computers)
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('Computers')
+
+  view.unmount()
+  renderWithMantine(<App />)
+  const expand = screen.getByRole('button', { name: 'Expand sidebar' })
+  expect(expand.closest('nav')).toHaveAttribute('data-width', '72')
+  expand.focus()
+  await user.keyboard(' ')
+  expect(expand.closest('nav')).toHaveAttribute('data-width', '300')
+  expect(within(expand.closest('nav')).getByText('Computers')).toBeVisible()
+})
+
+it('clamps drag resizing, saves the width and snaps closed when dragged below the minimum', async () => {
+  const view = renderWithMantine(<App />)
+  const navbar = screen.getByRole('button', { name: 'Collapse sidebar' }).closest('nav')
+  dragSidebar(navbar, 300, 415)
+  expect(navbar).toHaveAttribute('data-width', '360')
+
+  view.unmount()
+  renderWithMantine(<App />)
+  const restoredNavbar = screen.getByRole('button', { name: 'Collapse sidebar' }).closest('nav')
+  expect(restoredNavbar).toHaveAttribute('data-width', '360')
+
+  dragSidebar(restoredNavbar, 360, 200)
+  expect(restoredNavbar).toHaveAttribute('data-width', '72')
+  expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+})
+
+function dragSidebar(navbar, start, end) {
+  const handle = navbar.querySelector('div[aria-hidden="true"]')
+  handle.parentElement.getBoundingClientRect = () => ({ width: start })
+  // Pointer capture is handled by the browser and is unavailable in jsdom.
+  handle.setPointerCapture = () => {}
+  const pointer = { pointerId: 1, button: 0 }
+  fireEvent.pointerDown(handle, { ...pointer, clientX: start })
+  fireEvent.pointerMove(handle, { ...pointer, clientX: end })
+  fireEvent.pointerUp(handle, { ...pointer, clientX: end })
+}
