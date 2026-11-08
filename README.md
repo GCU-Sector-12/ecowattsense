@@ -36,6 +36,7 @@ data/          local database files, ignored by Git
 site/          project site, published with GitHub Pages
 www/           landing page for ecowattsense.co.uk
 .github/       GitHub Actions workflows
+AGENTS.md      rules for AI tools: code, repository and review. CLAUDE.md and .github/copilot-instructions.md point to it
 docs/          project documentation, see docs/README.md
   requirements/  use cases, user types, requirements (D2)
   design/        architecture, API, database schema, wireframes (D2)
