@@ -9,7 +9,7 @@ export default function EnergyCard({ kwh, cost }) {
         <Group gap="sm" wrap="nowrap" align="center">
           <Leaf size={44} color="var(--ews-icon-brand, var(--ews-green-700))" strokeWidth={1.75} />
           <div>
-            <Text fz="sm" fw={500} lh={1.3} style={{ whiteSpace: 'nowrap' }}>
+            <Text fz="sm" fw={500} lh={1.3}>
               Estimated Energy Usage
             </Text>
             <Text fz={36} fw={700} lh={1.1}>

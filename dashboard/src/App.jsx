@@ -1,5 +1,6 @@
 // The app shell: the sidebar on the left and the page for the current address on the right.
-import { AppShell } from '@mantine/core'
+import { AppShell, Burger, Drawer, Group, Text } from '@mantine/core'
+import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import { useEffect, useState } from 'react'
 import data from './mock/dashboard-sample-data.json'
 import useHash, { resolveRoute } from './useHash.js'
@@ -18,6 +19,8 @@ const NARROW_WIDTH = 72
 const MIN_WIDTH = 220
 const MAX_WIDTH = 360
 const SIDEBAR_STORAGE_KEY = 'ews-sidebar'
+const PHONE_WIDTH = 768
+const DESKTOP_WIDTH = 1024
 
 /** Restores a valid saved sidebar preference when browser storage is available. */
 function readSidebar() {
@@ -55,7 +58,19 @@ export default function App() {
   const Page = PAGES[route.page]
   const [sidebar, setSidebar] = useState(readSidebar)
   const [resizing, setResizing] = useState(false)
-  const sidebarWidth = sidebar.collapsed ? NARROW_WIDTH : sidebar.width
+  const phone = useMediaQuery(`(width < ${PHONE_WIDTH}px)`)
+  const tablet = useMediaQuery(`(${PHONE_WIDTH}px <= width < ${DESKTOP_WIDTH}px)`)
+  const [mobileMenu, { open: openMobileMenu, close: closeMobileMenu }] = useDisclosure(false)
+  const collapsed = tablet || sidebar.collapsed
+  const sidebarWidth = collapsed ? NARROW_WIDTH : sidebar.width
+
+  useEffect(() => {
+    if (!phone) closeMobileMenu()
+  }, [phone, closeMobileMenu])
+
+  useEffect(() => {
+    if (phone || tablet) setResizing(false)
+  }, [phone, tablet])
 
   useEffect(() => {
     if (resizing) return
@@ -78,19 +93,53 @@ export default function App() {
   }
 
   return (
-    <AppShell navbar={{ width: sidebarWidth, breakpoint: 0 }} padding={32} transitionDuration={resizing ? 0 : 150}>
-      <AppShell.Navbar className={sidebarClasses.navbar} bg="var(--ews-green-900)" withBorder={false} data-width={sidebarWidth}>
+    <AppShell
+      navbar={{ width: sidebarWidth, breakpoint: PHONE_WIDTH, collapsed: { mobile: true } }}
+      header={{ height: { base: 56, sm: 0 } }}
+      padding={{ base: 'md', sm: 'xl' }}
+      transitionDuration={resizing ? 0 : 150}
+    >
+      <AppShell.Header hiddenFrom="sm" bg="var(--ews-green-900)" withBorder={false}>
+        <Group h="100%" px="md">
+          <Burger
+            color="var(--ews-text-on-dark)"
+            aria-label="Open dashboard navigation"
+            aria-expanded={mobileMenu}
+            onClick={openMobileMenu}
+          />
+          <Text c="var(--ews-text-on-dark)" fw={700}>EcoWattSense</Text>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar
+        visibleFrom="sm"
+        className={sidebarClasses.navbar}
+        bg="var(--ews-green-900)"
+        withBorder={false}
+        data-width={sidebarWidth}
+      >
         <Sidebar
           items={data.navigation}
           activeKey={route.menuKey}
-          collapsed={sidebar.collapsed}
-          onToggle={toggleSidebar}
-          onResize={resizeSidebar}
+          collapsed={collapsed}
+          onToggle={tablet ? undefined : toggleSidebar}
+          onResize={tablet ? undefined : resizeSidebar}
           onResizingChange={setResizing}
         />
       </AppShell.Navbar>
 
-      <AppShell.Main bg="var(--ews-page)">
+      <Drawer
+        opened={phone && mobileMenu}
+        onClose={closeMobileMenu}
+        title="Dashboard navigation"
+        closeButtonProps={{ 'aria-label': 'Close dashboard navigation' }}
+        size={300}
+        padding={0}
+      >
+        <Sidebar items={data.navigation} activeKey={route.menuKey} onNavigate={closeMobileMenu} />
+      </Drawer>
+
+      <AppShell.Main className={sidebarClasses.page} bg="var(--ews-page)">
         <Page data={data} deviceId={route.deviceId} />
       </AppShell.Main>
     </AppShell>

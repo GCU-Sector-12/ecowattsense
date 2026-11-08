@@ -37,27 +37,29 @@ export default function ComputerTable({ computers, title = 'Computer List' }) {
       <Text fz="lg" fw={700} mb="sm">
         {title}
       </Text>
-      <Table
-        verticalSpacing="sm"
-        horizontalSpacing="sm"
-        fz="sm"
-        styles={{ th: headerStyle, thead: { backgroundColor: 'var(--ews-page)' }, tr: { borderColor: 'var(--ews-border)' } }}
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Computer Name</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Last Activity</Table.Th>
-            <Table.Th>Estimated Power</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {computers.map((computer) => (
-            <ComputerRow key={computer.id} computer={computer} />
-          ))}
-        </Table.Tbody>
-      </Table>
+      <Table.ScrollContainer minWidth={520} type="native" role="region" aria-label={title} tabIndex={0}>
+        <Table
+          verticalSpacing="sm"
+          horizontalSpacing="sm"
+          fz="sm"
+          styles={{ th: headerStyle, thead: { backgroundColor: 'var(--ews-page)' }, tr: { borderColor: 'var(--ews-border)' } }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Computer Name</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Last Activity</Table.Th>
+              <Table.Th>Estimated Power</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {computers.map((computer) => (
+              <ComputerRow key={computer.id} computer={computer} />
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
     </Card>
   )
 }

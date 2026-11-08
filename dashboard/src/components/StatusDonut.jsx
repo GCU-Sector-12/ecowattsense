@@ -38,7 +38,7 @@ export default function StatusDonut({ summary }) {
       <Text fz="lg" fw={700} mb="md">
         Computer Status
       </Text>
-      <Group justify="space-between" align="center" wrap="nowrap" gap="sm" mt="xs">
+      <Group justify="center" align="center" gap="sm" mt="xs">
         <Box pos="relative">
           <DonutChart
             data={data}
@@ -61,7 +61,7 @@ export default function StatusDonut({ summary }) {
           </Center>
         </Box>
 
-        <Stack gap="sm" style={{ flex: 1 }}>
+        <Stack gap="sm" style={{ flex: '1 1 120px' }}>
           {STATES.map((state) => (
             <LegendRow key={state} state={state} stat={summary[state]} />
           ))}

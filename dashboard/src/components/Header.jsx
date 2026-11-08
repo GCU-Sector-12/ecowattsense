@@ -1,5 +1,6 @@
 import { Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
 import { ChevronDown, LogOut, User } from 'lucide-react'
+import classes from './Header.module.css'
 
 // Formats an ISO date as "Mon, 10 Mar 2025 14:32" (UTC, as in the mockup).
 function formatDate(iso) {
@@ -44,7 +45,7 @@ function UserMenu({ userName }) {
 // Page header: title and subtitle on the left, date and user menu on the right.
 export default function Header({ title, subtitle, generatedAt, userName }) {
   return (
-    <Group justify="space-between" align="flex-start" wrap="nowrap">
+    <Group className={classes.header} justify="space-between" align="flex-start">
       <div>
         <Title order={1} fz="xl" fw={700} lh={1.3}>
           {title}
@@ -54,7 +55,7 @@ export default function Header({ title, subtitle, generatedAt, userName }) {
         </Text>
       </div>
 
-      <Group gap="xl" wrap="nowrap">
+      <Group gap={{ base: 'sm', sm: 'xl' }}>
         <Text fz="sm" fw={500}>
           {formatDate(generatedAt)}
         </Text>

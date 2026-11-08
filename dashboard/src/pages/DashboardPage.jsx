@@ -20,18 +20,18 @@ export default function DashboardPage({ data }) {
         userName={data.user.name}
       />
 
-      <SimpleGrid cols={4} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         <StatCard state="active" icon={Monitor} stat={summary.active} />
         <StatCard state="idle" icon={Clock} stat={summary.idle} />
         <StatCard state="unused" icon={Power} stat={summary.unused} />
         <EnergyCard kwh={summary.energyTodayKWh} cost={summary.estimatedCostGBP} />
       </SimpleGrid>
 
-      <Grid gutter="md">
-        <Grid.Col span={8}>
+      <Grid gap="md" breakpoints={{ desktop: "64em" }}>
+        <Grid.Col span={{ base: 12, desktop: 8 }}>
           <EnergyChart points={data.energyToday.points} />
         </Grid.Col>
-        <Grid.Col span={4}>
+        <Grid.Col span={{ base: 12, desktop: 4 }}>
           <StatusDonut summary={summary} />
         </Grid.Col>
       </Grid>
