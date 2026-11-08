@@ -1,7 +1,6 @@
-// The app shell: the sidebar on the left and the page for the current address on the right.
+// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
 import { AppShell } from '@mantine/core'
 import { useEffect, useState } from 'react'
-import data from './mock/dashboard-sample-data.json'
 import useHash, { resolveRoute } from './useHash.js'
 import Sidebar from './components/Sidebar.jsx'
 import sidebarClasses from './components/Sidebar.module.css'
@@ -12,6 +11,7 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
+import { navigation } from './data/ui.js'
 
 const DEFAULT_SIDEBAR = { width: 300, collapsed: false }
 const NARROW_WIDTH = 72
@@ -46,8 +46,7 @@ export const PAGES = {
 }
 
 /**
- * Shows the sidebar and the page that belongs to the address in the browser (the hash).
- *
+ * Shows the sidebar and the page selected by the browser hash.
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
@@ -81,7 +80,7 @@ export default function App() {
     <AppShell navbar={{ width: sidebarWidth, breakpoint: 0 }} padding={32} transitionDuration={resizing ? 0 : 150}>
       <AppShell.Navbar className={sidebarClasses.navbar} bg="var(--ews-green-900)" withBorder={false} data-width={sidebarWidth}>
         <Sidebar
-          items={data.navigation}
+          items={navigation}
           activeKey={route.menuKey}
           collapsed={sidebar.collapsed}
           onToggle={toggleSidebar}
@@ -89,9 +88,8 @@ export default function App() {
           onResizingChange={setResizing}
         />
       </AppShell.Navbar>
-
       <AppShell.Main bg="var(--ews-page)">
-        <Page data={data} deviceId={route.deviceId} />
+        <Page deviceId={route.deviceId} />
       </AppShell.Main>
     </AppShell>
   )

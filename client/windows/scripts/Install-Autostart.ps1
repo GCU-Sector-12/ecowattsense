@@ -18,7 +18,7 @@ Works in Windows PowerShell 5.1 and PowerShell 7.
 laptop or desktop. Required.
 
 .PARAMETER ExePath
-The client exe to start. Default: EcoWattSense.Client.Background.exe next to this script.
+The client exe to start. Default: EcoWattSense.Client.Gui.exe next to this script.
 
 .PARAMETER TaskName
 Name of the task. Default: EcoWattSense Client.
@@ -52,7 +52,7 @@ $DeviceType = $DeviceType.ToLowerInvariant()
 if ([string]::IsNullOrEmpty($ExePath)) {
     $scriptFolder = $PSScriptRoot
     if ([string]::IsNullOrEmpty($scriptFolder)) { $scriptFolder = Split-Path -Parent $MyInvocation.MyCommand.Path }
-    $ExePath = Join-Path $scriptFolder 'EcoWattSense.Client.Background.exe'
+    $ExePath = Join-Path $scriptFolder 'EcoWattSense.Client.Gui.exe'
 }
 
 # Turn a relative path into a full path, based on the current PowerShell folder.
@@ -79,8 +79,9 @@ $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $execute = $exe
 if ($execute.Contains(' ')) { $execute = '"' + $execute + '"' }
 
-# Only the device type is passed. Never pass the client key here: arguments are visible in Task Scheduler.
-$action = New-ScheduledTaskAction -Execute $execute -Argument "--Reporting:DeviceType=$DeviceType" -WorkingDirectory $folder
+# Pass the GUI switch and device type. Never pass the client key here: arguments are visible in Task Scheduler.
+$arguments = "--start-hidden --Reporting:DeviceType=$DeviceType"
+$action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -WorkingDirectory $folder
 
 # Start one minute after log on, so Wi-Fi is up before the client asks the server for its settings.
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
@@ -103,7 +104,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable
 
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-    -Description 'Starts the EcoWattSense client (no window) when you log in. Remove it with Uninstall-Autostart.ps1.'
+    -Description 'Starts the EcoWattSense client in the system tray when you log in. Remove it with Uninstall-Autostart.ps1.'
 
 if ($DefinitionOnly) {
     return $task
@@ -113,7 +114,7 @@ if ($DefinitionOnly) {
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
 
 Write-Output "Registered task '$TaskName' for $user."
-Write-Output "  Starts: $exe --Reporting:DeviceType=$DeviceType"
+Write-Output "  Starts: $exe $arguments"
 Write-Output "  When:   1 minute after you log in"
 Write-Output "To start it now without logging out: Start-ScheduledTask -TaskName '$TaskName'"
 

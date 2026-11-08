@@ -25,13 +25,13 @@ try {
     # A folder with a space, to check the quotes around the exe path.
     $appFolder = Join-Path $directory 'App Folder'
     $null = New-Item -ItemType Directory -Path $appFolder
-    $exe = Join-Path $appFolder 'EcoWattSense.Client.Background.exe'
+    $exe = Join-Path $appFolder 'EcoWattSense.Client.Gui.exe'
     Set-Content -LiteralPath $exe -Value 'dummy exe for the test'
 
-    # A copy of the release folder: both scripts next to a dummy background exe.
+    # A copy of the release folder: both scripts next to a dummy GUI exe.
     $releaseFolder = Join-Path $directory 'Release Folder'
     $null = New-Item -ItemType Directory -Path $releaseFolder
-    $releaseExe = Join-Path $releaseFolder 'EcoWattSense.Client.Background.exe'
+    $releaseExe = Join-Path $releaseFolder 'EcoWattSense.Client.Gui.exe'
     Set-Content -LiteralPath $releaseExe -Value 'dummy exe for the test'
     Copy-Item -LiteralPath $install, $uninstall -Destination $releaseFolder
     $releaseInstall = Join-Path $releaseFolder 'Install-Autostart.ps1'
@@ -80,7 +80,7 @@ $s = $task.Settings
         $expected = [ordered]@{
             TriggerCount = 1; TriggerClass = 'MSFT_TaskLogonTrigger'; TriggerUser = $user
             TriggerDelay = 'PT1M'; TriggerEnabled = $true; ActionCount = 1
-            Execute = '"' + $exe + '"'; Arguments = '--Reporting:DeviceType=laptop'; WorkingDirectory = $appFolder
+            Execute = '"' + $exe + '"'; Arguments = '--start-hidden --Reporting:DeviceType=laptop'; WorkingDirectory = $appFolder
             PrincipalUser = $user; LogonType = 'Interactive'; RunLevel = 'Limited'
             DisallowStartIfOnBatteries = $false; StopIfGoingOnBatteries = $false
             ExecutionTimeLimit = 'PT0S'; RestartCount = 3; RestartInterval = 'PT1M'
@@ -100,7 +100,7 @@ $s = $task.Settings
         $d = ($json -join "`n") | ConvertFrom-Json
         if ($d.Execute -ne '"' + $releaseExe + '"') { throw "${name}: default exe is '$($d.Execute)', expected '$releaseExe'" }
         if ($d.WorkingDirectory -ne $releaseFolder) { throw "${name}: default working directory is '$($d.WorkingDirectory)'" }
-        if ($d.Arguments -ne '--Reporting:DeviceType=desktop') { throw "${name}: default arguments are '$($d.Arguments)'" }
+        if ($d.Arguments -ne '--start-hidden --Reporting:DeviceType=desktop') { throw "${name}: default arguments are '$($d.Arguments)'" }
         $checks += 3
 
         # The same, with the script run directly by -File (no wrapper script in between).
@@ -132,7 +132,7 @@ $s = $task.Settings
     # A folder the user cannot write to is refused. Deny "create files" on a test folder for the current user.
     $locked = Join-Path $directory 'Locked'
     $null = New-Item -ItemType Directory -Path $locked
-    $lockedExe = Join-Path $locked 'EcoWattSense.Client.Background.exe'
+    $lockedExe = Join-Path $locked 'EcoWattSense.Client.Gui.exe'
     Set-Content -LiteralPath $lockedExe -Value 'dummy exe for the test'
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $null = icacls $locked /deny "*${sid}:(WD)"

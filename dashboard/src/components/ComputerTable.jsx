@@ -1,7 +1,8 @@
-import { Button, Card, Group, Table, Text } from '@mantine/core'
-import StatusDot from './StatusDot.jsx'
-
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused' }
+// Computer list card: a table of devices from the device-list contract, with optional
+// sorting, archive filter and row limit. DashboardPage shows a five-row preview, ComputersPage the full list.
+import { Anchor, Button, Card, Group, Table, Text } from '@mantine/core'
+import StateBadge from '../StateBadge.jsx'
+import { timeAgo } from '../data/units.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -9,20 +10,30 @@ const headerStyle = {
   fontSize: 'var(--ews-text-sm)',
 }
 
-function ComputerRow({ computer }) {
+/**
+ * Renders a device row using fields available in the device-list contract.
+ * @param {object} props - Device and reference timestamp.
+ * @returns {JSX.Element} Rendered content.
+ */
+function ComputerRow({ computer, referenceTime }) {
+  const name = computer.display_name ?? computer.device_id.slice(0, 8)
+  const location = [computer.location_name, computer.building].filter(Boolean).join(', ') || 'not set'
+
   return (
     <Table.Tr>
-      <Table.Td>{computer.name}</Table.Td>
+      <Table.Td>{name}</Table.Td>
+      <Table.Td><StateBadge state={computer.state_name} /></Table.Td>
       <Table.Td>
-        <Group gap="xs" wrap="nowrap">
-          <StatusDot state={computer.status} size={14} />
-          <Text fz="sm">{LABELS[computer.status]}</Text>
-        </Group>
+        <Text span title={computer.last_seen_at}>
+          {timeAgo(computer.last_seen_at, referenceTime)}
+        </Text>
       </Table.Td>
-      <Table.Td>{computer.lastActivityText}</Table.Td>
-      <Table.Td>{computer.estimatedPowerW} W</Table.Td>
+      <Table.Td>{location}</Table.Td>
+      <Table.Td>{computer.os} / {computer.device_type}</Table.Td>
       <Table.Td>
-        <Button variant="default" size="xs" bg="var(--ews-button)" fw={500}>
+        <Button component="a" href={`#computers/${computer.device_id}`}
+          aria-label={`View ${name}`} variant="default" size="xs"
+          bg="var(--ews-button)" fw={500}>
           View
         </Button>
       </Table.Td>
@@ -30,13 +41,41 @@ function ComputerRow({ computer }) {
   )
 }
 
-// "Computer List" card with a table of computers. Status is a dot plus a word.
-export default function ComputerTable({ computers, title = 'Computer List' }) {
+// Sorting controls are optional so the dashboard's compact preview stays static.
+/**
+ * Renders the computer list with textual status, relative last activity, location and type.
+ * @param {object} props - Computers, optional title and reference timestamp; showArchived keeps
+ *   archived devices, limit cuts the rows, showAllLink adds the link to the full list;
+ *   sortBy, sortDirection and onSort turn the Name and Status headers into sort buttons.
+ * @returns {JSX.Element} Rendered content.
+ */
+export default function ComputerTable({
+  computers, title = 'Computer List', referenceTime,
+  showArchived = false, limit, showAllLink = false,
+  sortBy, sortDirection = 'ascending', onSort,
+}) {
+  const visible = computers.filter((computer) => showArchived || !computer.archived)
+  const rows = limit === undefined ? visible : visible.slice(0, limit)
+  // Plain header label, or a sort button when the page passes onSort.
+  const sortLabel = (field, label) => {
+    if (!onSort) return label
+    const active = sortBy === field
+    const direction = active ? (sortDirection === 'ascending' ? 'ascending' : 'descending') : 'none'
+    return (
+      <Button variant="subtle" color="gray" size="compact-sm" px={4}
+        aria-label={`Sort by ${label}`} aria-pressed={active}
+        onClick={() => onSort(field)}>
+        {label}{active ? (sortDirection === 'ascending' ? ' ↑' : ' ↓') : ''}
+      </Button>
+    )
+  }
+
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
-      <Text fz="lg" fw={700} mb="sm">
-        {title}
-      </Text>
+      <Group justify="space-between" mb="sm">
+        <Text fz="lg" fw={700}>{title}</Text>
+        {showAllLink && <Anchor href="#computers" fz="sm">All computers</Anchor>}
+      </Group>
       <Table
         verticalSpacing="sm"
         horizontalSpacing="sm"
@@ -45,17 +84,20 @@ export default function ComputerTable({ computers, title = 'Computer List' }) {
       >
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Computer Name</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Last Activity</Table.Th>
-            <Table.Th>Estimated Power</Table.Th>
+            <Table.Th aria-sort={sortBy === 'name' ? sortDirection : 'none'}>{sortLabel('name', 'Computer Name')}</Table.Th>
+            <Table.Th aria-sort={sortBy === 'state_name' ? sortDirection : 'none'}>{sortLabel('state_name', 'Status')}</Table.Th>
+            <Table.Th>Last seen</Table.Th>
+            <Table.Th>Location</Table.Th>
+            <Table.Th>OS and type</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {computers.map((computer) => (
-            <ComputerRow key={computer.id} computer={computer} />
-          ))}
+          {rows.length ? rows.map((computer) => (
+            <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
+          )) : (
+            <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center">No computers match these filters.</Text></Table.Td></Table.Tr>
+          )}
         </Table.Tbody>
       </Table>
     </Card>

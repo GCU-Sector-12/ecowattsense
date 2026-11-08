@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 
+/** Changes the hash and notifies the mounted router. @param {string} hash - Target route. */
 function goToHash(hash) {
   window.location.hash = hash
   act(() => {
@@ -21,19 +22,27 @@ it('opens Settings from the hash and switches to the dark theme', async () => {
   const menuItem = screen.getByRole('link', { name: 'Settings' })
   expect(menuItem).toHaveAttribute('data-active', 'true')
 
+  expect(await screen.findByText('Report interval: 300 seconds')).toBeInTheDocument()
   await userEvent.click(screen.getByText('Dark'))
   expect(document.documentElement).toHaveAttribute('data-mantine-color-scheme', 'dark')
 })
 
-it('shows the dashboard when there is no hash', () => {
+it('shows the dashboard when there is no hash', async () => {
   renderWithMantine(<App />)
-  expect(screen.getByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(screen.getByLabelText('Active Computers: 60%')).toBeInTheDocument()
+  expect(screen.getByLabelText('Idle Computers: 25%')).toBeInTheDocument()
+  expect(screen.getByLabelText('Unused Computers: 15%')).toBeInTheDocument()
+  expect(screen.getByText('4.8 kWh')).toBeInTheDocument()
+  expect(screen.getByText('£1.20')).toBeInTheDocument()
+  expect(screen.getAllByRole('row')).toHaveLength(6)
 })
 
 // EWS_WEB-23: every sidebar item has its own page, an unknown address shows "Page not found",
 // and the right menu item is highlighted.
 
 // The menu items that are highlighted right now (the sidebar marks them with data-active).
+/** @returns {NodeListOf<Element>} Currently highlighted navigation items. */
 function highlightedItems() {
   return document.querySelectorAll('[data-active="true"]')
 }
@@ -89,11 +98,22 @@ it('shows "Page not found" for #/computers, not the Dashboard', () => {
   expect(highlightedItems()).toHaveLength(0)
 })
 
-it('highlights Dashboard when there is no hash, and Computers on #computers', () => {
+it('highlights Dashboard when there is no hash, and Computers on #computers', async () => {
   renderWithMantine(<App />)
   expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('data-active', 'true')
 
   goToHash('#computers')
+  expect(await screen.findByText('Showing 20 of 20 monitored computers.')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Computers' })).toHaveAttribute('data-active', 'true')
+})
+
+it('opens history from a computer View link', async () => {
+  renderWithMantine(<App />)
+  goToHash('#computers')
+  const link = await screen.findByRole('link', { name: 'View PC-01' })
+  const deviceId = link.getAttribute('href').split('/')[1]
+  await userEvent.click(link)
+  expect(await screen.findByRole('heading', { name: 'Computer history' })).toBeInTheDocument()
+  expect(screen.getByText('Computer ' + deviceId)).toBeInTheDocument()
 })
