@@ -103,7 +103,17 @@ it('highlights Dashboard when there is no hash, and Computers on #computers', as
   expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('data-active', 'true')
 
   goToHash('#computers')
-  expect(await screen.findByText('All 20 monitored computers and their current state.')).toBeInTheDocument()
+  expect(await screen.findByText('Showing 20 of 20 monitored computers.')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Computers' })).toHaveAttribute('data-active', 'true')
+})
+
+it('opens history from a computer View link', async () => {
+  renderWithMantine(<App />)
+  goToHash('#computers')
+  const link = await screen.findByRole('link', { name: 'View PC-01' })
+  const deviceId = link.getAttribute('href').split('/')[1]
+  await userEvent.click(link)
+  expect(await screen.findByRole('heading', { name: 'Computer history' })).toBeInTheDocument()
+  expect(screen.getByText('Computer ' + deviceId)).toBeInTheDocument()
 })
