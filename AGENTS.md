@@ -18,7 +18,7 @@ This file is for Codex, Claude Code, Copilot and any other AI tool that writes o
 - The pull request does only what the task says. Its description says what changed and why, how it was tested, and links the YouTrack task. When the work is done, the checks are green and there is no conflict, mark the pull request ready for review and set the task to To Verify with the PR link in a comment.
 - Nothing in the diff that is not source: no .env, database file, node_modules, dist, build output or IDE settings. No secret, ever. The repository is public.
 - No new dependency and no change under .github unless the task asks for it.
-- Keep the branch current with `git fetch origin && git merge origin/dev` after every merge to dev (the #github channel shows them), never a rebase or a force push. On a conflict you do not understand, stop and tell the person you work for; they ask the team on Discord.
+- Keep your local repository current: before every task, and at least once a day before you start work, run `git switch dev && git pull`. Keep the branch current with `git fetch origin && git merge origin/dev` after every merge to dev (the #github channel shows them), never a rebase or a force push. On a conflict you do not understand, stop and tell the person you work for; they ask the team on Discord.
 - One review from another member. The author pushes fixes to the same branch. The reviewer or Dariusz merges with Rebase and merge (squash when the branch has many fix-up commits) and deletes the branch.
 
 ## Review checklist (KB EWS-A-26)
