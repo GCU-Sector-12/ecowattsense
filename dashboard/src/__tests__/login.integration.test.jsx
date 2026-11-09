@@ -50,7 +50,7 @@ it('clears the session and returns to login when the user logs out', async () =>
   renderWithMantine(<App />)
 
   await user.click(await screen.findByRole('button', { name: 'User menu for admin' }))
-  await user.click(screen.getByRole('menuitem', { name: 'Log out' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
 
   expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
   await waitFor(() => expect(sessionStorage.getItem('ews-sample-session')).toBeNull())
