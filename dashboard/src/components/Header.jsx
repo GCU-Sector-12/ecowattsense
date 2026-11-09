@@ -1,7 +1,7 @@
 // Shared dashboard header with the signed-in demo user menu.
 import { Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
 import { ChevronDown, LogOut, User } from 'lucide-react'
-import { clearSampleSession } from '../auth/sampleSession.js'
+import { clearSampleSession, getSampleSession } from '../auth/sampleSession.js'
 
 /**
  * Formats an ISO date as a UTC date and time for the dashboard header.
@@ -31,6 +31,7 @@ function formatDate(iso) {
  * @returns {JSX.Element} User menu.
  */
 function UserMenu({ userName }) {
+  const sessionUser = getSampleSession()?.username || userName
   /**
    * Ends the demo session and returns the browser to the login page.
    * @returns {void}
@@ -43,10 +44,10 @@ function UserMenu({ userName }) {
   return (
     <Menu shadow="md" width={180} position="bottom-end">
       <Menu.Target>
-        <UnstyledButton aria-label={`User menu for ${userName}`}>
+        <UnstyledButton aria-label={`User menu for ${sessionUser}`}>
           <Group gap="xs" wrap="nowrap">
             <Avatar radius="xl" color="gray" size={40} />
-            <Text fz="sm" fw={500}>{userName}</Text>
+            <Text fz="sm" fw={500}>{sessionUser}</Text>
             <ChevronDown size={16} color="var(--ews-text-muted)" />
           </Group>
         </UnstyledButton>
@@ -73,7 +74,7 @@ export default function Header({ title, subtitle, generatedAt, userName }) {
       </div>
       <Group gap="xl" wrap="nowrap">
         <Text fz="sm" fw={500}>{formatDate(generatedAt)}</Text>
-        <UserMenu userName={userName} />
+        <UserMenu userName={sessionUser} />
       </Group>
     </Group>
   )
