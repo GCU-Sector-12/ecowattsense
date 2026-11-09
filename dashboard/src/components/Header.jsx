@@ -74,7 +74,7 @@ export default function Header({ title, subtitle, generatedAt, userName }) {
       </div>
       <Group gap="xl" wrap="nowrap">
         <Text fz="sm" fw={500}>{formatDate(generatedAt)}</Text>
-        <UserMenu userName={sessionUser} />
+        <UserMenu userName={userName} />
       </Group>
     </Group>
   )
