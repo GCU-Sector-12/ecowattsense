@@ -9,8 +9,7 @@ const SESSION_EVENT = 'ews-sample-session-change'
 export function getSampleSession() {
   try {
     const value = JSON.parse(sessionStorage.getItem(SESSION_KEY))
-    if (typeof value?.username !== 'string' || !value.username) return null
-    return { username: value.username }
+    return typeof value?.username === 'string' && value.username ? { username: value.username } : null
   } catch {
     return null
   }
