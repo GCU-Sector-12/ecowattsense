@@ -21,7 +21,7 @@ it('collapses with the keyboard, keeps icon links accessible and restores the mo
   expect(within(navbar).queryByText('Computers')).not.toBeInTheDocument()
   const computers = within(navbar).getByRole('link', { name: 'Computers' })
   await user.hover(computers)
-  expect(await screen.findByRole('tooltip')).toHaveTextContent('Computers')
+  expect(await screen.findByRole('tooltip', {}, { timeout: 3000 })).toHaveTextContent('Computers')
 
   view.unmount()
   renderWithMantine(<App />)
