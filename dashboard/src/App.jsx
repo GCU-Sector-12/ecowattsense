@@ -148,9 +148,7 @@ export default function App() {
 
   useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
 
-  if (!guardReady || (!session && route.page !== 'login')) {
-    return <LoginPage onLogin={setSession} />
-  }
+  const showLogin = !guardReady || (!session && route.page !== 'login')
 
   /**
    * Switches between the full and the icons-only sidebar.
@@ -169,6 +167,8 @@ export default function App() {
   function resizeSidebar(width, finished) {
     setSidebar((current) => resizedSidebar(current, width, finished))
   }
+
+  if (showLogin) return <LoginPage onLogin={setSession} />
 
   return (
     <AppShell navbar={{ width: sidebarWidth, breakpoint: 0 }} padding={32} transitionDuration={resizing ? 0 : 150}>
