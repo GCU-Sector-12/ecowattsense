@@ -130,8 +130,7 @@ export default function App() {
       window.location.hash = '#login'
       setGuardReady(true)
       return
-    }
-    if (session && route.page === 'login') {
+    } else if (session && route.page === 'login') {
       const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
       sessionStorage.removeItem('ews-return-route')
       window.location.hash = returnRoute
