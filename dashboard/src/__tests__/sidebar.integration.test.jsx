@@ -3,6 +3,10 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
+import { createSampleSession, clearSampleSession } from '../auth/sampleSession.js'
+
+beforeEach(() => createSampleSession('admin'))
+afterEach(() => clearSampleSession())
 
 it('collapses with the keyboard, keeps icon links accessible and restores the mode after remounting', async () => {
   const user = userEvent.setup()
