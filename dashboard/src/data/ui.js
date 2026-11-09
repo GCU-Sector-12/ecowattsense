@@ -15,6 +15,12 @@ export const stateDisplay = {
   no_data: { label: 'No Data', caption: 'No recent reports' },
 }
 
+// Demo-only credentials for EWS_WEB-33. These are not API authentication details.
+export const sampleCredentials = {
+  username: 'admin',
+  password: 'admin12345',
+}
+
 // Fixed display context for the sample screens; neither field is API data.
 export const sampleScreen = {
   generated_at: '2025-03-10T14:32:00Z',
