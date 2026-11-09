@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import { navigation } from './data/ui.js'
+import { getSampleSession, subscribeToSession } from './auth/sampleSession.js'
 
 const DEFAULT_SIDEBAR = { width: 300, collapsed: false }
 const NARROW_WIDTH = 72
@@ -116,7 +117,33 @@ export const PAGES = {
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
-  const route = resolveRoute(useHash(), Object.keys(PAGES))
+  const hash = useHash()
+  const route = resolveRoute(hash, Object.keys(PAGES))
+  const [session, setSession] = useState(getSampleSession)
+  const [guardReady, setGuardReady] = useState(false)
+
+  useEffect(() => subscribeToSession(setSession), [])
+
+  useEffect(() => {
+    if (!session && route.page !== 'login') {
+      sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
+      window.location.hash = '#login'
+      setGuardReady(true)
+      return
+    }
+    if (session && route.page === 'login') {
+      const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
+      sessionStorage.removeItem('ews-return-route')
+      window.location.hash = returnRoute
+      setGuardReady(true)
+      return
+    }
+    setGuardReady(true)
+  }, [hash, route.page, session])
+
+  if (!guardReady || (!session && route.page !== 'login')) {
+    return <LoginPage onLogin={setSession} />
+  }
   const Page = PAGES[route.page]
   const [sidebar, setSidebar] = useState(readSidebar)
   const [resizing, setResizing] = useState(false)
@@ -155,7 +182,7 @@ export default function App() {
         />
       </AppShell.Navbar>
       <AppShell.Main bg="var(--ews-page)">
-        <Page deviceId={route.deviceId} />
+        <Page deviceId={route.deviceId} onLogin={setSession} />
       </AppShell.Main>
     </AppShell>
   )
