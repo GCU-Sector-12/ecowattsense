@@ -38,7 +38,7 @@ export default function LoginPage({ onLogin }) {
         <Stack gap="md">
           <TextInput label="Username" name="username" autoComplete="username" value={username}
             onChange={(event) => setUsername(event.currentTarget.value)} required />
-          <PasswordInput label="Password" name="password" autoComplete="current-password" value={password}
+          <PasswordInput label="Password" aria-label="Password" name="password" autoComplete="current-password" value={password}
             onChange={(event) => setPassword(event.currentTarget.value)} required />
           {error && <Alert color="red" role="alert">{error}</Alert>}
           <Button type="submit" fullWidth>Log in</Button>
