@@ -141,15 +141,16 @@ export default function App() {
     setGuardReady(true)
   }, [hash, route.page, session])
 
-  if (!guardReady || (!session && route.page !== 'login')) {
-    return <LoginPage onLogin={setSession} />
-  }
   const Page = PAGES[route.page]
   const [sidebar, setSidebar] = useState(readSidebar)
   const [resizing, setResizing] = useState(false)
   const sidebarWidth = sidebar.collapsed ? NARROW_WIDTH : sidebar.width
 
   useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
+
+  if (!guardReady || (!session && route.page !== 'login')) {
+    return <LoginPage onLogin={setSession} />
+  }
 
   /**
    * Switches between the full and the icons-only sidebar.
