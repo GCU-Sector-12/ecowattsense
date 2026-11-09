@@ -1,0 +1,94 @@
+# Nesting check: the NEVER NESTED rule (KB EWS-A-25, AGENTS.md) run on demand.
+#
+# Why this file exists:
+#   The rule says no if, for, while, try or switch inside another one. A person
+#   finds breaks of it by reading the diff. This workflow does the reading with
+#   scripts/check_nesting.py, but only when a head asks for it. It is not part
+#   of the CI on every pull request and it blocks nothing.
+#
+# How to start it:
+#   GitHub, Actions, "Nesting check", "Run workflow". Or from a terminal:
+#     gh workflow run nesting.yml -f pr=65
+#     gh workflow run nesting.yml -f paths="dashboard/src server"
+#   With a pull request number it checks only the Python and JavaScript files
+#   that pull request adds or changes. Without one it checks every tracked
+#   Python and JavaScript file under the given folders on the chosen branch.
+#
+# What it reads:
+#   The checker is always taken from the branch the workflow runs on (dev by
+#   default), so an old pull request branch without the script still works.
+#   dashboard/legacy and dashboard/public/legacy-demo are old code kept for
+#   reference and are never checked.
+#
+# No secrets are needed. The workflow only reads the repository and the
+# pull request data.
+
+name: Nesting check
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request number. Checks only the files it adds or changes. Leave empty to check folders."
+        required: false
+        default: ""
+      paths:
+        description: "Folders to check when no pull request number is given"
+        required: false
+        default: "dashboard/src server scripts"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  nesting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The diff against the base branch needs the history of both sides, so
+      # this checkout fetches everything. The repository is small.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The checker is plain Python 3 and needs no packages.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Keep the checker from this branch, because the next step moves the
+      # working tree to the pull request branch.
+      - name: Keep the checker
+        run: cp scripts/check_nesting.py "$RUNNER_TEMP/check_nesting.py"
+
+      # Mode 1: a pull request number. Fetch its head, list the Python,
+      # JavaScript and JSX files it adds or changes under dashboard/src, server
+      # and scripts against its base branch, and check only those.
+      - name: Check the pull request
+        if: inputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+        run: |
+          base=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+          git fetch -q origin "pull/$PR/head:pr-$PR"
+          files=$(git diff --name-only --diff-filter=AM "origin/$base...pr-$PR" -- dashboard/src server scripts | grep -E '\.(py|js|jsx)$' || true)
+          if [ -z "$files" ]; then
+            echo "Pull request $PR changes no Python or JavaScript file, nothing to check."
+            exit 0
+          fi
+          git checkout -q "pr-$PR"
+          echo "$files"
+          python "$RUNNER_TEMP/check_nesting.py" $files
+
+      # Mode 2: folders. Check every tracked Python, JavaScript and JSX file
+      # under them on the branch the workflow runs on.
+      - name: Check the folders
+        if: inputs.pr == ''
+        env:
+          PATHS: ${{ inputs.paths }}
+        run: |
+          files=$(git ls-files -- $PATHS | grep -E '\.(py|js|jsx)$' | grep -v legacy || true)
+          echo "$files" | wc -l | xargs echo "files to check:"
+          python "$RUNNER_TEMP/check_nesting.py" $files

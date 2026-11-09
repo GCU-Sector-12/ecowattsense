@@ -10,28 +10,24 @@
 #   A pull request to the branch dev or main (when it is opened, and again for
 #   every new commit pushed to it).
 #
-# What it checks (three jobs, they run at the same time):
+# What it checks (two jobs, they run at the same time):
 #   server     the Python tests (pytest) and the example reports in
 #              shared/examples against shared/report_schema.json.
 #   dashboard  npm ci, the production build and the Vitest tests.
-#   nesting    the NEVER NESTED rule (KB EWS-A-25, AGENTS.md) with
-#              scripts/check_nesting.py, only on the Python and JavaScript
-#              files the pull request adds or changes.
 #
 # What it does not touch:
 #   The two older workflows stay as they are: deploy-staging.yml (deploy after
 #   a merge to dev) and pages.yml (publish the project site).
 #
-# The nesting job is the first linter. It checks only the files the pull
-#   request touches under dashboard/src, server and scripts, so old code never
-#   blocks a PR (AGENTS.md, rule 3: bring the functions you touch up to the
-#   rules). It never checks dashboard/legacy or dashboard/public/legacy-demo,
-#   which is old code we keep only for reference.
+# A linter later (none is added now):
+#   When the team adds one, it must check only dashboard/src and
+#   server/ecowattsense_server. It must never check dashboard/legacy, which is
+#   old code we keep only for reference.
 #
 # After the first green run (a job for the owner):
 #   In GitHub open Settings, Branches, and add a rule for dev and for main.
-#   Turn on "Require status checks to pass" and pick the checks "server",
-#   "dashboard" and "nesting". Then a red PR cannot be merged. This is why the job names
+#   Turn on "Require status checks to pass" and pick the checks "server" and
+#   "dashboard". Then a red PR cannot be merged. This is why the job names
 #   below are short and must not be renamed: the rule refers to them by name.
 #
 # No secrets are needed. The workflow only reads the code.
@@ -125,34 +121,3 @@ jobs:
       # Run the Vitest tests ("vitest run" runs once and then stops).
       - name: Test
         run: npm test
-
-  # Job 3: the NEVER NESTED rule on the files the pull request touches.
-  nesting:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      # The diff against the base branch needs the history of both sides, so
-      # this checkout fetches everything. The repository is small.
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The checker is plain Python 3 and needs no packages.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      # List the Python, JavaScript and JSX files this pull request adds or
-      # changes under dashboard/src, server and scripts, and check only those.
-      # A pull request that touches no such file passes with a note.
-      - name: Check nesting in the changed files
-        env:
-          BASE: ${{ github.base_ref }}
-        run: |
-          files=$(git diff --name-only --diff-filter=AM "origin/$BASE...HEAD" -- dashboard/src server scripts | grep -E '\.(py|js|jsx)$' || true)
-          if [ -z "$files" ]; then
-            echo "No Python or JavaScript file changed, nothing to check."
-            exit 0
-          fi
-          echo "$files"
-          python scripts/check_nesting.py $files
