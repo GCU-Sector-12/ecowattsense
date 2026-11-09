@@ -125,19 +125,21 @@ export default function App() {
   useEffect(() => subscribeToSession(setSession), [])
 
   useEffect(() => {
-    if (!session && route.page !== 'login') {
-      sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
-      window.location.hash = '#login'
-      setGuardReady(true)
-      return
-    } else if (session && route.page === 'login') {
-      const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
-      sessionStorage.removeItem('ews-return-route')
-      window.location.hash = returnRoute
-      setGuardReady(true)
-      return
-    }
-    setGuardReady(true)
+    const applyRouteGuard = !session && route.page !== 'login'
+      ? () => {
+          sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
+          window.location.hash = '#login'
+          setGuardReady(true)
+        }
+      : session && route.page === 'login'
+        ? () => {
+            const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
+            sessionStorage.removeItem('ews-return-route')
+            window.location.hash = returnRoute
+            setGuardReady(true)
+          }
+        : () => setGuardReady(true)
+    applyRouteGuard()
   }, [hash, route.page, session])
 
   const Page = PAGES[route.page]
