@@ -4,7 +4,7 @@ This file is for Codex, Claude Code, Copilot and any other AI tool that writes o
 
 ## Code rules (KB EWS-A-25)
 
-1. Flat code. No control statement inside another one: no if, for, while, try or switch inside an if, for, while, try or switch, and no callback that holds logic. Pull the inner part out into a small function with a name that says what it does. Return early instead of nesting.
+1. Flat code. No control statement inside another one: no if, for, while, try or switch inside an if, for, while, try or switch, and no callback that holds logic. Pull the inner part out into a small function with a name that says what it does. Return early instead of nesting. Before a push run `python scripts/check_nesting.py <the files you changed>`; it must print "no nested control statements found".
 2. Documented code. Every file starts with a comment that says what the file is for and who uses it. Every function has a documentation comment: what it does, what it takes, what it returns, what can go wrong. JSDoc in JavaScript, a docstring in Python (summary, Args, Returns, Raises), /// in C#, a comment block in PowerShell. A line that is not obvious gets a short comment that says why. No comments about work state (TODO, for now, not yet) and none that repeat the code.
 3. Existing code: bring the functions you touch up to these rules. Do not rewrite a whole file only for them.
 4. Simple English in comments and messages. Short sentences. Names as in the project (energy_uj, device_id).
@@ -23,7 +23,7 @@ This file is for Codex, Claude Code, Copilot and any other AI tool that writes o
 
 When you review a pull request, do not change any file and do not push. Read the whole diff and every file it touches. List every break of a rule with the file and the line, most important first:
 
-1. Flat code: every control statement inside another one, with the small function to pull out.
+1. Flat code: run `python scripts/check_nesting.py <the files of the diff>` and list its findings, each with the small function to pull out.
 2. Comments: every touched file without a header, every touched function without a documentation comment, every work-state comment.
 3. Safety: a new dependency (package.json, package-lock.json, requirements.txt, a PackageReference in a .csproj), a change under .github, a network call, an install script, a secret or a .env file.
 4. Scope: compare the code with the YouTrack task text. List what is extra and what is missing. A changed or removed test is a finding.
