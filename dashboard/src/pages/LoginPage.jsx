@@ -28,9 +28,6 @@ export default function LoginPage({ onLogin }) {
     }
     const session = createSampleSession(username)
     onLogin(session)
-    const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
-    sessionStorage.removeItem('ews-return-route')
-    window.location.hash = returnRoute
   }
 
   return (
