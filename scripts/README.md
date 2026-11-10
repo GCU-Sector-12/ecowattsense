@@ -36,6 +36,18 @@ It also reads settings from `deploy/staging.env` (in `origin/dev`) and from stdi
 It writes the settings to `.env` and prints key names only. A changed `.env` recreates the `server` container.
 `scripts/test-deploy-env.sh` runs the tests for this part.
 
+## check_nesting.py
+
+Checks the NEVER NESTED rule from KB EWS-A-25 and AGENTS.md: no `if`, `for`, `while`, `try` or `switch` inside another one. Python files are read with `ast`, JavaScript and JSX files by indentation. It needs Python 3.8 or newer and no packages. It is not part of the CI on every pull request. Run it by hand on the files you changed before a push, and on the files of the diff when you review:
+
+```bash
+python scripts/check_nesting.py dashboard/src/App.jsx server/ecowattsense_server/schemas.py
+```
+
+With no paths it checks every tracked file except `dashboard/legacy`, `dashboard/public/legacy-demo` and `node_modules`. One line per finding: file, line and depth, for Python also the function name. Exit codes: `0` nothing found, `1` at least one nested control statement.
+
+The same check runs on GitHub on demand: Actions, "Nesting check", "Run workflow" (`.github/workflows/nesting.yml`). With a pull request number it checks only the Python and JavaScript files that pull request adds or changes; without one it checks the given folders on the chosen branch. From a terminal: `gh workflow run nesting.yml -f pr=65`.
+
 ## check_report.py
 
 Checks report files against `shared/report_schema.json`, so a wrong example or a wrong schema is found before the merge. CI runs it on every pull request. It needs Python 3.8 or newer and two packages:

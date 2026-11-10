@@ -1,47 +1,95 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Forms = System.Windows.Forms;
 
 namespace EcoWattSense.Client.Gui;
 
 public partial class MainWindow : Window
 {
     private readonly CancellationTokenSource shutdown = new();
+    private readonly Forms.ContextMenuStrip trayMenu = new();
+    private readonly Forms.NotifyIcon trayIcon;
+    private GuiActivationPipe? activation;
     private IHost? host;
     private Worker? worker;
     private Task startup = Task.CompletedTask;
     private bool closing;
-    private bool stopped;
-    private bool started;
+    private bool allowClose;
     private bool failed;
 
     public MainWindow()
     {
         InitializeComponent();
-        Loaded += (_, _) =>
+        trayMenu.Items.Add("Open", null, (_, _) => RestoreWindow());
+        trayMenu.Items.Add("Exit", null, async (_, _) => await ExitAsync());
+        trayIcon = new Forms.NotifyIcon
         {
-            if (closing || started) return;
-            started = true;
-            startup = StartMonitoringAsync();
+            Text = "EcoWattSense",
+            Icon = System.Drawing.SystemIcons.Application,
+            ContextMenuStrip = trayMenu
         };
-        Closing += OnClosing;
+        Closing += (_, e) =>
+        {
+            if (allowClose) return;
+            e.Cancel = true;
+            Hide();
+        };
+        Closed += (_, _) =>
+        {
+            trayIcon.Dispose();
+            trayMenu.Dispose();
+            shutdown.Dispose();
+        };
     }
 
-    private async Task StartMonitoringAsync()
+    private bool RestoreWindow()
     {
+        if (closing || allowClose) return false;
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        foreach (Window dialog in OwnedWindows)
+            if (dialog.IsVisible) dialog.Activate();
+        return true;
+    }
+
+    private async Task StartActivationAsync(string lockPath)
+    {
+        activation = await Task.Run(() => new GuiActivationPipe(lockPath,
+            token => Dispatcher.InvokeAsync(RestoreWindow, DispatcherPriority.Normal, token).Task));
+        trayIcon.Visible = !closing;
+    }
+
+    private async Task StopActivationAsync()
+    {
+        if (activation is null) return;
+        var listener = activation;
+        activation = null;
+        await listener.DisposeAsync();
+    }
+
+    internal void StartMonitoring(string[] hostArgs, bool startHidden)
+        => startup = StartMonitoringAsync(hostArgs, startHidden);
+
+    private async Task StartMonitoringAsync(string[] hostArgs, bool startHidden)
+    {
+        // Record the startup task before a modal prompt can process tray commands.
+        await Task.Yield();
         try
         {
             ReportStatusValue.Text = "Starting monitoring…";
             var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
             {
-                Args = Environment.GetCommandLineArgs().Skip(1).ToArray(),
+                Args = hostArgs,
                 ContentRootPath = AppContext.BaseDirectory
             });
-            host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token);
+            host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token, StartActivationAsync);
             shutdown.Token.ThrowIfCancellationRequested();
             worker = host.Services.GetRequiredService<Worker>();
             worker.ReadingAvailable += OnReading;
@@ -59,21 +107,37 @@ public partial class MainWindow : Window
             _ = ObserveCompletionAsync(execution);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
-        catch (ClientAlreadyRunningException)
+        catch (ClientAlreadyRunningException duplicate)
         {
-            // Not an error: another copy already monitors this computer, so this window only closes.
-            // EWS-109 can later ask the running copy to show its window here instead.
+            if (startHidden)
+            {
+                allowClose = true;
+                Close();
+                return;
+            }
+            bool opened = await Task.Run(() => GuiActivationPipe.RequestAsync(duplicate.LockPath, shutdown.Token));
             if (closing) return;
-            ReportStatusValue.Text = "EcoWattSense is already running on this computer.";
-            MessageBox.Show(this,
-                "EcoWattSense is already running on this computer (maybe started at login by the autostart task). This window will close.",
-                "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
-            Close();
+            if (!opened)
+            {
+                Show();
+                MessageBox.Show(this,
+                    "EcoWattSense is already running, but its window could not be opened in this Windows session. " +
+                    "It may be running in the background or in another session. This copy will close.",
+                    "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            allowClose = true;
+            await Dispatcher.InvokeAsync(Close);
         }
         catch (Exception exception)
         {
-            if (!closing) ShowFailure("Monitoring could not start", exception);
-            await StopHostAsync();
+            try { await StopActivationAsync(); }
+            finally { await StopHostAsync(); }
+            if (!closing)
+            {
+                trayIcon.Visible = false;
+                try { ShowFailure("Monitoring could not start", exception); }
+                finally { allowClose = true; Close(); }
+            }
         }
     }
 
@@ -95,6 +159,7 @@ public partial class MainWindow : Window
         failed = true;
         ReportStatusValue.Text = title + ": " + exception.Message;
         ClearReadings();
+        new WindowInteropHelper(this).EnsureHandle();
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
@@ -125,10 +190,13 @@ public partial class MainWindow : Window
 
     private string SelectDeviceType()
     {
+        // WPF needs an owner handle even if the main window has never been shown.
+        new WindowInteropHelper(this).EnsureHandle();
         var dialog = new Window
         {
             Title = "Choose device type", Owner = this, Width = 360, Height = 190,
-            ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterOwner
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = IsVisible ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
         };
         var panel = new StackPanel { Margin = new Thickness(20) };
         panel.Children.Add(new TextBlock { Text = "What type of computer is this?", Margin = new Thickness(0, 0, 0, 16) });
@@ -159,16 +227,21 @@ public partial class MainWindow : Window
         finally { host.Dispose(); host = null; }
     }
 
-    private async void OnClosing(object? sender, CancelEventArgs e)
+    private async Task ExitAsync()
     {
-        if (stopped) return;
-        e.Cancel = true;
         if (closing) return;
         closing = true;
+        trayMenu.Enabled = false;
         ReportStatusValue.Text = "Stopping monitoring…";
         shutdown.Cancel();
-        try { await startup; await StopHostAsync(); }
+        foreach (Window dialog in OwnedWindows) dialog.Close();
+        try
+        {
+            await startup;
+            try { await StopActivationAsync(); }
+            finally { await StopHostAsync(); }
+        }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Monitoring shutdown failed"); }
-        finally { stopped = true; shutdown.Dispose(); Close(); }
+        finally { allowClose = true; Close(); }
     }
 }

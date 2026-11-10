@@ -1,3 +1,4 @@
+// Shared page header for the dashboard and device pages.
 import { Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
 import { ChevronDown, LogOut, User } from 'lucide-react'
 import classes from './Header.module.css'
@@ -42,7 +43,11 @@ function UserMenu({ userName }) {
   )
 }
 
-// Page header: title and subtitle on the left, date and user menu on the right.
+/**
+ * Shows the page title, subtitle, date and user controls.
+ * @param {object} props - Title, subtitle, sample timestamp and user name.
+ * @returns {JSX.Element} The responsive page header.
+ */
 export default function Header({ title, subtitle, generatedAt, userName }) {
   return (
     <Group className={classes.header} justify="space-between" align="flex-start">

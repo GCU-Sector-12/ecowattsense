@@ -9,14 +9,10 @@
 # What is released:
 #   One ZIP file for Windows x64 with:
 #     - EcoWattSense.Client.Gui.exe  the WPF window (the normal way to run it)
-#     - EcoWattSense.Client.exe      the console client (same monitoring code)
-#     - EcoWattSense.Client.Background.exe
-#                                    the console client built with no window, for
-#                                    the start at login (Task Scheduler)
 #     - appsettings.json             the default settings, so people can edit them
 #     - Install-Autostart.ps1 and Uninstall-Autostart.ps1
 #                                    turn the start at login on and off
-#   All exe files are self-contained, so .NET does not need to be installed.
+#   The GUI is self-contained and also runs in the tray at login.
 #   A .sha256 file next to the ZIP lets people check their download.
 #
 # What starts it:
@@ -41,9 +37,8 @@
 #   2. Runs all the client tests (tests/Test-*.ps1) and the live monitoring
 #      integration check. A failing test stops the job, and nothing is
 #      published.
-#   3. Publishes the GUI, the console client and the background client as
-#      single exe files.
-#   4. Puts the three exe files, appsettings.json and the two autostart
+#   3. Publishes the GUI as a single exe.
+#   4. Puts the GUI exe, appsettings.json and the two autostart
 #      scripts into one ZIP, and computes its SHA-256 checksum.
 #   5. Creates the GitHub Release (and the tag) with the ZIP and the checksum
 #      file.
@@ -143,14 +138,8 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           dotnet run --project "$env:INTEGRATION_DIR" -c Release
 
-      # Build the programs as single exe files with the version typed by the
-      # owner. WPF has native libraries; IncludeNativeLibrariesForSelfExtract
-      # puts them inside the GUI exe, so the exe can run on its own.
-      # The background client is the same console project built a second time
-      # as WinExe, so Windows opens no console window when the task starts it.
-      # It has its own name and its own obj folder, so the two console builds
-      # do not share files.
-      - name: Publish GUI and console client
+      # Include the native WPF libraries in the self-contained GUI.
+      - name: Publish GUI
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
@@ -158,43 +147,29 @@ jobs:
                       '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
                       "-p:Version=$env:VERSION")
           dotnet publish "$env:GUI_DIR" @common -o publish/gui
-          dotnet publish "$env:CLIENT_DIR" @common -o publish/console
-          dotnet publish "$env:CLIENT_DIR" @common -o publish/background `
-            -p:OutputType=WinExe -p:AssemblyName=EcoWattSense.Client.Background `
-            -p:IntermediateOutputPath=obj/background/
 
-      # Put the exe files, the default settings and the autostart scripts into
-      # one folder, zip it
-      # and write the SHA-256 of the ZIP into a file next to it. Only the
-      # files listed here go into the ZIP. If a publish folder holds any other
-      # .dll or .exe, a library was not packed into the exe, so the job stops
-      # instead of publishing a ZIP that would not start. Other files (debug
-      # symbols, settings, runtimeconfig of the referenced console project)
-      # are not needed and are left out.
       - name: Make the ZIP and the checksum
         run: |
           $ErrorActionPreference = 'Stop'
-          $expected = @{
-            'publish/gui' = 'EcoWattSense.Client.Gui.exe'
-            'publish/console' = 'EcoWattSense.Client.exe'
-            'publish/background' = 'EcoWattSense.Client.Background.exe'
+          $extra = Get-ChildItem publish/gui -File -Recurse | Where-Object {
+            $_.Extension -in '.dll', '.exe' -and $_.Name -ne 'EcoWattSense.Client.Gui.exe'
           }
-          foreach ($folder in $expected.Keys) {
-            $extra = Get-ChildItem $folder -File -Recurse | Where-Object {
-              $_.Extension -in '.dll', '.exe' -and $_.Name -ne $expected[$folder]
-            }
-            if ($extra) { throw "Libraries not packed into the exe in ${folder}: $($extra.Name -join ', ')" }
-          }
+          if ($extra) { throw "Unexpected publish binaries: $($extra.Name -join ', ')" }
           $name = "EcoWattSense.Client-$env:VERSION-win-x64"
           $stage = "stage/$name"
           New-Item -ItemType Directory $stage | Out-Null
           Copy-Item publish/gui/EcoWattSense.Client.Gui.exe $stage
-          Copy-Item publish/console/EcoWattSense.Client.exe $stage
-          Copy-Item publish/background/EcoWattSense.Client.Background.exe $stage
           Copy-Item client/windows/scripts/Install-Autostart.ps1, client/windows/scripts/Uninstall-Autostart.ps1 $stage
           Copy-Item "$env:CLIENT_DIR/appsettings.json" $stage
           Get-ChildItem $stage | Format-Table Name, Length
           Compress-Archive -Path $stage -DestinationPath "publish/$name.zip"
+          $expected = 'EcoWattSense.Client.Gui.exe', 'appsettings.json', 'Install-Autostart.ps1', 'Uninstall-Autostart.ps1' |
+            ForEach-Object { "$name/$_" }
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path "publish/$name.zip").Path)
+          try {
+            $entries = $zip.Entries | Where-Object Name | ForEach-Object { $_.FullName.Replace('\', '/') }
+            if (Compare-Object $expected $entries -CaseSensitive) { throw "Unexpected ZIP contents: $entries" }
+          } finally { $zip.Dispose() }
           $hash = (Get-FileHash "publish/$name.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name.zip" | Set-Content "publish/$name.zip.sha256"
 
@@ -211,11 +186,12 @@ jobs:
           $hash = (Get-Content "publish/$name.zip.sha256").Split(' ')[0]
           $commit = git rev-parse HEAD
           $notes = @(
-            "Windows client $env:VERSION (GUI and console)."
+            "Windows tray client $env:VERSION."
             ''
             "Unzip into %LOCALAPPDATA%\Programs\EcoWattSense (a folder you can write to, not Program Files). The files are in the folder $name inside it. Run EcoWattSense.Client.Gui.exe from there."
             'To start the client automatically at login, run Install-Autostart.ps1 (see client/README.md).'
-            'The exe files are not signed, so Windows SmartScreen may show a warning.'
+            'When upgrading from the background EXE, run the old Uninstall-Autostart.ps1 before installing the new login task.'
+            'The exe is unsigned, so Windows SmartScreen may show a warning.'
             ''
             "SHA-256: $hash"
             "Commit: $commit"

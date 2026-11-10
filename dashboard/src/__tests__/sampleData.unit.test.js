@@ -1,23 +1,20 @@
-// UNIT TEST: checks one small piece of logic with no React and no browser.
-// Proves: the sample data is consistent, so the dashboard numbers add up.
-import data from '../mock/dashboard-sample-data.json'
+// Tests for consistency between the sample endpoint fixtures.
+import { getSummary, getDevices, getDeviceHistory, getSettings } from '../data/index.js'
 
-function countByStatus(computers, status) {
-  return computers.filter((computer) => computer.status === status).length
-}
+it('sample endpoint fixtures agree on device counts', async () => {
+  const summary = await getSummary()
+  const { devices } = await getDevices()
+  expect(devices).toHaveLength(summary.counts.total)
+  for (const state of ['active', 'idle', 'unused', 'no_data']) {
+    expect(devices.filter((device) => device.state_name === state))
+      .toHaveLength(summary.counts[state])
+  }
+  expect(summary.series).toHaveLength(48)
+})
 
-it('sample data adds up', () => {
-  const { summary, computers } = data
-
-  expect(computers).toHaveLength(summary.totalComputers)
-  expect(summary.active.count + summary.idle.count + summary.unused.count).toBe(summary.totalComputers)
-
-  expect(countByStatus(computers, 'active')).toBe(summary.active.count)
-  expect(countByStatus(computers, 'idle')).toBe(summary.idle.count)
-  expect(countByStatus(computers, 'unused')).toBe(summary.unused.count)
-
-  const shares = summary.active.share + summary.idle.share + summary.unused.share
-  expect(shares).toBeCloseTo(1)
-
-  expect(data.energyToday.points).toHaveLength(48)
+it('provides 48 sample history reports and settings', async () => {
+  const { devices } = await getDevices()
+  const history = await getDeviceHistory(devices[0].device_id)
+  expect(history.reports).toHaveLength(48)
+  expect((await getSettings()).report_interval_seconds).toBe(300)
 })

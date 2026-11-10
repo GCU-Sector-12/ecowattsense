@@ -7,7 +7,8 @@ namespace EcoWattSense.Client;
 
 public static class MonitoringHost
 {
-    public static async Task<IHost> CreateAsync(HostApplicationBuilder builder, Func<string> selectDeviceType, CancellationToken cancellationToken = default)
+    public static async Task<IHost> CreateAsync(HostApplicationBuilder builder, Func<string> selectDeviceType,
+        CancellationToken cancellationToken = default, Func<string, Task>? onLockAcquired = null)
     {
         var identityDirectory = DeviceIdentityStore.ResolveDirectory(builder.Configuration["DeviceIdentity:Directory"]);
         // Take the lock first: a second copy must not ask for the device type or call the server.
@@ -17,6 +18,8 @@ public static class MonitoringHost
         IHost? host = null;
         try
         {
+            if (onLockAcquired is not null) await onLockAcquired(instanceLock.FilePath);
+            cancellationToken.ThrowIfCancellationRequested();
             // A factory registration, so the host disposes the lock (and frees it) when the host is disposed.
             builder.Services.AddSingleton<SingleInstanceLock>(_ => instanceLock);
             var deviceType = DeviceTypeSelection.Resolve(builder.Configuration["Reporting:DeviceType"],

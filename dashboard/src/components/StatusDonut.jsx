@@ -1,36 +1,46 @@
+// Renders a state label, count and percentage of all devices.
 import { Box, Card, Center, Group, Stack, Text } from '@mantine/core'
 import { DonutChart } from '@mantine/charts'
 import StatusDot from './StatusDot.jsx'
+import { stateColors, stateLabels } from '../data/ui.js'
+import { statusPercentages } from './statusPercentages.js'
 
-const STATES = ['active', 'idle', 'unused']
-const LABELS = { active: 'Active', idle: 'Idle', unused: 'Unused' }
+const STATES = ['active', 'idle', 'unused', 'no_data']
 
-// One row of the legend: dot, word, count and share in percent.
-function LegendRow({ state, stat }) {
+// Every state keeps its word and count, including a zero-count state.
+/**
+ * Renders one legend row: dot, state word, count and share in percent.
+ * @param {object} props - State key, device count and whole percent for that state.
+ * @returns {JSX.Element} Rendered content.
+ */
+function LegendRow({ state, count, percent }) {
   return (
-    <Group justify="space-between" wrap="nowrap" gap="md">
+    <Group component="li" justify="space-between" wrap="nowrap" gap="md">
       <Group gap="xs" wrap="nowrap">
         <StatusDot state={state} size={16} />
-        <Text fz="sm">{LABELS[state]}</Text>
+        <Text fz="sm">{stateLabels[state]}</Text>
       </Group>
-      <Group gap="xs" wrap="nowrap">
-        <Text fz="sm" fw={700}>
-          {stat.count}
-        </Text>
-        <Text fz="sm" c="var(--ews-text-muted)" style={{ whiteSpace: 'nowrap' }}>
-          ({Math.round(stat.share * 100)}%)
-        </Text>
-      </Group>
+      <Text fz="sm" style={{ whiteSpace: 'nowrap' }}>
+        <Text span fw={700}>{count}</Text>{' '}
+        <Text span c="var(--ews-text-muted)">({percent}%)</Text>
+      </Text>
     </Group>
   )
 }
 
-// "Computer Status" card: donut of active / idle / unused with the total in the centre.
+// The four-state chart and legend both read the same summary counts.
+/**
+ * Renders the distribution of all four device states.
+ * @param {object} props - Summary containing contract counts.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function StatusDonut({ summary }) {
+  const { counts } = summary
+  const percentages = statusPercentages(STATES.map((state) => counts[state]), counts.total)
   const data = STATES.map((state) => ({
-    name: LABELS[state],
-    value: summary[state].count,
-    color: state,
+    name: stateLabels[state],
+    value: counts[state],
+    color: stateColors[state],
   }))
 
   return (
@@ -39,7 +49,7 @@ export default function StatusDonut({ summary }) {
         Computer Status
       </Text>
       <Group justify="center" align="center" gap="sm" mt="xs">
-        <Box pos="relative">
+        <Box pos="relative" role="img" aria-label={`${counts.total} computers in total`}>
           <DonutChart
             data={data}
             size={160}
@@ -52,7 +62,7 @@ export default function StatusDonut({ summary }) {
           <Center pos="absolute" inset={0}>
             <Stack gap={0} align="center">
               <Text fz={28} fw={700} lh={1.1}>
-                {summary.totalComputers}
+                {counts.total}
               </Text>
               <Text fz="sm" c="var(--ews-text-muted)">
                 Computers
@@ -61,9 +71,10 @@ export default function StatusDonut({ summary }) {
           </Center>
         </Box>
 
-        <Stack gap="sm" style={{ flex: '1 1 120px' }}>
-          {STATES.map((state) => (
-            <LegendRow key={state} state={state} stat={summary[state]} />
+        <Stack component="ul" aria-label="Computer status breakdown" gap="sm"
+          m={0} p={0} style={{ flex: '1 1 120px', listStyle: 'none' }}>
+          {STATES.map((state, index) => (
+            <LegendRow key={state} state={state} count={counts[state]} percent={percentages[index]} />
           ))}
         </Stack>
       </Group>

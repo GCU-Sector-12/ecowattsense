@@ -1,8 +1,7 @@
-// The app shell: the sidebar on the left and the page for the current address on the right.
+// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
 import { AppShell, Burger, Drawer, Group, Text } from '@mantine/core'
 import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import { useEffect, useState } from 'react'
-import data from './mock/dashboard-sample-data.json'
 import useHash, { resolveRoute } from './useHash.js'
 import Sidebar from './components/Sidebar.jsx'
 import sidebarClasses from './components/Sidebar.module.css'
@@ -13,6 +12,7 @@ import HistoryPage from './pages/HistoryPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
+import { navigation } from './data/ui.js'
 
 const DEFAULT_SIDEBAR = { width: 300, collapsed: false }
 const NARROW_WIDTH = 72
@@ -22,17 +22,83 @@ const SIDEBAR_STORAGE_KEY = 'ews-sidebar'
 const PHONE_WIDTH = 768
 const DESKTOP_WIDTH = 1024
 
-/** Restores a valid saved sidebar preference when browser storage is available. */
-function readSidebar() {
+/**
+ * Reads the raw sidebar preference from browser storage.
+ * @returns {object|null} The parsed value, or null when storage is empty or unavailable.
+ */
+function loadSavedSidebar() {
   try {
-    const saved = JSON.parse(localStorage.getItem(SIDEBAR_STORAGE_KEY))
-    if (typeof saved?.collapsed === 'boolean' && Number.isFinite(saved.width)) {
-      return { width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, saved.width)), collapsed: saved.collapsed }
-    }
+    return JSON.parse(localStorage.getItem(SIDEBAR_STORAGE_KEY))
   } catch {
     // The sidebar can still be used when browser storage is unavailable.
+    return null
   }
-  return DEFAULT_SIDEBAR
+}
+
+/**
+ * Checks that a saved value has the shape the sidebar needs.
+ * @param {object|null} saved - Value read from browser storage.
+ * @returns {boolean} True when collapsed is a boolean and width is a finite number.
+ */
+function isSidebarPreference(saved) {
+  return typeof saved?.collapsed === 'boolean' && Number.isFinite(saved?.width)
+}
+
+/**
+ * Keeps a width inside the range allowed for the full sidebar.
+ * @param {number} width - Requested width in px.
+ * @returns {number} Width between MIN_WIDTH and MAX_WIDTH.
+ */
+function clampWidth(width) {
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width))
+}
+
+/**
+ * Restores the saved sidebar preference, or the default one when nothing valid is saved.
+ * @returns {{width: number, collapsed: boolean}} Width of the full sidebar in px and the collapsed mode.
+ */
+function readSidebar() {
+  const saved = loadSavedSidebar()
+  if (!isSidebarPreference(saved)) return DEFAULT_SIDEBAR
+  return { width: clampWidth(saved.width), collapsed: saved.collapsed }
+}
+
+/**
+ * Saves the sidebar preference for the next visit, once a drag has finished,
+ * so storage is not written on every pointer move.
+ * @param {{width: number, collapsed: boolean}} sidebar - Current width and mode.
+ * @param {boolean} resizing - True while the user drags the handle.
+ * @returns {void}
+ */
+function saveSidebar(sidebar, resizing) {
+  if (resizing) return
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(sidebar))
+  } catch {
+    // The preference lasts for this visit when browser storage is unavailable.
+  }
+}
+
+/**
+ * Gives the sidebar state with the collapsed mode switched.
+ * @param {{width: number, collapsed: boolean}} current - State before the toggle.
+ * @returns {{width: number, collapsed: boolean}} State after the toggle.
+ */
+function toggledSidebar(current) {
+  return { ...current, collapsed: !current.collapsed }
+}
+
+/**
+ * Gives the sidebar state after one drag step of the resize handle.
+ * @param {{width: number, collapsed: boolean}} current - State before the step.
+ * @param {number} width - Width from the handle in px.
+ * @param {boolean} finished - True on the last step of the drag.
+ * @returns {{width: number, collapsed: boolean}} Collapsed when a finished drag ends below
+ *   MIN_WIDTH, otherwise the clamped width in full mode.
+ */
+function resizedSidebar(current, width, finished) {
+  if (finished && width < MIN_WIDTH) return { ...current, collapsed: true }
+  return { width: clampWidth(width), collapsed: false }
 }
 
 // The one list of every page: its name and its component. To add a page, add one line here.
@@ -49,8 +115,7 @@ export const PAGES = {
 }
 
 /**
- * Shows the sidebar and the page that belongs to the address in the browser (the hash).
- *
+ * Shows the sidebar and the page selected by the browser hash.
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
@@ -64,32 +129,34 @@ export default function App() {
   const collapsed = tablet || sidebar.collapsed
   const sidebarWidth = collapsed ? NARROW_WIDTH : sidebar.width
 
+  // Close the drawer and end any drag when the viewport changes modes.
   useEffect(() => {
-    if (!phone) closeMobileMenu()
+    phone || closeMobileMenu()
   }, [phone, closeMobileMenu])
 
   useEffect(() => {
-    if (phone || tablet) setResizing(false)
+    (phone || tablet) && setResizing(false)
   }, [phone, tablet])
 
-  useEffect(() => {
-    if (resizing) return
-    try {
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(sidebar))
-    } catch {
-      // The preference lasts for this visit when browser storage is unavailable.
-    }
-  }, [sidebar, resizing])
 
+  useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
+
+  /**
+   * Switches between the full and the icons-only sidebar.
+   * @returns {void}
+   */
   function toggleSidebar() {
-    setSidebar((current) => ({ ...current, collapsed: !current.collapsed }))
+    setSidebar(toggledSidebar)
   }
 
+  /**
+   * Applies a width from the drag handle; a finished drag below MIN_WIDTH collapses the sidebar.
+   * @param {number} width - Width from the handle in px.
+   * @param {boolean} finished - True on the last step of the drag.
+   * @returns {void}
+   */
   function resizeSidebar(width, finished) {
-    setSidebar((current) => {
-      if (finished && width < MIN_WIDTH) return { ...current, collapsed: true }
-      return { width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width)), collapsed: false }
-    })
+    setSidebar((current) => resizedSidebar(current, width, finished))
   }
 
   return (
@@ -119,7 +186,7 @@ export default function App() {
         data-width={sidebarWidth}
       >
         <Sidebar
-          items={data.navigation}
+          items={navigation}
           activeKey={route.menuKey}
           collapsed={collapsed}
           onToggle={tablet ? undefined : toggleSidebar}
@@ -140,11 +207,11 @@ export default function App() {
         size={300}
         padding={0}
       >
-        <Sidebar items={data.navigation} activeKey={route.menuKey} onNavigate={closeMobileMenu} />
+        <Sidebar items={navigation} activeKey={route.menuKey} onNavigate={closeMobileMenu} />
       </Drawer>
 
       <AppShell.Main className={sidebarClasses.page} bg="var(--ews-page)">
-        <Page data={data} deviceId={route.deviceId} />
+        <Page deviceId={route.deviceId} />
       </AppShell.Main>
     </AppShell>
   )

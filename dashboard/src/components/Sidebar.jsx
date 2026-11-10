@@ -1,9 +1,11 @@
+// Dashboard sidebar: logo, menu links, the collapse button and the resize handle. App.jsx renders it
+// in the AppShell navbar and owns the width and the collapsed mode; this component only reports events.
 import { ActionIcon, Group, NavLink, Stack, Text, Tooltip } from '@mantine/core'
 import { useRef } from 'react'
 import classes from './Sidebar.module.css'
 import { Home, Monitor, BarChart3, FileText, Settings, Leaf, ChevronLeft, ChevronRight } from 'lucide-react'
 
-// Icon names from dashboard-sample-data.json mapped to lucide icons.
+// Icon names from the navigation list in data/ui.js mapped to lucide icons.
 const ICONS = {
   home: Home,
   monitor: Monitor,
@@ -12,6 +14,11 @@ const ICONS = {
   settings: Settings,
 }
 
+/**
+ * One menu entry: icon and label, or icon only with the label in a tooltip when the sidebar is collapsed.
+ * @param {object} props - item (key, label, icon name), active flag and collapsed flag.
+ * @returns {JSX.Element} Rendered content.
+ */
 function SidebarLink({ item, active, collapsed, onNavigate }) {
   const Icon = ICONS[item.icon]
   return (
@@ -32,10 +39,22 @@ function SidebarLink({ item, active, collapsed, onNavigate }) {
   )
 }
 
-/** Renders the dashboard menu and reports pointer movement from its resize handle. */
+/**
+ * Renders the dashboard menu, the collapse button and the resize handle.
+ * The width and the collapsed mode live in App.jsx; this component only reports events.
+ * @param {object} props - items (navigation list), activeKey, collapsed, onToggle(),
+ *   onResize(width, finished), onResizingChange(resizing), and onNavigate() for the mobile drawer.
+ * @returns {JSX.Element} Rendered content.
+ */
 export default function Sidebar({ items, activeKey, collapsed = false, onToggle, onResize, onResizingChange, onNavigate }) {
   const drag = useRef(null)
 
+  /**
+   * Starts a drag on the handle: remembers the pointer and the current navbar width.
+   * Only the main button starts a drag, and only one drag at a time.
+   * @param {PointerEvent} event - pointerdown on the handle.
+   * @returns {void}
+   */
   function startResize(event) {
     if (event.button !== 0 || drag.current) return
     const navbar = event.currentTarget.parentElement.getBoundingClientRect()
@@ -44,12 +63,23 @@ export default function Sidebar({ items, activeKey, collapsed = false, onToggle,
     onResizingChange(true)
   }
 
+  /**
+   * Reports the new width while the pointer moves; on the last step it also ends the drag.
+   * @param {PointerEvent} event - pointermove or pointerup on the handle.
+   * @param {boolean} finished - True for pointerup.
+   * @returns {void}
+   */
   function resize(event, finished = false) {
     if (drag.current?.pointerId !== event.pointerId) return
     onResize(drag.current.startWidth + event.clientX - drag.current.startX, finished)
     if (finished) stopResize(event)
   }
 
+  /**
+   * Ends the drag and tells the app that resizing has stopped. Ignores pointers of another drag.
+   * @param {PointerEvent} event - pointerup, pointercancel or lostpointercapture.
+   * @returns {void}
+   */
   function stopResize(event) {
     if (drag.current?.pointerId !== event.pointerId) return
     drag.current = null
