@@ -161,7 +161,7 @@ export default function App() {
 
   useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
 
-  const showLogin = !guardReady || (!session && route.page !== 'login')
+  const showLogin = !guardReady || !session || route.page === 'login'
 
   /**
    * Switches between the full and the icons-only sidebar.
