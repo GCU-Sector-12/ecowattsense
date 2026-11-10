@@ -31,6 +31,22 @@ it('redirects a protected route to login and returns there after a successful lo
   expect(screen.getByText('admin')).toBeInTheDocument()
 })
 
+it('opens the Dashboard after a successful login when no return route is saved', async () => {
+  const user = userEvent.setup()
+  window.location.hash = '#login'
+  renderWithMantine(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
+  expect(sessionStorage.getItem('ews-return-route')).toBeNull()
+
+  await user.type(screen.getByRole('textbox', { name: 'Username' }), 'admin')
+  await user.type(screen.getByLabelText('Password'), 'admin12345')
+  await user.click(screen.getByRole('button', { name: 'Log in' }))
+
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(window.location.hash).toBe('#dashboard')
+})
+
 it('shows the required error for incorrect credentials', async () => {
   const user = userEvent.setup()
   renderWithMantine(<App />)
