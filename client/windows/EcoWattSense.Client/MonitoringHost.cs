@@ -16,6 +16,10 @@ public static class MonitoringHost
     /// <param name="onLockAcquired">Optional callback that receives the lock path before setup continues.</param>
     /// <returns>The unstarted host, which owns the instance lock.</returns>
     /// <exception cref="ClientAlreadyRunningException">Another client holds the instance lock.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Device type selection is cancelled or invalid, or the server settings request is rejected or returns invalid data.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The configured activity thresholds are invalid.</exception>
     /// <exception cref="OperationCanceledException">Host creation is cancelled.</exception>
     public static async Task<IHost> CreateAsync(HostApplicationBuilder builder, Func<string> selectDeviceType,
         CancellationToken cancellationToken = default, Func<string, Task>? onLockAcquired = null)

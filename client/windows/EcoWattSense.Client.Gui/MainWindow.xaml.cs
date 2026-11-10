@@ -124,7 +124,11 @@ public partial class MainWindow : Window
     /// <param name="hostArgs">Command-line arguments for the monitoring host.</param>
     /// <returns>A task that completes when monitoring is ready.</returns>
     /// <exception cref="ClientAlreadyRunningException">Another instance holds the monitoring lock.</exception>
-    /// <exception cref="InvalidOperationException">The worker fails to start or exits before the first reading.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Device type selection is cancelled or invalid, or the server settings request is rejected or returns invalid data.
+    /// The worker may also fail to start or exit before the first reading.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The configured activity thresholds are invalid.</exception>
     /// <exception cref="OperationCanceledException">The window is shutting down.</exception>
     private async Task StartHostAsync(string[] hostArgs)
     {
