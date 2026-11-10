@@ -19,6 +19,14 @@ function cleanUpLoginTest() {
 }
 
 /**
+ * Checks that the stored sample session has been removed.
+ * @returns {void} Completes when the session key is absent.
+ */
+function expectSessionToBeCleared() {
+  expect(sessionStorage.getItem('ews-sample-session')).toBeNull()
+}
+
+/**
  * Checks that login returns the user to the route they originally requested.
  * @returns {Promise<void>} Resolves when the protected route is restored.
  */
@@ -26,7 +34,7 @@ async function redirectsProtectedRouteAfterLogin() {
   const user = userEvent.setup()
   renderWithMantine(<App />)
 
-  expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   expect(window.location.hash).toBe('#login')
 
   await user.type(screen.getByRole('textbox', { name: 'Username' }), 'admin')
@@ -46,7 +54,7 @@ async function opensDashboardWithoutSavedRoute() {
   window.location.hash = '#login'
   renderWithMantine(<App />)
 
-  expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   expect(sessionStorage.getItem('ews-return-route')).toBeNull()
 
   await user.type(screen.getByRole('textbox', { name: 'Username' }), 'admin')
@@ -74,6 +82,18 @@ async function showsIncorrectCredentialError() {
 }
 
 /**
+ * Checks that the login card is shown without the dashboard sidebar.
+ * @returns {Promise<void>} Resolves when the login card is displayed.
+ */
+async function showsLoginWithoutSidebar() {
+  renderWithMantine(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Computers' })).not.toBeInTheDocument()
+}
+
+/**
  * Checks that logout clears the session and returns the user to login.
  * @returns {Promise<void>} Resolves when the login page is displayed.
  */
@@ -86,11 +106,7 @@ async function logsOutAndClearsSession() {
   await user.click(await screen.findByRole('button', { name: 'User menu for admin' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
 
-  expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
-  /** Checks that logout removed the stored session. */
-  function expectSessionToBeCleared() {
-    expect(sessionStorage.getItem('ews-sample-session')).toBeNull()
-  }
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   await waitFor(expectSessionToBeCleared)
   expect(window.location.hash).toBe('#login')
 }
@@ -101,4 +117,5 @@ afterEach(cleanUpLoginTest)
 it('redirects a protected route to login and returns there after a successful login', redirectsProtectedRouteAfterLogin)
 it('opens the Dashboard after a successful login when no return route is saved', opensDashboardWithoutSavedRoute)
 it('shows the required error for incorrect credentials', showsIncorrectCredentialError)
+it('shows the login page without the dashboard sidebar', showsLoginWithoutSidebar)
 it('clears the session and returns to login when the user logs out', logsOutAndClearsSession)
