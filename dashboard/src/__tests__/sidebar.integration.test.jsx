@@ -5,18 +5,8 @@ import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 import { createSampleSession, clearSampleSession } from '../auth/sampleSession.js'
 
-/** Creates an authenticated sample session for sidebar tests. */
-function setUpSidebarTest() {
-  createSampleSession('admin')
-}
-
-/** Clears the sample session after sidebar tests. */
-function cleanUpSidebarTest() {
-  clearSampleSession()
-}
-
-beforeEach(setUpSidebarTest)
-afterEach(cleanUpSidebarTest)
+beforeEach(() => createSampleSession('admin'))
+afterEach(() => clearSampleSession())
 
 it('collapses with the keyboard, keeps icon links accessible and restores the mode after remounting', async () => {
   const user = userEvent.setup()
@@ -69,16 +59,9 @@ it('clamps drag resizing, saves the width and snaps closed when dragged below th
  */
 function dragSidebar(navbar, start, end) {
   const handle = navbar.querySelector('div[aria-hidden="true"]')
-  /** Returns the mocked sidebar width for the resize calculation. */
-  function getMockSidebarBounds() {
-    return { width: start }
-  }
-
-  /** Stubs browser pointer capture, which jsdom does not provide. */
-  function capturePointer() {}
-
-  handle.parentElement.getBoundingClientRect = getMockSidebarBounds
-  handle.setPointerCapture = capturePointer
+  handle.parentElement.getBoundingClientRect = () => ({ width: start })
+  // Pointer capture is handled by the browser and is unavailable in jsdom.
+  handle.setPointerCapture = () => {}
   const pointer = { pointerId: 1, button: 0 }
   fireEvent.pointerDown(handle, { ...pointer, clientX: start })
   fireEvent.pointerMove(handle, { ...pointer, clientX: end })
