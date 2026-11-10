@@ -1,3 +1,4 @@
+// Stores the persistent computer identity used by the Windows monitoring clients.
 #nullable enable
 using System;
 using System.IO;
@@ -86,9 +87,18 @@ public sealed class DeviceIdentityStore
         }
     }
 
+    /// <summary>Reads a complete identity while allowing an atomic publication rename to finish.</summary>
+    /// <param name="path">The persisted identity file.</param>
+    /// <returns>The non-empty UUID stored in the file.</returns>
+    /// <exception cref="InvalidDataException">The file does not contain one valid, non-empty UUID.</exception>
+    /// <exception cref="IOException">The file is missing, exclusively locked or cannot be read.</exception>
+    /// <exception cref="UnauthorizedAccessException">The client cannot access the file.</exception>
     private static DeviceIdentity Read(string path)
     {
-        string text = File.ReadAllText(path).Trim();
+        // The new name is visible before Windows closes the rename's DELETE-access handle.
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        string text = reader.ReadToEnd().Trim();
         if (!Guid.TryParseExact(text, "D", out Guid id) || id == Guid.Empty)
             throw new InvalidDataException($"Identity file '{path}' must contain one non-empty UUID in D format.");
 
