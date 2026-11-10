@@ -47,8 +47,16 @@ it('clamps drag resizing, saves the width and snaps closed when dragged below th
   dragSidebar(restoredNavbar, 360, 200)
   expect(restoredNavbar).toHaveAttribute('data-width', '72')
   expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
-})
+}
 
+/**
+ * Simulates dragging the sidebar resize handle in the test browser.
+ * @param {HTMLElement} navbar - Sidebar navigation element containing the resize handle.
+ * @param {number} start - Starting horizontal pointer position in px.
+ * @param {number} end - Ending horizontal pointer position in px.
+ * @returns {void}
+ * @throws {TypeError} If the sidebar does not contain the expected resize handle.
+ */
 function dragSidebar(navbar, start, end) {
   const handle = navbar.querySelector('div[aria-hidden="true"]')
   handle.parentElement.getBoundingClientRect = () => ({ width: start })
