@@ -47,7 +47,7 @@ it('clamps drag resizing, saves the width and snaps closed when dragged below th
   dragSidebar(restoredNavbar, 360, 200)
   expect(restoredNavbar).toHaveAttribute('data-width', '72')
   expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
-}
+})
 
 /**
  * Simulates dragging the sidebar resize handle in the test browser.
