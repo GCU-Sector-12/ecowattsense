@@ -1,6 +1,7 @@
 // Sample login page used by App.jsx when no demo session exists.
 import { useState } from 'react'
-import { Alert, Button, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Leaf } from 'lucide-react'
 import { sampleCredentials } from '../data/ui.js'
 import { createSampleSession } from '../auth/sampleSession.js'
 
@@ -43,19 +44,65 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <Stack maw={420} mx="auto" mt={100} gap="md">
-      <Title order={1}>EcoWattSense</Title>
-      <Text c="dimmed">Log in to access the dashboard.</Text>
-      <form onSubmit={handleSubmit}>
-        <Stack gap="md">
-          <TextInput label="Username" name="username" autoComplete="username" value={username}
-            onChange={handleUsernameChange} required />
-          <PasswordInput label="Password" aria-label="Password" name="password" autoComplete="current-password" value={password}
-            onChange={handlePasswordChange} required />
-          {error && <Alert color="red" role="alert">{error}</Alert>}
-          <Button type="submit" fullWidth>Log in</Button>
+    <Center mih="100vh" px="md" py="xl" bg="var(--ews-page)">
+      <Paper
+        w="100%"
+        maw={430}
+        p={{ base: 'xl', sm: 40 }}
+        radius="lg"
+        shadow="0 12px 36px rgba(15, 23, 42, 0.08)"
+        withBorder
+        style={{ borderColor: 'var(--ews-border)' }}
+      >
+        <Stack gap="lg">
+          <Stack align="center" gap="sm">
+            <Group gap="xs" align="center">
+              <Leaf size={40} color="var(--ews-leaf)" aria-hidden="true" />
+              <Title order={2} c="var(--ews-green-900)" fz="xl">EcoWattSense</Title>
+            </Group>
+            <Text
+              size="xs"
+              fw={700}
+              c="var(--ews-green-700)"
+              style={{ letterSpacing: '0.12em' }}
+            >
+              SECURE DASHBOARD ACCESS
+            </Text>
+            <Title order={1} ta="center" c="var(--ews-text)">Welcome back</Title>
+            <Text ta="center" c="var(--ews-text-muted)" size="sm">
+              Sign in to access the EcoWattSense monitoring dashboard.
+            </Text>
+          </Stack>
+
+          <form onSubmit={handleSubmit}>
+            <Stack gap="md">
+              <TextInput
+                label="Username"
+                name="username"
+                placeholder="Enter username"
+                autoComplete="username"
+                value={username}
+                onChange={handleUsernameChange}
+                required
+              />
+              <PasswordInput
+                label="Password"
+                aria-label="Password"
+                name="password"
+                placeholder="Enter password"
+                autoComplete="current-password"
+                value={password}
+                onChange={handlePasswordChange}
+                required
+              />
+              {error && <Alert color="gray" role="alert">{error}</Alert>}
+              <Button type="submit" fullWidth color="ews">
+                Log in
+              </Button>
+            </Stack>
+          </form>
         </Stack>
-      </form>
-    </Stack>
+      </Paper>
+    </Center>
   )
 }
