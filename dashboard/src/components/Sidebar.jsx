@@ -60,7 +60,14 @@ export default function Sidebar({ items, activeKey, collapsed = false, onToggle,
   return (
     <Stack className={classes.sidebar} h="100%" p={collapsed ? 'xs' : 'md'} justify="space-between">
       <Stack gap="xl">
-        <Group gap="sm" wrap="nowrap" pt="xs" px={collapsed ? 0 : 'xs'} justify={collapsed ? 'center' : undefined}>
+        <Group
+          gap="sm"
+          wrap="nowrap"
+          pt="xs"
+          ps={collapsed ? 0 : 'xs'}
+          pe={onNavigate ? 32 : collapsed ? 0 : 'xs'}
+          justify={collapsed ? 'center' : undefined}
+        >
           <Leaf size={40} color="var(--ews-leaf)" />
           {!collapsed && (
             <div>

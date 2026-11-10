@@ -131,7 +131,11 @@ export default function App() {
       <Drawer
         opened={phone && mobileMenu}
         onClose={closeMobileMenu}
-        title="Dashboard navigation"
+        classNames={{
+          content: sidebarClasses.drawerContent,
+          header: sidebarClasses.drawerHeader,
+          close: sidebarClasses.drawerClose,
+        }}
         closeButtonProps={{ 'aria-label': 'Close dashboard navigation' }}
         size={300}
         padding={0}
