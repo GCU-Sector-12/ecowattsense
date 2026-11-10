@@ -1,105 +1,203 @@
-*** Begin Patch
-*** Update File: dashboard/src/App.jsx
-@@
- function resizedSidebar(current, width, finished) {
-   if (finished && width < MIN_WIDTH) return { ...current, collapsed: true }
-   return { width: clampWidth(width), collapsed: false }
- }
-+
-+/**
-+ * Saves the current protected route and sends an unauthenticated user to login.
-+ * @returns {void}
-+ */
-+function redirectToLogin() {
-+  sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
-+  window.location.hash = '#login'
-+}
-+
-+/**
-+ * Restores the saved route after a successful sample login, defaulting to Dashboard.
-+ * @returns {void}
-+ */
-+function restoreRequestedRoute() {
-+  const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
-+  sessionStorage.removeItem('ews-return-route')
-+  window.location.hash = returnRoute
-+}
-+
-+/**
-+ * Applies the route guard for the current session and route.
-+ * @param {{username: string}|null} session - Current sample session.
-+ * @param {string} page - Resolved page key.
-+ * @param {() => void} markReady - Callback to allow the resolved page to render.
-+ * @returns {void}
-+ */
-+function applyRouteGuard(session, page, markReady) {
-+  if (!session && page !== 'login') {
-+    redirectToLogin()
-+    markReady()
-+    return
-+  }
-+  if (session && page === 'login') {
-+    restoreRequestedRoute()
-+    markReady()
-+    return
-+  }
-+  markReady()
-+}
-@@
-   useEffect(() => subscribeToSession(setSession), [])
- 
-   useEffect(() => {
--    const applyRouteGuard = !session && route.page !== 'login'
--      ? () => {
--          sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
--          window.location.hash = '#login'
--          setGuardReady(true)
--        }
--      : session && route.page === 'login'
--        ? () => {
--            const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
--            sessionStorage.removeItem('ews-return-route')
--            window.location.hash = returnRoute
--            setGuardReady(true)
--          }
--        : () => setGuardReady(true)
--    applyRouteGuard()
-+    applyRouteGuard(session, route.page, () => setGuardReady(true))
-   }, [hash, route.page, session])
-*** Update File: dashboard/src/data/ui.js
-@@
--// TODO EWS_WEB-26: derive Idle/Unused captions from getSettings() values
--// idle_threshold_seconds and unused_threshold_seconds instead of these sample defaults.
- export const stateDisplay = {
-*** Update File: dashboard/src/__tests__/sidebar.integration.test.jsx
-@@
--function dragSidebar(navbar, start, end) {
-+/**
-+ * Simulates dragging the sidebar resize handle in the test browser.
-+ * @param {HTMLElement} navbar - Sidebar navigation element containing the resize handle.
-+ * @param {number} start - Starting horizontal pointer position in px.
-+ * @param {number} end - Ending horizontal pointer position in px.
-+ * @returns {void}
-+ * @throws {TypeError} When the expected resize handle is missing from the sidebar.
-+ */
-+function dragSidebar(navbar, start, end) {
-*** Update File: dashboard/src/__tests__/login.integration.test.jsx
-@@
- it('redirects a protected route to login and returns there after a successful login', async () => {
-@@
-   expect(screen.getByText('admin')).toBeInTheDocument()
- })
-+
-+it('opens the Dashboard after a successful login when there is no saved return route', async () => {
-+  const user = userEvent.setup()
-+  window.location.hash = '#login'
-+  renderWithMantine(<App />)
-+
-+  await user.type(await screen.findByRole('textbox', { name: 'Username' }), 'admin')
-+  await user.type(screen.getByLabelText('Password'), 'admin12345')
-+  await user.click(screen.getByRole('button', { name: 'Log in' }))
-+
-+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
-+  expect(window.location.hash).toBe('#dashboard')
-+})
-*** End Patch
+// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
+import { AppShell } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import useHash, { resolveRoute } from './useHash.js'
+import Sidebar from './components/Sidebar.jsx'
+import sidebarClasses from './components/Sidebar.module.css'
+import DashboardPage from './pages/DashboardPage.jsx'
+import ComputersPage from './pages/ComputersPage.jsx'
+import EnergyPage from './pages/EnergyPage.jsx'
+import HistoryPage from './pages/HistoryPage.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+import NotFoundPage from './pages/NotFoundPage.jsx'
+import SettingsPage from './pages/SettingsPage.jsx'
+import { navigation } from './data/ui.js'
+import { getSampleSession, subscribeToSession } from './auth/sampleSession.js'
+
+const DEFAULT_SIDEBAR = { width: 300, collapsed: false }
+const NARROW_WIDTH = 72
+const MIN_WIDTH = 220
+const MAX_WIDTH = 360
+const SIDEBAR_STORAGE_KEY = 'ews-sidebar'
+
+/**
+ * Reads the raw sidebar preference from browser storage.
+ * @returns {object|null} The parsed value, or null when storage is empty or unavailable.
+ */
+function loadSavedSidebar() {
+  try {
+    return JSON.parse(localStorage.getItem(SIDEBAR_STORAGE_KEY))
+  } catch {
+    // The sidebar can still be used when browser storage is unavailable.
+    return null
+  }
+}
+
+/**
+ * Checks that a saved value has the shape the sidebar needs.
+ * @param {object|null} saved - Value read from browser storage.
+ * @returns {boolean} True when collapsed is a boolean and width is a finite number.
+ */
+function isSidebarPreference(saved) {
+  return typeof saved?.collapsed === 'boolean' && Number.isFinite(saved?.width)
+}
+
+/**
+ * Keeps a width inside the range allowed for the full sidebar.
+ * @param {number} width - Requested width in px.
+ * @returns {number} Width between MIN_WIDTH and MAX_WIDTH.
+ */
+function clampWidth(width) {
+  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width))
+}
+
+/**
+ * Restores the saved sidebar preference, or the default one when nothing valid is saved.
+ * @returns {{width: number, collapsed: boolean}} Width of the full sidebar in px and the collapsed mode.
+ */
+function readSidebar() {
+  const saved = loadSavedSidebar()
+  if (!isSidebarPreference(saved)) return DEFAULT_SIDEBAR
+  return { width: clampWidth(saved.width), collapsed: saved.collapsed }
+}
+
+/**
+ * Saves the sidebar preference for the next visit, once a drag has finished,
+ * so storage is not written on every pointer move.
+ * @param {{width: number, collapsed: boolean}} sidebar - Current width and mode.
+ * @param {boolean} resizing - True while the user drags the handle.
+ * @returns {void}
+ */
+function saveSidebar(sidebar, resizing) {
+  if (resizing) return
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(sidebar))
+  } catch {
+    // The preference lasts for this visit when browser storage is unavailable.
+  }
+}
+
+/**
+ * Gives the sidebar state with the collapsed mode switched.
+ * @param {{width: number, collapsed: boolean}} current - State before the toggle.
+ * @returns {{width: number, collapsed: boolean}} State after the toggle.
+ */
+function toggledSidebar(current) {
+  return { ...current, collapsed: !current.collapsed }
+}
+
+/**
+ * Gives the sidebar state after one drag step of the resize handle.
+ * @param {{width: number, collapsed: boolean}} current - State before the step.
+ * @param {number} width - Width from the handle in px.
+ * @param {boolean} finished - True on the last step of the drag.
+ * @returns {{width: number, collapsed: boolean}} Collapsed when a finished drag ends below
+ *   MIN_WIDTH, otherwise the clamped width in full mode.
+ */
+function resizedSidebar(current, width, finished) {
+  if (finished && width < MIN_WIDTH) return { ...current, collapsed: true }
+  return { width: clampWidth(width), collapsed: false }
+}
+
+/**
+ * Applies the sample-session route guard and marks the decision as ready.
+ * Unauthenticated users are sent to Login; authenticated users return to their saved route.
+ * @param {{username: string}|null} session - Current sample session.
+ * @param {string} page - Resolved page key.
+ * @param {(ready: boolean) => void} setGuardReady - Updates the guard rendering state.
+ * @returns {void}
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+ */
+function applyRouteGuard(session, page, setGuardReady) {
+  if (!session && page !== 'login') {
+    sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
+    window.location.hash = '#login'
+    setGuardReady(true)
+    return
+  }
+  if (session && page === 'login') {
+    const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
+    sessionStorage.removeItem('ews-return-route')
+    window.location.hash = returnRoute
+    setGuardReady(true)
+    return
+  }
+  setGuardReady(true)
+}
+
+// The one list of every page: its name and its component. To add a page, add one line here.
+// The names go to resolveRoute(). It is exported so a test can check them. Reports has no page,
+// so its address is "not-found".
+export const PAGES = {
+  dashboard: DashboardPage,
+  computers: ComputersPage,
+  history: HistoryPage,
+  energy: EnergyPage,
+  settings: SettingsPage,
+  login: LoginPage,
+  'not-found': NotFoundPage,
+}
+
+/**
+ * Shows the sidebar and the page selected by the browser hash.
+ * @returns {JSX.Element} The whole app.
+ */
+export default function App() {
+  const hash = useHash()
+  const route = resolveRoute(hash, Object.keys(PAGES))
+  const [session, setSession] = useState(getSampleSession)
+  const [guardReady, setGuardReady] = useState(false)
+
+  useEffect(() => subscribeToSession(setSession), [])
+
+  useEffect(() => {
+    applyRouteGuard(session, route.page, setGuardReady)
+  }, [hash, route.page, session])
+
+  const Page = PAGES[route.page]
+  const [sidebar, setSidebar] = useState(readSidebar)
+  const [resizing, setResizing] = useState(false)
+  const sidebarWidth = sidebar.collapsed ? NARROW_WIDTH : sidebar.width
+
+  useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
+
+  const showLogin = !guardReady || (!session && route.page !== 'login')
+
+  /**
+   * Switches between the full and the icons-only sidebar.
+   * @returns {void}
+   */
+  function toggleSidebar() {
+    setSidebar(toggledSidebar)
+  }
+
+  /**
+   * Applies a width from the drag handle; a finished drag below MIN_WIDTH collapses the sidebar.
+   * @param {number} width - Width from the handle in px.
+   * @param {boolean} finished - True on the last step of the drag.
+   * @returns {void}
+   */
+  function resizeSidebar(width, finished) {
+    setSidebar((current) => resizedSidebar(current, width, finished))
+  }
+
+  if (showLogin) return <LoginPage onLogin={setSession} />
+
+  return (
+    <AppShell navbar={{ width: sidebarWidth, breakpoint: 0 }} padding={32} transitionDuration={resizing ? 0 : 150}>
+      <AppShell.Navbar className={sidebarClasses.navbar} bg="var(--ews-green-900)" withBorder={false} data-width={sidebarWidth}>
+        <Sidebar
+          items={navigation}
+          activeKey={route.menuKey}
+          collapsed={sidebar.collapsed}
+          onToggle={toggleSidebar}
+          onResize={resizeSidebar}
+          onResizingChange={setResizing}
+        />
+      </AppShell.Navbar>
+      <AppShell.Main bg="var(--ews-page)">
+        <Page deviceId={route.deviceId} onLogin={setSession} />
+      </AppShell.Main>
+    </AppShell>
+  )
+}
