@@ -1,23 +1,61 @@
-// Login page (#login). Opened by App.jsx.
-import { Stack, Text } from '@mantine/core'
-import Header from '../components/Header.jsx'
-import { sampleScreen } from '../data/ui.js'
+// Sample login page used by App.jsx when no demo session exists.
+import { useState } from 'react'
+import { Alert, Button, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
+import { sampleCredentials } from '../data/ui.js'
+import { createSampleSession } from '../auth/sampleSession.js'
 
 /**
- * Login page. It is empty for now: the form and the route guard come in EWS_WEB-33.
- *
- * @returns {JSX.Element} The page.
+ * Shows the demo login form and creates a session for the sample admin.
+ * @param {{onLogin: (session: {username: string}) => void}} props - Session update callback.
+ * @returns {JSX.Element} The login form.
  */
-export default function LoginPage() {
+export default function LoginPage({ onLogin }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  /**
+   * Checks the demo credentials and starts a browser session when they match.
+   * @param {import('react').FormEvent<HTMLFormElement>} event - Form submission.
+   * @returns {void}
+   * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+   * @throws {Error} If the onLogin callback fails.
+   */
+  function handleSubmit(event) {
+    event.preventDefault()
+    const valid = username === sampleCredentials.username && password === sampleCredentials.password
+    if (!valid) {
+      setError('Wrong username or password')
+      return
+    }
+    const session = createSampleSession(username)
+    onLogin(session)
+  }
+
+  /** Updates the username from the form field. */
+  function handleUsernameChange(event) {
+    setUsername(event.currentTarget.value)
+  }
+
+  /** Updates the password from the form field. */
+  function handlePasswordChange(event) {
+    setPassword(event.currentTarget.value)
+  }
+
   return (
-    <Stack gap="md">
-      <Header
-        title="Login"
-        subtitle="Log in to see your computers."
-        generatedAt={sampleScreen.generated_at}
-        userName={sampleScreen.user_name}
-      />
-      <Text>Coming in this sprint</Text>
+    <Stack maw={420} mx="auto" mt={100} gap="md">
+      <Title order={1}>EcoWattSense</Title>
+      <Text c="dimmed">Log in to access the dashboard.</Text>
+      <form onSubmit={handleSubmit}>
+        <Stack gap="md">
+          <TextInput label="Username" name="username" autoComplete="username" value={username}
+            onChange={handleUsernameChange} required />
+          <PasswordInput label="Password" aria-label="Password" name="password" autoComplete="current-password" value={password}
+            onChange={handlePasswordChange} required />
+          {error && <Alert color="red" role="alert">{error}</Alert>}
+          <Button type="submit" fullWidth>Log in</Button>
+        </Stack>
+      </form>
     </Stack>
   )
 }

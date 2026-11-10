@@ -6,13 +6,17 @@ export const navigation = [
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ]
 
-// TODO EWS_WEB-26: derive Idle/Unused captions from getSettings() values
-// idle_threshold_seconds and unused_threshold_seconds instead of these sample defaults.
 export const stateDisplay = {
   active: { label: 'Active Computers', caption: 'Actively being used' },
   idle: { label: 'Idle Computers', caption: 'No activity for 10+ mins' },
   unused: { label: 'Unused Computers', caption: 'No activity for 1+ hour' },
   no_data: { label: 'No Data', caption: 'No recent reports' },
+}
+
+// Demo-only credentials for EWS_WEB-33. These are not API authentication details.
+export const sampleCredentials = {
+  username: 'admin',
+  password: 'admin12345',
 }
 
 // Fixed display context for the sample screens; neither field is API data.

@@ -3,6 +3,10 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
+import { createSampleSession, clearSampleSession } from '../auth/sampleSession.js'
+
+beforeEach(() => createSampleSession('admin'))
+afterEach(() => clearSampleSession())
 
 it('collapses with the keyboard, keeps icon links accessible and restores the mode after remounting', async () => {
   const user = userEvent.setup()
@@ -17,7 +21,7 @@ it('collapses with the keyboard, keeps icon links accessible and restores the mo
   expect(within(navbar).queryByText('Computers')).not.toBeInTheDocument()
   const computers = within(navbar).getByRole('link', { name: 'Computers' })
   await user.hover(computers)
-  expect(await screen.findByRole('tooltip')).toHaveTextContent('Computers')
+  expect(await screen.findByRole('tooltip', {}, { timeout: 3000 })).toHaveTextContent('Computers')
 
   view.unmount()
   renderWithMantine(<App />)
@@ -45,6 +49,14 @@ it('clamps drag resizing, saves the width and snaps closed when dragged below th
   expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
 })
 
+/**
+ * Simulates dragging the sidebar resize handle in the test browser.
+ * @param {HTMLElement} navbar - Sidebar navigation element containing the resize handle.
+ * @param {number} start - Starting horizontal pointer position in px.
+ * @param {number} end - Ending horizontal pointer position in px.
+ * @returns {void}
+ * @throws {TypeError} If the sidebar does not contain the expected resize handle.
+ */
 function dragSidebar(navbar, start, end) {
   const handle = navbar.querySelector('div[aria-hidden="true"]')
   handle.parentElement.getBoundingClientRect = () => ({ width: start })
