@@ -19,6 +19,7 @@ export function getSampleSession() {
  * Stores a demo username and notifies the mounted app.
  * @param {string} username - Username accepted by the sample login form.
  * @returns {{username: string}} The created session.
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
  */
 export function createSampleSession(username) {
   const session = { username }
@@ -30,6 +31,7 @@ export function createSampleSession(username) {
 /**
  * Clears the demo session and notifies the mounted app.
  * @returns {void}
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
  */
 export function clearSampleSession() {
   sessionStorage.removeItem(SESSION_KEY)
@@ -42,7 +44,16 @@ export function clearSampleSession() {
  * @returns {() => void} Function that removes the listener.
  */
 export function subscribeToSession(callback) {
-  const update = () => callback(getSampleSession())
-  window.addEventListener(SESSION_EVENT, update)
-  return () => window.removeEventListener(SESSION_EVENT, update)
+  /** Reads the current session and sends it to the subscriber. */
+  function notifySessionChange() {
+    callback(getSampleSession())
+  }
+
+  /** Removes the session-change listener. */
+  function unsubscribeFromSession() {
+    window.removeEventListener(SESSION_EVENT, notifySessionChange)
+  }
+
+  window.addEventListener(SESSION_EVENT, notifySessionChange)
+  return unsubscribeFromSession
 }

@@ -5,18 +5,24 @@ import App from '../App.jsx'
 import { clearSampleSession } from '../auth/sampleSession.js'
 import { renderWithMantine } from '../test/render.jsx'
 
-beforeEach(() => {
+/** Resets browser state before each login integration test. */
+function setUpLoginTest() {
   clearSampleSession()
   sessionStorage.clear()
   window.location.hash = '#computers'
-})
+}
 
-afterEach(() => {
+/** Clears browser state after each login integration test. */
+function cleanUpLoginTest() {
   clearSampleSession()
   sessionStorage.clear()
-})
+}
 
-it('redirects a protected route to login and returns there after a successful login', async () => {
+/**
+ * Checks that login returns the user to the route they originally requested.
+ * @returns {Promise<void>} Resolves when the protected route is restored.
+ */
+async function redirectsProtectedRouteAfterLogin() {
   const user = userEvent.setup()
   renderWithMantine(<App />)
 
@@ -29,9 +35,13 @@ it('redirects a protected route to login and returns there after a successful lo
 
   expect(await screen.findByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByText('admin')).toBeInTheDocument()
-})
+}
 
-it('opens the Dashboard after a successful login when no return route is saved', async () => {
+/**
+ * Checks that login opens Dashboard when no return route is saved.
+ * @returns {Promise<void>} Resolves when Dashboard is displayed.
+ */
+async function opensDashboardWithoutSavedRoute() {
   const user = userEvent.setup()
   window.location.hash = '#login'
   renderWithMantine(<App />)
@@ -45,9 +55,13 @@ it('opens the Dashboard after a successful login when no return route is saved',
 
   expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
   expect(window.location.hash).toBe('#dashboard')
-})
+}
 
-it('shows the required error for incorrect credentials', async () => {
+/**
+ * Checks that incorrect credentials show the required error message.
+ * @returns {Promise<void>} Resolves when the error is displayed.
+ */
+async function showsIncorrectCredentialError() {
   const user = userEvent.setup()
   renderWithMantine(<App />)
 
@@ -57,9 +71,13 @@ it('shows the required error for incorrect credentials', async () => {
 
   expect(screen.getByRole('alert')).toHaveTextContent('Wrong username or password')
   expect(window.location.hash).toBe('#login')
-})
+}
 
-it('clears the session and returns to login when the user logs out', async () => {
+/**
+ * Checks that logout clears the session and returns the user to login.
+ * @returns {Promise<void>} Resolves when the login page is displayed.
+ */
+async function logsOutAndClearsSession() {
   const user = userEvent.setup()
   sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'admin' }))
   window.location.hash = '#dashboard'
@@ -69,6 +87,18 @@ it('clears the session and returns to login when the user logs out', async () =>
   await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
 
   expect(await screen.findByRole('heading', { name: 'EcoWattSense' })).toBeInTheDocument()
-  await waitFor(() => expect(sessionStorage.getItem('ews-sample-session')).toBeNull())
+  /** Checks that logout removed the stored session. */
+  function expectSessionToBeCleared() {
+    expect(sessionStorage.getItem('ews-sample-session')).toBeNull()
+  }
+  await waitFor(expectSessionToBeCleared)
   expect(window.location.hash).toBe('#login')
-})
+}
+
+beforeEach(setUpLoginTest)
+afterEach(cleanUpLoginTest)
+
+it('redirects a protected route to login and returns there after a successful login', redirectsProtectedRouteAfterLogin)
+it('opens the Dashboard after a successful login when no return route is saved', opensDashboardWithoutSavedRoute)
+it('shows the required error for incorrect credentials', showsIncorrectCredentialError)
+it('clears the session and returns to login when the user logs out', logsOutAndClearsSession)

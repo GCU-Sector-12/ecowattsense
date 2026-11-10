@@ -18,6 +18,8 @@ export default function LoginPage({ onLogin }) {
    * Checks the demo credentials and starts a browser session when they match.
    * @param {import('react').FormEvent<HTMLFormElement>} event - Form submission.
    * @returns {void}
+   * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+   * @throws {Error} If the onLogin callback fails.
    */
   function handleSubmit(event) {
     event.preventDefault()
@@ -30,6 +32,16 @@ export default function LoginPage({ onLogin }) {
     onLogin(session)
   }
 
+  /** Updates the username from the form field. */
+  function handleUsernameChange(event) {
+    setUsername(event.currentTarget.value)
+  }
+
+  /** Updates the password from the form field. */
+  function handlePasswordChange(event) {
+    setPassword(event.currentTarget.value)
+  }
+
   return (
     <Stack maw={420} mx="auto" mt={100} gap="md">
       <Title order={1}>EcoWattSense</Title>
@@ -37,9 +49,9 @@ export default function LoginPage({ onLogin }) {
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
           <TextInput label="Username" name="username" autoComplete="username" value={username}
-            onChange={(event) => setUsername(event.currentTarget.value)} required />
+            onChange={handleUsernameChange} required />
           <PasswordInput label="Password" aria-label="Password" name="password" autoComplete="current-password" value={password}
-            onChange={(event) => setPassword(event.currentTarget.value)} required />
+            onChange={handlePasswordChange} required />
           {error && <Alert color="red" role="alert">{error}</Alert>}
           <Button type="submit" fullWidth>Log in</Button>
         </Stack>
