@@ -1,3 +1,5 @@
+// Defines the window and tray controls for the Windows monitoring app.
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -48,6 +50,8 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>Shows the main window and activates visible owned dialogs.</summary>
+    /// <returns>False if the window is closing. Otherwise, true.</returns>
     private bool RestoreWindow()
     {
         if (closing || allowClose) return false;
@@ -55,10 +59,20 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         foreach (Window dialog in OwnedWindows)
-            if (dialog.IsVisible) dialog.Activate();
+            ActivateVisibleDialog(dialog);
         return true;
     }
 
+    /// <summary>Activates an owned dialog when visible.</summary>
+    /// <param name="dialog">The owned window to check.</param>
+    private static void ActivateVisibleDialog(Window dialog)
+    {
+        if (dialog.IsVisible) dialog.Activate();
+    }
+
+    /// <summary>Starts the activation listener and shows the tray icon.</summary>
+    /// <param name="lockPath">The path to the instance lock.</param>
+    /// <returns>A task that completes when the listener is available.</returns>
     private async Task StartActivationAsync(string lockPath)
     {
         activation = await Task.Run(() => new GuiActivationPipe(lockPath,
@@ -66,6 +80,8 @@ public partial class MainWindow : Window
         trayIcon.Visible = !closing;
     }
 
+    /// <summary>Releases the activation listener during shutdown.</summary>
+    /// <returns>A task that completes when the listener stops.</returns>
     private async Task StopActivationAsync()
     {
         if (activation is null) return;
@@ -74,71 +90,105 @@ public partial class MainWindow : Window
         await listener.DisposeAsync();
     }
 
+    /// <summary>Records the startup task so tray shutdown can wait for it.</summary>
+    /// <param name="hostArgs">Command-line arguments for the monitoring host.</param>
+    /// <param name="startHidden">Whether the launch requested tray-only startup.</param>
     internal void StartMonitoring(string[] hostArgs, bool startHidden)
         => startup = StartMonitoringAsync(hostArgs, startHidden);
 
+    /// <summary>Starts monitoring and handles duplicate launches and startup errors.</summary>
+    /// <param name="hostArgs">Command-line arguments for the monitoring host.</param>
+    /// <param name="startHidden">Whether the launch requested tray-only startup.</param>
+    /// <returns>A task that completes after startup or error handling.</returns>
     private async Task StartMonitoringAsync(string[] hostArgs, bool startHidden)
     {
         // Record the startup task before a modal prompt can process tray commands.
         await Task.Yield();
         try
         {
-            ReportStatusValue.Text = "Starting monitoring…";
-            var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
-            {
-                Args = hostArgs,
-                ContentRootPath = AppContext.BaseDirectory
-            });
-            host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token, StartActivationAsync);
-            shutdown.Token.ThrowIfCancellationRequested();
-            worker = host.Services.GetRequiredService<Worker>();
-            worker.ReadingAvailable += OnReading;
-            await host.StartAsync(shutdown.Token);
-            // .NET 10 starts BackgroundService asynchronously: StartAsync alone is not readiness.
-            var execution = worker.ExecuteTask ?? throw new InvalidOperationException("Monitoring did not start.");
-            await Task.WhenAny(worker.FirstReading, execution).WaitAsync(shutdown.Token);
-            if (execution.IsCompleted)
-            {
-                await execution;
-                throw new InvalidOperationException("Monitoring stopped before startup completed.");
-            }
-            shutdown.Token.ThrowIfCancellationRequested();
-            ReportStatusValue.Text = "Monitoring is running. Report status fields are not yet connected.";
-            _ = ObserveCompletionAsync(execution);
+            await StartHostAsync(hostArgs);
         }
         catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
         catch (ClientAlreadyRunningException duplicate)
         {
-            if (startHidden)
-            {
-                allowClose = true;
-                Close();
-                return;
-            }
-            bool opened = await Task.Run(() => GuiActivationPipe.RequestAsync(duplicate.LockPath, shutdown.Token));
-            if (closing) return;
-            if (!opened)
-            {
-                Show();
-                MessageBox.Show(this,
-                    "EcoWattSense is already running, but its window could not be opened in this Windows session. " +
-                    "It may be running in the background or in another session. This copy will close.",
-                    "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            allowClose = true;
-            await Dispatcher.InvokeAsync(Close);
+            await HandleDuplicateLaunchAsync(duplicate.LockPath, startHidden);
         }
         catch (Exception exception)
         {
-            try { await StopActivationAsync(); }
-            finally { await StopHostAsync(); }
-            if (!closing)
-            {
-                trayIcon.Visible = false;
-                try { ShowFailure("Monitoring could not start", exception); }
-                finally { allowClose = true; Close(); }
-            }
+            await HandleStartupFailureAsync(exception);
         }
+    }
+
+    /// <summary>Starts the monitoring host and waits for the first reading.</summary>
+    /// <param name="hostArgs">Command-line arguments for the monitoring host.</param>
+    /// <returns>A task that completes when monitoring is ready.</returns>
+    /// <exception cref="ClientAlreadyRunningException">Another instance holds the monitoring lock.</exception>
+    /// <exception cref="InvalidOperationException">The worker fails to start or exits before the first reading.</exception>
+    /// <exception cref="OperationCanceledException">The window is shutting down.</exception>
+    private async Task StartHostAsync(string[] hostArgs)
+    {
+        ReportStatusValue.Text = "Starting monitoring…";
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = hostArgs,
+            ContentRootPath = AppContext.BaseDirectory
+        });
+        host = await MonitoringHost.CreateAsync(builder, SelectDeviceType, shutdown.Token, StartActivationAsync);
+        shutdown.Token.ThrowIfCancellationRequested();
+        worker = host.Services.GetRequiredService<Worker>();
+        worker.ReadingAvailable += OnReading;
+        await host.StartAsync(shutdown.Token);
+        // .NET 10 starts BackgroundService asynchronously: StartAsync alone is not readiness.
+        var execution = worker.ExecuteTask ?? throw new InvalidOperationException("Monitoring did not start.");
+        await Task.WhenAny(worker.FirstReading, execution).WaitAsync(shutdown.Token);
+        if (execution.IsCompleted)
+        {
+            await execution;
+            throw new InvalidOperationException("Monitoring stopped before startup completed.");
+        }
+        shutdown.Token.ThrowIfCancellationRequested();
+        ReportStatusValue.Text = "Monitoring is running. Report status fields are not yet connected.";
+        _ = ObserveCompletionAsync(execution);
+    }
+
+    /// <summary>Closes the duplicate and requests activation for a visible launch.</summary>
+    /// <param name="lockPath">The path to the instance lock.</param>
+    /// <param name="startHidden">Whether the launch requested tray-only startup.</param>
+    /// <returns>A task that completes when the duplicate closes or shutdown takes over.</returns>
+    private async Task HandleDuplicateLaunchAsync(string lockPath, bool startHidden)
+    {
+        if (startHidden)
+        {
+            allowClose = true;
+            Close();
+            return;
+        }
+        bool opened = await Task.Run(() => GuiActivationPipe.RequestAsync(lockPath, shutdown.Token));
+        if (closing) return;
+        if (!opened)
+        {
+            Show();
+            MessageBox.Show(this,
+                "EcoWattSense is already running, but its window could not be opened in this Windows session. " +
+                "It may be running in the background or in another session. This copy will close.",
+                "EcoWattSense", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        allowClose = true;
+        await Dispatcher.InvokeAsync(Close);
+    }
+
+    /// <summary>Cleans up startup resources and reports the error if the window is open.</summary>
+    /// <param name="exception">The monitoring startup error.</param>
+    /// <returns>A task that completes after cleanup and error handling.</returns>
+    private async Task HandleStartupFailureAsync(Exception exception)
+    {
+        try { await StopActivationAsync(); }
+        finally { await StopHostAsync(); }
+
+        if (closing) return;
+        trayIcon.Visible = false;
+        try { ShowFailure("Monitoring could not start", exception); }
+        finally { allowClose = true; Close(); }
     }
 
     private async Task ObserveCompletionAsync(Task execution)
