@@ -1,6 +1,6 @@
-// Starts the Windows monitoring GUI for normal and tray-only launches.
+﻿// Starts normal and tray-only monitoring launches for the Windows GUI client.
 
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Windows;
 

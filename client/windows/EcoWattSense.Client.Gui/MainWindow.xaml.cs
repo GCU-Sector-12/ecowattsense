@@ -1,4 +1,4 @@
-// Defines the window and tray controls for the Windows monitoring app.
+// Defines the monitoring window and tray controls used by the Windows GUI client.
 
 using System.Windows;
 using System.Windows.Controls;
@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private bool allowClose;
     private bool failed;
 
+    /// <summary>Creates the monitoring window, tray menu and window lifetime handlers.</summary>
     public MainWindow()
     {
         InitializeComponent();
@@ -191,6 +192,9 @@ public partial class MainWindow : Window
         finally { allowClose = true; Close(); }
     }
 
+    /// <summary>Watches the worker and reports an unexpected stop while the window is open.</summary>
+    /// <param name="execution">The running worker task.</param>
+    /// <returns>A task that completes after the worker stops and any failure is reported.</returns>
     private async Task ObserveCompletionAsync(Task execution)
     {
         try
@@ -204,6 +208,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Displays a monitoring error and clears readings that are no longer live.</summary>
+    /// <param name="title">The error dialog title and status label.</param>
+    /// <param name="exception">The error to display.</param>
     private void ShowFailure(string title, Exception exception)
     {
         failed = true;
@@ -213,6 +220,8 @@ public partial class MainWindow : Window
         MessageBox.Show(this, exception.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
+    /// <summary>Queues a live monitoring reading for display on the GUI thread.</summary>
+    /// <param name="reading">The observation from the monitoring worker.</param>
     private void OnReading(MonitoringReading reading)
     {
         // Queue updates without blocking the worker on the UI thread.
@@ -230,6 +239,7 @@ public partial class MainWindow : Window
         }));
     }
 
+    /// <summary>Clears the displayed readings when monitoring fails.</summary>
     private void ClearReadings()
     {
         ActivityValue.Text = CpuValue.Text = InactivityValue.Text = PowerValue.Text = "Unavailable";
@@ -238,6 +248,9 @@ public partial class MainWindow : Window
         UpdatedValue.Text = "No live monitoring data";
     }
 
+    /// <summary>Asks the user to select the computer type for monitoring.</summary>
+    /// <returns>The selected device type in lowercase.</returns>
+    /// <exception cref="InvalidOperationException">The selection dialog is cancelled.</exception>
     private string SelectDeviceType()
     {
         // WPF needs an owner handle even if the main window has never been shown.
@@ -263,6 +276,9 @@ public partial class MainWindow : Window
         return selected;
     }
 
+    /// <summary>Stops the host and waits for the worker before disposing host resources.</summary>
+    /// <returns>A task that completes after host cleanup.</returns>
+    /// <exception cref="Exception">Stopping or disposing the host fails.</exception>
     private async Task StopHostAsync()
     {
         if (worker is not null) worker.ReadingAvailable -= OnReading;
@@ -277,6 +293,8 @@ public partial class MainWindow : Window
         finally { host.Dispose(); host = null; }
     }
 
+    /// <summary>Cancels startup and monitoring, releases resources and closes the GUI.</summary>
+    /// <returns>A task that completes after shutdown. Cleanup errors are shown in a dialog.</returns>
     private async Task ExitAsync()
     {
         if (closing) return;
