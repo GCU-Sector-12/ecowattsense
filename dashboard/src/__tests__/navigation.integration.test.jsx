@@ -7,24 +7,10 @@ import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 import { createSampleSession, clearSampleSession } from '../auth/sampleSession.js'
 
-/** Creates an authenticated sample session for navigation tests. */
-function setUpNavigationTest() {
-  createSampleSession('admin')
-}
+beforeEach(() => createSampleSession('admin'))
+afterEach(() => clearSampleSession())
 
-/** Clears the sample session after navigation tests. */
-function cleanUpNavigationTest() {
-  clearSampleSession()
-}
-
-beforeEach(setUpNavigationTest)
-afterEach(cleanUpNavigationTest)
-
-/**
- * Changes the hash and notifies the mounted router.
- * @param {string} hash - Target route.
- * @returns {void} Does not return a value.
- */
+/** Changes the hash and notifies the mounted router. @param {string} hash - Target route. */
 function goToHash(hash) {
   window.location.hash = hash
   act(() => {
