@@ -1,4 +1,4 @@
-// Handles activation requests from duplicate Windows GUI launches.
+// Handles duplicate-launch activation for the Windows GUI client and its running window.
 
 using System;
 using System.Diagnostics;
@@ -156,12 +156,27 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         finally { stop.Dispose(); }
     }
 
+    /// <summary>Reads the Windows session of the client connected to a server pipe.</summary>
+    /// <param name="pipe">The connected server pipe handle.</param>
+    /// <param name="session">Receives the client session ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeClientSessionId(SafePipeHandle pipe, out uint session);
+    /// <summary>Reads the Windows session of the server connected to a client pipe.</summary>
+    /// <param name="pipe">The connected client pipe handle.</param>
+    /// <param name="session">Receives the server session ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeServerSessionId(SafePipeHandle pipe, out uint session);
+    /// <summary>Reads the process ID of the server connected to a client pipe.</summary>
+    /// <param name="pipe">The connected client pipe handle.</param>
+    /// <param name="pid">Receives the server process ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint pid);
+    /// <summary>Asks Windows to let the running GUI process activate its window.</summary>
+    /// <param name="pid">The process ID of the running GUI.</param>
+    /// <returns>True if Windows accepts the request. Otherwise, false.</returns>
     [DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(uint pid);
 }
