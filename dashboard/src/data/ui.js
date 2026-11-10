@@ -6,8 +6,6 @@ export const navigation = [
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ]
 
-// TODO EWS_WEB-26: derive Idle/Unused captions from getSettings() values
-// idle_threshold_seconds and unused_threshold_seconds instead of these sample defaults.
 export const stateDisplay = {
   active: { label: 'Active Computers', caption: 'Actively being used' },
   idle: { label: 'Idle Computers', caption: 'No activity for 10+ mins' },
