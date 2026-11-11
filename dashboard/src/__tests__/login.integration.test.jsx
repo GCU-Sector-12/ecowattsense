@@ -1,5 +1,6 @@
 // Integration tests for the EWS_WEB-33 demo login, route guard and logout flow.
 import { screen, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { clearSampleSession } from '../auth/sampleSession.js'
@@ -7,6 +8,10 @@ import { renderWithMantine } from '../test/render.jsx'
 
 /** Resets browser state before each login integration test. */
 function setUpLoginTest() {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ username: 'admin' }),
+  }))
   clearSampleSession()
   sessionStorage.clear()
   window.location.hash = '#computers'
@@ -14,6 +19,7 @@ function setUpLoginTest() {
 
 /** Clears browser state after each login integration test. */
 function cleanUpLoginTest() {
+  vi.unstubAllGlobals()
   clearSampleSession()
   sessionStorage.clear()
 }
@@ -41,6 +47,12 @@ async function redirectsProtectedRouteAfterLogin() {
   await user.type(screen.getByLabelText('Password'), 'admin12345')
   await user.click(screen.getByRole('button', { name: 'Log in' }))
 
+  expect(fetch).toHaveBeenCalledWith('/api/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin12345' }),
+  })
   expect(await screen.findByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByText('admin')).toBeInTheDocument()
 }
@@ -75,6 +87,10 @@ async function showsIncorrectCredentialError() {
 
   await user.type(await screen.findByRole('textbox', { name: 'Username' }), 'admin')
   await user.type(screen.getByLabelText('Password'), 'wrong-password')
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: false,
+    json: async () => ({ detail: 'Wrong username or password' }),
+  })
   await user.click(screen.getByRole('button', { name: 'Log in' }))
 
   expect(screen.getByRole('alert')).toHaveTextContent('Wrong username or password')
