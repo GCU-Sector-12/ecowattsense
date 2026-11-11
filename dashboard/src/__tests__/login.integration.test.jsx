@@ -1,5 +1,6 @@
 // Integration tests for the EWS_WEB-33 demo login, route guard and logout flow.
 import { screen, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { clearSampleSession } from '../auth/sampleSession.js'
@@ -99,6 +100,7 @@ async function showsLoginWithoutSidebar() {
  */
 async function logsOutAndClearsSession() {
   const user = userEvent.setup()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 204 }))
   sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'admin' }))
   window.location.hash = '#dashboard'
   renderWithMantine(<App />)
@@ -109,6 +111,7 @@ async function logsOutAndClearsSession() {
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   await waitFor(expectSessionToBeCleared)
   expect(window.location.hash).toBe('#login')
+  expect(fetch).toHaveBeenCalledWith('/api/logout', { method: 'POST', credentials: 'include' })
 }
 
 beforeEach(setUpLoginTest)
