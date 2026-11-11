@@ -20,7 +20,7 @@ get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Win
 3. `docs/findings-2026-11-11.md`: everything found on 11 Nov 2026. Section 2 lists every measurement path,
    section 7 the proposals, section 8 the open points.
 4. `docs/research/win11_rapl_emi.md` and `docs/research/emi_access_rights.md`: how EMI works and how to open it.
-   `docs/research-report-pl.md` is the same research in Polish.
+   `docs/research-report-en.md` is the short research report behind the findings.
 
 ## Rules for this work
 

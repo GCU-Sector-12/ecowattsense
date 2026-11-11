@@ -1,6 +1,6 @@
 # Research notes behind the energy reports
 
-Notes written by research helpers on 11 Nov 2026. They are the sources of `../research-report-pl.md` and `../findings-2026-11-11.md`. Each note lists its own sources and gaps. Facts in them are read only unless the note says they were tested on the HP 250 G7 test laptop.
+Notes written by research helpers on 11 Nov 2026. They are the sources of `../research-report-en.md` and `../findings-2026-11-11.md`. Each note lists its own sources and gaps. Facts in them are read only unless the note says they were tested on the HP 250 G7 test laptop.
 
 | File | What it covers |
 |---|---|
