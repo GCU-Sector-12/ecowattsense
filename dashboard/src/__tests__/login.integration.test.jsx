@@ -15,6 +15,7 @@ function setUpLoginTest() {
 
 /** Clears browser state after each login integration test. */
 function cleanUpLoginTest() {
+  vi.unstubAllGlobals()
   clearSampleSession()
   sessionStorage.clear()
 }
