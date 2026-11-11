@@ -1,6 +1,8 @@
-// Shared dashboard header with the signed-in demo user menu.
-import { Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
+// Shared dashboard header with the signed-in user menu.
+import { useState } from 'react'
+import { Alert, Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
 import { ChevronDown, LogOut, User } from 'lucide-react'
+import { logout } from '../auth/logout.js'
 import { clearSampleSession, getSampleSession } from '../auth/sampleSession.js'
 
 /**
@@ -26,23 +28,36 @@ function formatDate(iso) {
 }
 
 /**
- * Shows the current username and provides the demo logout action.
+ * Shows the current username and provides the API logout action.
  * @param {{userName: string}} props - Signed-in username.
  * @returns {JSX.Element} User menu.
  */
 function UserMenu({ userName }) {
   const sessionUser = getSampleSession()?.username || userName
+  const [logoutError, setLogoutError] = useState('')
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
   /**
-   * Ends the demo session and returns the browser to the login page.
-   * @returns {void}
+   * Ends the API session, clears the browser session and opens the login page.
+   * @returns {Promise<void>} Resolves after the user is returned to login.
+   * @throws {DOMException} If browser session storage cannot be cleared.
    */
-  function handleLogout() {
-    clearSampleSession()
-    window.location.hash = '#login'
+  async function handleLogout() {
+    setLogoutError('')
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      clearSampleSession()
+      window.location.hash = '#login'
+    } catch (error) {
+      setLogoutError(error.message || 'Could not log out. Try again.')
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
-    <Menu shadow="md" width={180} position="bottom-end">
+    <Menu shadow="md" width={220} position="bottom-end">
       <Menu.Target>
         <UnstyledButton aria-label={`User menu for ${sessionUser}`}>
           <Group gap="xs" wrap="nowrap">
@@ -54,7 +69,10 @@ function UserMenu({ userName }) {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item leftSection={<User size={16} />}>Profile</Menu.Item>
-        <Menu.Item leftSection={<LogOut size={16} />} onClick={handleLogout}>Log out</Menu.Item>
+        <Menu.Item leftSection={<LogOut size={16} />} onClick={handleLogout} disabled={isLoggingOut}>
+          Log out
+        </Menu.Item>
+        {logoutError && <Alert color="gray" role="alert">{logoutError}</Alert>}
       </Menu.Dropdown>
     </Menu>
   )
