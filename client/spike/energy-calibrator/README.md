@@ -14,6 +14,7 @@ HP 250 G7 Notebook PC (Intel Core i5-8265U, Windows 10 Pro 22H2).
 | `docs/research-report-pl.md` | Research report in Polish (67 sources): which ways exist on Windows 10 and 11 to read real energy (Energy Meter Interface, battery, Intel Dynamic Tuning, E3/SRUM, drivers and tools), what needs administrator rights, accuracy, and what it means for the EcoWattSense client. |
 | `docs/findings-2026-11-11.md` | Full record in English of everything found and measured on 11 Nov 2026, with all numbers from the test laptop and the source list. |
 | `docs/research/` | The five research notes behind both reports, one file per topic; `docs/research/README.md` lists them. |
+| `WINDOWS-11-TEST.md` | What to fix and what to measure when the spike is tested on a Windows 11 laptop, for the tester and their AI coding agent. |
 
 ## Build and run
 
