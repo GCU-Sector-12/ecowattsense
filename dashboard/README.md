@@ -44,3 +44,7 @@ To check the look by hand, run `npm run dev`, open the page and try each menu it
 - `src/` holds the React code. `pages/` has one file per page, `components/` has the parts.
 - `src/theme.js` builds the Mantine theme from the design tokens. `src/dark.css` has the dark values.
 - `static/tokens.css` holds the design tokens (colours, sizes, fonts). Use the variables, do not hard-code colours. See `docs/design/ui-style-guide.md`.
+
+## Loading and error checks
+
+In the development server, open `/?delay=2000#dashboard` or `/?delay=2000#computers` to show loading skeletons. Open `/?fail=1#dashboard` to show the error card. Remove `fail=1` from the address with the browser history API and press Retry to check recovery without remounting the page. These switches are ignored in production builds.
