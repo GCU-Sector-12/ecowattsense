@@ -60,11 +60,15 @@ export default function ComputersPage() {
 
   if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="computers" />
 
+  const referenceTime = import.meta.env.VITE_DEVICES_DATA_SOURCE === 'real'
+    ? new Date().toISOString()
+    : sampleScreen.generated_at
+
   return (
     <Stack gap="md">
       <Header title="Computers"
         subtitle={`Showing ${visibleDevices.length} of ${devices.filter((computer) => showArchived || !computer.archived).length} monitored computers.`}
-        generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
+        generatedAt={referenceTime} userName={sampleScreen.user_name} />
       <Group align="end" gap="md" wrap="wrap">
         <TextInput label="Search by computer name" placeholder="Search computers"
           aria-label="Search computers" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
@@ -75,7 +79,7 @@ export default function ComputersPage() {
           onChange={(event) => setShowArchived(event.currentTarget.checked)} />
       </Group>
       {visibleDevices.length ? <ComputerTable title="All Computers" computers={visibleDevices}
-        referenceTime={sampleScreen.generated_at} showArchived={showArchived}
+        referenceTime={referenceTime} showArchived={showArchived}
         sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} /> : <DataState empty label="Computers" />}
     </Stack>
   )
