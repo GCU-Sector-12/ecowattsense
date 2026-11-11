@@ -1,7 +1,7 @@
 // Sample providers used by dashboard pages instead of importing JSON in the UI.
 // Await the exported functions for independent copies of API-shaped responses.
 import summary from './summary.json'
-import devices from './devices.json'
+import { loadDevices } from './devicesProvider.js'
 import history from './history.json'
 import settings from './settings.json'
 import { ujToKwh } from './units.js'
@@ -20,11 +20,13 @@ export async function getSummary(date = summary.date) {
 }
 
 /**
- * Returns an independent copy of the sample device-list response.
+ * Loads devices using the endpoint's sample/real mode without changing page contracts.
+ * @param {object} [options] - Optional location_id and include_archived (default true).
  * @returns {Promise<{devices: object[]}>} Devices in API contract form.
+ * @throws {Error} If the real request fails; HTTP failures include status.
  */
-export async function getDevices() {
-  return structuredClone(devices)
+export async function getDevices(options) {
+  return loadDevices(options)
 }
 
 /**
