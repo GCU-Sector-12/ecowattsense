@@ -1,26 +1,30 @@
-// Data providers used by dashboard pages instead of importing JSON in the UI.
-// Await the exported functions for fresh API-shaped responses in each endpoint's mode.
+// Sample providers used by dashboard pages instead of importing JSON in the UI.
+// Await the exported functions for independent copies of API-shaped responses.
 import { loadSummary } from './summaryProvider.js'
 import devices from './devices.json'
 import history from './history.json'
 import settings from './settings.json'
+import { applyDevelopmentControls } from './developmentControls.js'
 import { ujToKwh } from './units.js'
 
 /**
- * Loads the endpoint's selected sample/real summary without converting its units.
- * @param {string} [date] - Requested YYYY-MM-DD; real mode defaults to the server's UK today.
+ * Loads summary data from the selected sample or authenticated API provider.
+ * @param {string} [date] - Requested YYYY-MM-DD day.
+ * @throws {Error} When development controls or the API request fail.
  * @returns {Promise<object>} Summary using API contract field names.
- * @throws {Error} If the real request fails; HTTP failures include status.
  */
 export async function getSummary(date) {
+  if (import.meta.env.VITE_SUMMARY_DATA_SOURCE !== 'real') await applyDevelopmentControls()
   return loadSummary(date)
 }
 
 /**
  * Returns an independent copy of the sample device-list response.
+ * @throws {Error} When the development failure switch is enabled.
  * @returns {Promise<{devices: object[]}>} Devices in API contract form.
  */
 export async function getDevices() {
+  await applyDevelopmentControls()
   return structuredClone(devices)
 }
 
@@ -30,9 +34,11 @@ export async function getDevices() {
  * @param {string} [from=history.from] - Inclusive ISO timestamp.
  * @param {string} [to=history.to] - Exclusive ISO timestamp.
  * @returns {Promise<object|null>} Filtered history or null for an unknown device.
+ * @throws {Error} When the development failure switch is enabled.
  * @throws {RangeError} If the range is invalid or exceeds 31 days.
  */
 export async function getDeviceHistory(device_id, from = history.from, to = history.to) {
+  await applyDevelopmentControls()
   if (device_id !== history.device_id) return null
   const start = Date.parse(from)
   const end = Date.parse(to)
@@ -45,10 +51,7 @@ export async function getDeviceHistory(device_id, from = history.from, to = hist
   result.to = to
   // The contract includes from and excludes to, comparing instants rather
   // than strings so equivalent ISO timestamps behave the same way.
-  result.reports = result.reports.filter(({ timestamp }) => {
-    const time = Date.parse(timestamp)
-    return time >= start && time < end
-  })
+  result.reports = result.reports.filter(report => isReportInRange(report, start, end))
   const totals = {
     active_time_seconds: 0, idle_time_seconds: 0, unused_time_seconds: 0,
     energy_uj: 0, cost_gbp: 0, co2_kg: 0,
@@ -68,8 +71,22 @@ export async function getDeviceHistory(device_id, from = history.from, to = hist
 
 /**
  * Returns an independent copy of the sample tariff and threshold settings.
+ * @throws {Error} When the development failure switch is enabled.
  * @returns {Promise<object>} Settings using API contract field names.
  */
 export async function getSettings() {
+  await applyDevelopmentControls()
   return structuredClone(settings)
+}
+
+/**
+ * Checks report instants so equivalent ISO timestamp formats give the same result.
+ * @param {object} report - Report containing timestamp.
+ * @param {number} start - Inclusive epoch milliseconds.
+ * @param {number} end - Exclusive epoch milliseconds.
+ * @returns {boolean} Whether the report belongs to the range.
+ */
+function isReportInRange(report, start, end) {
+  const time = Date.parse(report.timestamp)
+  return time >= start && time < end
 }
