@@ -1,22 +1,19 @@
 // Sample providers used by dashboard pages instead of importing JSON in the UI.
 // Await the exported functions for independent copies of API-shaped responses.
-import summary from './summary.json'
+import { loadSummary } from './summaryProvider.js'
 import devices from './devices.json'
 import history from './history.json'
 import settings from './settings.json'
 import { ujToKwh } from './units.js'
 
 /**
- * Returns an independent sample summary; unrecorded dates have empty energy data.
- * @param {string} [date=summary.date] - Requested YYYY-MM-DD day.
+ * Loads the endpoint's selected sample/real summary without converting its units.
+ * @param {string} [date] - Requested YYYY-MM-DD; real mode defaults to the server's UK today.
  * @returns {Promise<object>} Summary using API contract field names.
+ * @throws {Error} If the real request fails; HTTP failures include status.
  */
-export async function getSummary(date = summary.date) {
-  // Only one day is recorded in the sample. Do not relabel its readings as
-  // another day; device counts still describe the current sample devices.
-  return structuredClone(date === summary.date ? summary : {
-    ...summary, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [],
-  })
+export async function getSummary(date) {
+  return loadSummary(date)
 }
 
 /**
