@@ -1,5 +1,6 @@
 // Dashboard page built from docs/design/dashboard-mockup.png with sample data.
 // App.jsx renders this page for #dashboard; providers supply counts, energy, devices and settings.
+import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
 import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Monitor, Clock, Power } from 'lucide-react'
@@ -42,9 +43,8 @@ function loadDashboard() {
  * @returns {JSX.Element} The page.
  */
 export default function DashboardPage() {
-  const { data, error } = useSampleData(loadDashboard)
-  if (error) return <Text role="alert">Unable to load dashboard.</Text>
-  if (!data) return <Text>Loading dashboard...</Text>
+  const { data, error, retry } = useSampleData(loadDashboard)
+  if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="dashboard" />
   const [summary, { devices }, settings] = data
   const referenceTime = sampleScreen.generated_at
   const cards = [
@@ -72,10 +72,13 @@ export default function DashboardPage() {
         {summary.counts.no_data} {summary.counts.no_data === 1 ? 'computer' : 'computers'} with no data
       </Text>
       <Grid gutter="md">
-        <Grid.Col span={8}><EnergyChart points={summary.series} /></Grid.Col>
-        <Grid.Col span={4}><StatusDonut summary={summary} /></Grid.Col>
+        <Grid.Col span={8}>{summary.series.length ? <EnergyChart points={summary.series} /> :
+          <DataState empty label="Energy usage" />}</Grid.Col>
+        <Grid.Col span={4}>{summary.counts.total ? <StatusDonut summary={summary} /> :
+          <DataState empty label="Computer status" />}</Grid.Col>
       </Grid>
-      <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} />
+      {devices.length ? <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} /> :
+        <DataState empty label="Computers" />}
     </Stack>
   )
 }
