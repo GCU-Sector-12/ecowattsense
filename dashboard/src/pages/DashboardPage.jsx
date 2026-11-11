@@ -46,7 +46,9 @@ export default function DashboardPage() {
   const { data, error, retry } = useSampleData(loadDashboard)
   if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="dashboard" />
   const [summary, { devices }, settings] = data
-  const referenceTime = sampleScreen.generated_at
+  const referenceTime = import.meta.env.VITE_SUMMARY_DATA_SOURCE === 'real'
+    ? new Date().toISOString()
+    : sampleScreen.generated_at
   const cards = [
     { state: 'active', icon: Monitor, caption: stateDisplay.active.caption },
     { state: 'idle', icon: Clock, caption: `No activity for ${formatThreshold(settings.idle_threshold_seconds)}` },
