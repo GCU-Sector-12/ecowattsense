@@ -1,5 +1,5 @@
-// Sample providers used by dashboard pages instead of importing JSON in the UI.
-// Await the exported functions for independent copies of API-shaped responses.
+// Data providers used by dashboard pages instead of importing JSON in the UI.
+// Await the exported functions for fresh API-shaped responses in each endpoint's mode.
 import summary from './summary.json'
 import { loadDevices } from './devicesProvider.js'
 import history from './history.json'
