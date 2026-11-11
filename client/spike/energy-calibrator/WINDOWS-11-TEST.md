@@ -10,8 +10,9 @@ on 11 Nov 2026, on one laptop: HP 250 G7 Notebook PC, Intel Core i5-8265U, **Win
 It has never been built or run on Windows 11 or on another laptop. Expect problems: a build error, a reader that fails,
 a phase that is always invalid. Your job is to make it work on this Windows 11 laptop, then measure.
 
-The main open question of the research is Windows 11 only: does a normal user (no administrator, no extra driver)
-get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Windows 10 test laptop EMI had no device.
+The EcoWattSense client is installed and run by an administrator, so administrator rights are allowed.
+The main open question is Windows 11 only: does Windows give processor energy (RAPL) through the Energy Meter Interface (EMI),
+and how does it compare with Intel Dynamic Tuning (DTT) and the battery? On the Windows 10 test laptop EMI had no device.
 
 ## Read first
 
@@ -28,8 +29,8 @@ get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Win
   the dashboard or the contract (`shared/`).
 - Flat code ("never nested"), as in AGENTS.md. Check with `pwsh -NoProfile -File Check-Nesting.ps1`.
 - Every new function has a `///` documentation comment, every file a header comment (AGENTS.md).
-- Run as a normal user. Do not install a driver. Do not change a security setting or a WMI descriptor.
-  Administrator rights are only for the optional Intel DTT reading (the button in the program).
+- Run the program as administrator (the button "Restart as administrator"), so Intel DTT is read too.
+  Do not install a third-party driver. Do not change a security setting or a WMI descriptor.
 - A source that cannot be read is "unknown", never 0. Every failure (also error 5, access denied) is written once and the test goes on.
 - No computer name, user name, serial number, device instance path or account id in any file you commit.
 - Raw measurement files (`results\...`, `samples.csv`) are not committed. Commit only the short result summary described below.
@@ -39,8 +40,8 @@ get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Win
 ## Steps
 
 1. **Build.** `dotnet build -c Release` in this folder (.NET 10 SDK). Fix every error and warning. Run the nesting check.
-2. **Probe EMI as a normal user** before the long test. Write down:
-   Windows build, processor, laptop maker and model, whether it is a virtual machine, whether the account is a standard user.
+2. **Probe EMI and Intel DTT as administrator** before the long test. Write down:
+   Windows build, processor, laptop maker and model, whether it is a virtual machine, whether Intel DTT is installed.
    - Does the "Energy Meter" counter set have instances? (The program already reads it; see `LoadReaders.cs`.)
    - Open EMI directly: `SetupDiGetClassDevs` with the interface GUID `{45BD8344-7ED6-49cf-A440-C276C933B053}`,
      `CreateFile` with `GENERIC_READ`, then the four IOCTLs `0x224000` (version), `0x224004` (metadata size),
@@ -57,9 +58,9 @@ get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Win
    until the end. Phase 7 (screen off) failed on the Windows 10 laptop because the mouse was moved; it must be valid this time.
    If a phase is invalid, find the reason in `summary.txt`, fix the program if it is a bug, and run the test again.
 5. **Write the result summary** as `docs/results-<maker>-<model>-<yyyy-mm-dd>.md`, in English, short sentences:
-   machine (maker, model, processor, Windows build, standard user yes or no), EMI present yes or no, opens without
-   administrator yes or no (error code if no), channel list, the power of each phase in watts, the model numbers from
-   `model.json`, the package share per phase when EMI works, what failed and what you fixed.
+   machine (maker, model, processor, Windows build), EMI present yes or no (error code if it does not open),
+   Intel DTT present yes or no, channel list, the power of each phase in watts, the model numbers from `model.json`,
+   the package share per phase from EMI and from DTT, what failed and what you fixed.
    Add one line to the documents table in `README.md`.
 6. **Commit and push** your branch, open a pull request into dev with the YouTrack key in the title, and say in the
    description what you changed, how you tested it and which Windows build you used.
@@ -67,9 +68,9 @@ get processor energy (RAPL) through the Energy Meter Interface (EMI)? On the Win
 ## Done when
 
 The program builds with no warning and passes the nesting check on Windows 11. One full test ran with all seven phases valid.
-The result summary answers: does EMI work here for a normal user, and what does this laptop use in each phase.
+The result summary answers: does EMI work here, does Intel DTT work here, and what does this laptop use in each phase.
 
 ## If you are stuck
 
-Stop and tell the person you work for what failed, with the exact error. Do not try a driver, administrator rights
+Stop and tell the person you work for what failed, with the exact error. Do not try a third-party driver
 or another tool as a workaround. They will ask the team on Discord.
