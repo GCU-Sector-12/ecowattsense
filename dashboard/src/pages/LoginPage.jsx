@@ -1,12 +1,12 @@
-// Sample login page used by App.jsx when no demo session exists.
+// Admin login page used by App.jsx when no authenticated session exists.
 import { useState } from 'react'
 import { Alert, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core'
 import { Leaf } from 'lucide-react'
-import { sampleCredentials } from '../data/ui.js'
+import { login } from '../auth/api.js'
 import { createSampleSession } from '../auth/sampleSession.js'
 
 /**
- * Shows the demo login form and creates a session for the sample admin.
+ * Shows the admin login form and starts the dashboard session after API authentication.
  * @param {{onLogin: (session: {username: string}) => void}} props - Session update callback.
  * @returns {JSX.Element} The login form.
  */
@@ -16,21 +16,21 @@ export default function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
 
   /**
-   * Checks the demo credentials and starts a browser session when they match.
+   * Authenticates the form credentials and updates the dashboard session.
    * @param {import('react').FormEvent<HTMLFormElement>} event - Form submission.
-   * @returns {void}
+   * @returns {Promise<void>} Resolves after authentication and session update.
    * @throws {DOMException} If sessionStorage is unavailable or access is denied.
-   * @throws {Error} If the onLogin callback fails.
    */
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    const valid = username === sampleCredentials.username && password === sampleCredentials.password
-    if (!valid) {
-      setError('Wrong username or password')
-      return
+    setError('')
+    try {
+      const authenticatedUser = await login(username, password)
+      const session = createSampleSession(authenticatedUser.username)
+      onLogin(session)
+    } catch (loginError) {
+      setError(loginError.message)
     }
-    const session = createSampleSession(username)
-    onLogin(session)
   }
 
   /** Updates the username from the form field. */
