@@ -29,6 +29,25 @@ function expectSessionToBeCleared() {
 }
 
 /**
+ * Creates an authenticated browser session for logout integration tests.
+ * @returns {void} Stores the admin session and opens the dashboard route.
+ */
+function setActiveSession() {
+  sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'admin' }))
+  window.location.hash = '#dashboard'
+}
+
+/**
+ * Opens the user menu and selects its logout action.
+ * @returns {Promise<void>} Resolves after the logout action is selected.
+ */
+async function clickLogoutAction() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'User menu for admin' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
+}
+
+/**
  * Checks that login returns the user to the route they originally requested.
  * @returns {Promise<void>} Resolves when the protected route is restored.
  */
@@ -75,7 +94,8 @@ async function showsIncorrectCredentialError() {
   const user = userEvent.setup()
   renderWithMantine(<App />)
 
-  await user.type(await screen.findByRole('textbox', { name: 'Username' }), 'admin')
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+  await user.type(screen.getByRole('textbox', { name: 'Username' }), 'admin')
   await user.type(screen.getByLabelText('Password'), 'wrong-password')
   await user.click(screen.getByRole('button', { name: 'Log in' }))
 
@@ -100,19 +120,52 @@ async function showsLoginWithoutSidebar() {
  * @returns {Promise<void>} Resolves when the login page is displayed.
  */
 async function logsOutAndClearsSession() {
-  const user = userEvent.setup()
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 204 }))
-  sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'admin' }))
-  window.location.hash = '#dashboard'
+  setActiveSession()
   renderWithMantine(<App />)
 
-  await user.click(await screen.findByRole('button', { name: 'User menu for admin' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'Log out' }))
+  await clickLogoutAction()
 
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   await waitFor(expectSessionToBeCleared)
   expect(window.location.hash).toBe('#login')
   expect(fetch).toHaveBeenCalledWith('/api/logout', { method: 'POST', credentials: 'include' })
+}
+
+/**
+ * Checks that an HTTP logout failure remains visible and preserves the session.
+ * @returns {Promise<void>} Resolves when the failure and retained session are verified.
+ */
+async function showsHttpLogoutFailureAndKeepsSession() {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 500 }))
+  setActiveSession()
+  renderWithMantine(<App />)
+
+  await clickLogoutAction()
+
+  const alert = await screen.findByRole('alert')
+  expect(alert).toBeVisible()
+  expect(alert).toHaveTextContent('Could not log out. Try again.')
+  expect(sessionStorage.getItem('ews-sample-session')).toBe(JSON.stringify({ username: 'admin' }))
+  expect(window.location.hash).toBe('#dashboard')
+}
+
+/**
+ * Checks that a network logout failure remains visible and preserves the session.
+ * @returns {Promise<void>} Resolves when the failure and retained session are verified.
+ */
+async function showsNetworkLogoutFailureAndKeepsSession() {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network unavailable')))
+  setActiveSession()
+  renderWithMantine(<App />)
+
+  await clickLogoutAction()
+
+  const alert = await screen.findByRole('alert')
+  expect(alert).toBeVisible()
+  expect(alert).toHaveTextContent('Network unavailable')
+  expect(sessionStorage.getItem('ews-sample-session')).toBe(JSON.stringify({ username: 'admin' }))
+  expect(window.location.hash).toBe('#dashboard')
 }
 
 beforeEach(setUpLoginTest)
@@ -123,3 +176,5 @@ it('opens the Dashboard after a successful login when no return route is saved',
 it('shows the required error for incorrect credentials', showsIncorrectCredentialError)
 it('shows the login page without the dashboard sidebar', showsLoginWithoutSidebar)
 it('clears the session and returns to login when the user logs out', logsOutAndClearsSession)
+it('shows an HTTP logout failure and keeps the session active', showsHttpLogoutFailureAndKeepsSession)
+it('shows a network logout failure and keeps the session active', showsNetworkLogoutFailureAndKeepsSession)
