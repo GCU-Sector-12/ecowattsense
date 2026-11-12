@@ -1,5 +1,5 @@
-# Checks the autostart scripts in client/windows/scripts without registering a task.
-# Install-Autostart.ps1 is run with -DefinitionOnly, so the task is only built in memory.
+# Checks the autostart scripts in client/windows/scripts for Windows Client developers.
+# Install-Autostart.ps1 is run with -DefinitionOnly, to check the definition before testing a temporary registration.
 # The scripts are checked in PowerShell 7 and, when it is installed, in Windows PowerShell 5.1.
 $ErrorActionPreference = 'Stop'
 
@@ -13,6 +13,56 @@ $engines = @((Get-Process -Id $PID).Path)
 $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 if (Test-Path -LiteralPath $windowsPowerShell) { $engines += $windowsPowerShell }
 else { Write-Output 'Windows PowerShell 5.1 not found; checking PowerShell 7 only.' }
+
+<#
+.SYNOPSIS
+Checks the repetition XML saved for the named task. Throws if the trigger has the wrong interval or a duration.
+#>
+function Assert-RegisteredRepetition {
+    param([string]$TaskName)
+
+    [xml]$definition = Export-ScheduledTask -TaskName $TaskName
+    $ns = [System.Xml.XmlNamespaceManager]::new($definition.NameTable)
+    $ns.AddNamespace('task', 'http://schemas.microsoft.com/windows/2004/02/mit/task')
+    $repetition = $definition.SelectSingleNode('/task:Task/task:Triggers/task:LogonTrigger/task:Repetition', $ns)
+    if ($null -eq $repetition) { throw 'The registered logon trigger has no repetition pattern' }
+    if ($repetition.SelectSingleNode('task:Interval', $ns).InnerText -ne 'PT5M') { throw 'The registered task does not repeat every five minutes' }
+    if ($null -ne $repetition.SelectSingleNode('task:Duration', $ns)) { throw 'The registered task has a repetition duration' }
+}
+
+<#
+.SYNOPSIS
+Reads the named task and checks its enabled flag. Throws on a mismatch.
+#>
+function Assert-TaskEnabled {
+    param([string]$TaskName, [bool]$Enabled)
+
+    $task = Get-ScheduledTask -TaskName $TaskName
+    if ($task.Settings.Enabled -ne $Enabled) { throw "Expected task Enabled to be $Enabled" }
+}
+
+<#
+.SYNOPSIS
+Checks registration and the enable/disable commands on the named temporary task.
+Returns the number of checks or throws if any check or cleanup fails.
+#>
+function Test-TaskRegistration {
+    param([string]$Install, [string]$Exe, [string]$TaskName)
+
+    & $Install -DeviceType laptop -ExePath $Exe -TaskName $TaskName | Out-Null
+    try {
+        Assert-RegisteredRepetition -TaskName $TaskName
+        Assert-TaskEnabled -TaskName $TaskName -Enabled $true
+        Disable-ScheduledTask -TaskName $TaskName | Out-Null
+        Assert-TaskEnabled -TaskName $TaskName -Enabled $false
+        Enable-ScheduledTask -TaskName $TaskName | Out-Null
+        Assert-TaskEnabled -TaskName $TaskName -Enabled $true
+    }
+    finally {
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    }
+    return 6
+}
 
 # The user scripts must also run in Windows PowerShell 5.1, which misreads non-ASCII text in files without a BOM.
 foreach ($file in @($install, $uninstall)) {
@@ -53,6 +103,8 @@ $s = $task.Settings
     TriggerUser = $task.Triggers[0].UserId
     TriggerDelay = $task.Triggers[0].Delay
     TriggerEnabled = $task.Triggers[0].Enabled
+    RepetitionInterval = $task.Triggers[0].Repetition.Interval
+    RepetitionHasNoDuration = [string]::IsNullOrEmpty($task.Triggers[0].Repetition.Duration)
     ActionCount = @($task.Actions).Count
     Execute = $task.Actions[0].Execute
     Arguments = $task.Actions[0].Arguments
@@ -80,6 +132,7 @@ $s = $task.Settings
         $expected = [ordered]@{
             TriggerCount = 1; TriggerClass = 'MSFT_TaskLogonTrigger'; TriggerUser = $user
             TriggerDelay = 'PT1M'; TriggerEnabled = $true; ActionCount = 1
+            RepetitionInterval = 'PT5M'; RepetitionHasNoDuration = $true
             Execute = '"' + $exe + '"'; Arguments = '--start-hidden --Reporting:DeviceType=laptop'; WorkingDirectory = $appFolder
             PrincipalUser = $user; LogonType = 'Interactive'; RunLevel = 'Limited'
             DisallowStartIfOnBatteries = $false; StopIfGoingOnBatteries = $false
@@ -143,6 +196,8 @@ $s = $task.Settings
         $checks++
     }
     finally { $null = icacls $locked /remove:d "*$sid" }
+
+    $checks += Test-TaskRegistration -Install $install -Exe $exe -TaskName $taskName
 
     # Nothing may be left behind in Task Scheduler.
     if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) { throw 'A test task was left behind' }
