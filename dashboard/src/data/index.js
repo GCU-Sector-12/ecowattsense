@@ -1,5 +1,5 @@
-// Sample providers used by dashboard pages instead of importing JSON in the UI.
-// Await the exported functions for independent copies of API-shaped responses.
+// Data providers used by dashboard pages for sample responses and real devices.
+// Device mode selects the authenticated API; the other providers return sample copies.
 import summary from './summary.json'
 import { loadDevices } from './devicesProvider.js'
 import history from './history.json'
