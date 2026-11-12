@@ -30,7 +30,7 @@ function formatDate(iso) {
 /**
  * Shows the current username and provides the API logout action.
  * @param {{userName: string}} props - Signed-in username.
- * @returns {JSX.Element} User menu.
+ * @returns {JSX.Element} User menu and any logout error.
  */
 function UserMenu({ userName }) {
   const sessionUser = getSampleSession()?.username || userName
@@ -57,24 +57,26 @@ function UserMenu({ userName }) {
   }
 
   return (
-    <Menu shadow="md" width={220} position="bottom-end">
-      <Menu.Target>
-        <UnstyledButton aria-label={`User menu for ${sessionUser}`}>
-          <Group gap="xs" wrap="nowrap">
-            <Avatar radius="xl" color="gray" size={40} />
-            <Text fz="sm" fw={500}>{sessionUser}</Text>
-            <ChevronDown size={16} color="var(--ews-text-muted)" />
-          </Group>
-        </UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Item leftSection={<User size={16} />}>Profile</Menu.Item>
-        <Menu.Item leftSection={<LogOut size={16} />} onClick={handleLogout} disabled={isLoggingOut}>
-          Log out
-        </Menu.Item>
-        {logoutError && <Alert color="gray" role="alert">{logoutError}</Alert>}
-      </Menu.Dropdown>
-    </Menu>
+    <>
+      <Menu shadow="md" width={220} position="bottom-end">
+        <Menu.Target>
+          <UnstyledButton aria-label={`User menu for ${sessionUser}`}>
+            <Group gap="xs" wrap="nowrap">
+              <Avatar radius="xl" color="gray" size={40} />
+              <Text fz="sm" fw={500}>{sessionUser}</Text>
+              <ChevronDown size={16} color="var(--ews-text-muted)" />
+            </Group>
+          </UnstyledButton>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item leftSection={<User size={16} />}>Profile</Menu.Item>
+          <Menu.Item leftSection={<LogOut size={16} />} onClick={handleLogout} disabled={isLoggingOut}>
+            Log out
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
+      {logoutError && <Alert color="gray" role="alert">{logoutError}</Alert>}
+    </>
   )
 }
 
