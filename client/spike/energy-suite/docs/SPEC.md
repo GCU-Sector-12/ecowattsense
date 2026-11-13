@@ -67,7 +67,7 @@ Each source goes through the same four steps. The result of each step is stored.
 
 1. `present`: the device, counter or library exists.
 2. `readable`: it opens and one read succeeds. A failure stores the Windows error code.
-3. `live`: two reads, 3 seconds apart, with a 1 second processor load in between. The source is live when the value changed. A source whose value cannot change in 3 seconds (battery charge) stores `live: null`.
+3. `live`: two reads, 3 seconds apart, with a 1 second processor load in between. A source that counts energy (EMI) is live when the counter grew. A source that reports power (ACPI power meter) is live when one of the two reads is above zero. A source whose value says nothing in 3 seconds (battery, display, graphics, Intel DTT) stores `live: null`.
 4. `sample`: one value in the unit of the source, for the log.
 
 A failed step is "unknown", never "does not exist". The scan never stops on one failed source.
@@ -77,9 +77,9 @@ A failed step is "unknown", never "does not exist". The scan never stops on one 
 | Id | What | How | Used by the service |
 |---|---|---|---|
 | `emi` | Every Energy Meter Interface device and every channel of it | SetupAPI with `GUID_DEVICE_ENERGY_METER`, then the four EMI IOCTLs, handle opened with `GENERIC_READ` only | yes |
-| `battery` | Every battery: unit (mWh or relative), full charge, whether the rate is known, size of one charge step | Battery class IOCTLs | yes |
+| `battery` | Every battery: unit (mWh or relative), full charge, whether the rate is known | Battery class IOCTLs | yes |
 | `acpi_power_meter` | Whole-computer power meter | Performance counter set "Power Meter" through PDH, English names | yes, when live |
-| `display` | Brightness and display on or off | `IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS` on `\\.\LCD`; display state from power notifications | yes |
+| `display` | Brightness | `IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS` on `\\.\LCD`. On the HP 250 G7 a standard user is denied (error 5); the scan records that. | yes, when readable in the service context |
 | `gpu` | List of graphics adapters (DXGI); power from NVML when `nvml.dll` loads | DXGI, dynamic load of NVML | no, logged only (section 12, point 1) |
 | `intel_dtt` | Intel DTT participants | presence of the `esifsvc` service | no, logged only |
 | `machine` | Maker, model, chassis type (SMBIOS), processor vendor and name, logical processors, Windows build | `GetSystemFirmwareTable`, CPUID | yes (device type) |
@@ -130,6 +130,21 @@ Calibration: `not_needed` for L1, `needed` for L2 and L3 when a battery that rep
   "device_type": "laptop"
 }
 ```
+
+The other sources use the same four common fields (`present`, `readable`, `live`, `error`) and these extra fields:
+
+| Source | Extra fields |
+|---|---|
+| `acpi_power_meter` | `instances` (count), `sample` (largest value read, in the unit of the counter) |
+| `display` | `brightness_pct` (only when readable) |
+| `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software" }`; `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count) |
+| `intel_dtt` | none (`present` says whether the service exists) |
+
+The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `intel_dtt`. A field with an unknown value is left out.
+
+`context`: the value of `--context`. Without the flag it is `admin` when the process is elevated, else `user`. With context `service` the files are named `capabilities.service.json` and `scan.service.log`.
+
+Both files are written to a temporary file and renamed.
 
 The file is masked: no serial number, no user name, no computer name, no device path. It can be collected from other laptops as it is.
 
@@ -263,7 +278,7 @@ device_type=laptop
 - The service accepts a message only when the client's session is the active console session. A malformed or out-of-range message is dropped and counted.
 - `idle_seconds` of a report = idle value of the last message + seconds since that message, when the message is younger than 120 seconds. Without a fresh message: seconds since the last fresh message, or since the service start.
 - `state`: 2 below `idle_threshold_seconds`, 1 below `unused_threshold_seconds`, else 0. Nobody logged on gives 0.
-- Brightness: the service reads it itself when the scan in the service context says `display` is readable. Else it uses the value of the pipe.
+- Brightness: the service reads it itself when the scan in the service context says `display` is readable. Else it uses the value of the pipe. The client reads the brightness through WMI (`WmiMonitorBrightness` in `root\wmi`), the way the calibrator does; that works for a standard user.
 
 ## 7. History
 
@@ -348,6 +363,6 @@ Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task
 
 1. Graphics power from NVML is found by the scanner but not used in the energy sum. Using it needs the calibrator to read NVML too; that is a decision for Darek.
 2. EMI reads from the LocalService account: not tested yet. The scan in the service context answers it.
-3. Brightness read from session 0: not tested yet. The pipe value is the fallback.
+3. Brightness through `\\.\LCD` is denied for a standard user on the HP 250 G7 (measured 13 Nov 2026). Whether the service account can read it is not tested yet. The pipe value is the fallback.
 4. EMI on AMD and on other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
