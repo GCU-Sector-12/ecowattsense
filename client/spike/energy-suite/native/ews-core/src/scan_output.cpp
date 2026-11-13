@@ -3,6 +3,8 @@
 // Numbers are written with std::to_chars, which ignores the locale and always uses a dot.
 #include "ews/scan_output.h"
 
+#include "ews/json_text.h"
+
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -16,108 +18,6 @@ namespace ews {
 namespace {
 
 using Fields = std::vector<std::string>;
-
-constexpr const char* kHex = "0123456789abcdef";
-
-// ---- text escaping ----
-
-/// @return True for a UTF-8 continuation byte (10xxxxxx).
-bool IsContinuation(unsigned char byte) { return byte >= 0x80 && byte <= 0xBF; }
-
-/// @return The number of bytes of a sequence that starts with this lead byte, or 0 when it cannot start a valid sequence.
-std::size_t SequenceLengthOf(unsigned char lead) {
-    if (lead >= 0xC2 && lead <= 0xDF) {
-        return 2;
-    }
-    if (lead >= 0xE0 && lead <= 0xEF) {
-        return 3;
-    }
-    return (lead >= 0xF0 && lead <= 0xF4) ? 4 : 0;
-}
-
-/// @return True when the second byte is allowed after this lead byte (rules out overlong forms and surrogates).
-bool SecondByteAllowed(unsigned char lead, unsigned char second) {
-    if (lead == 0xE0) {
-        return second >= 0xA0 && second <= 0xBF;
-    }
-    if (lead == 0xED) {
-        return second >= 0x80 && second <= 0x9F;
-    }
-    if (lead == 0xF0) {
-        return second >= 0x90 && second <= 0xBF;
-    }
-    if (lead == 0xF4) {
-        return second >= 0x80 && second <= 0x8F;
-    }
-    return IsContinuation(second);
-}
-
-/// @return True when the character is a UTF-8 continuation byte.
-bool IsContinuationChar(char c) { return IsContinuation(static_cast<unsigned char>(c)); }
-
-/// @return True when `count` bytes of `text` from `from` are all continuation bytes. The range must lie inside `text`.
-bool ContinuationsFollow(const std::string& text, std::size_t from, std::size_t count) {
-    auto begin = text.begin() + static_cast<std::ptrdiff_t>(from);
-    return std::all_of(begin, begin + static_cast<std::ptrdiff_t>(count), IsContinuationChar);
-}
-
-/// Checks the multi-byte sequence at `pos`.
-/// @return Its length in bytes, or 0 when it is not valid UTF-8 (wrong lead, cut short, bad continuation).
-std::size_t ValidSequenceLength(const std::string& text, std::size_t pos) {
-    auto lead = static_cast<unsigned char>(text[pos]);
-    std::size_t length = SequenceLengthOf(lead);
-    if (length == 0 || pos + length > text.size()) {
-        return 0;
-    }
-    if (!SecondByteAllowed(lead, static_cast<unsigned char>(text[pos + 1]))) {
-        return 0;
-    }
-    return ContinuationsFollow(text, pos + 2, length - 2) ? length : 0;
-}
-
-/// Appends one ASCII character as JSON text: quote and backslash get a backslash, control characters become \u00XX.
-void AppendAscii(std::string& out, char c) {
-    auto byte = static_cast<unsigned char>(c);
-    if (c == '"' || c == '\\') {
-        out += '\\';
-        out += c;
-        return;
-    }
-    if (byte >= 0x20) {
-        out += c;
-        return;
-    }
-    out += "\\u00";
-    out += kHex[byte >> 4];
-    out += kHex[byte & 0x0F];
-}
-
-/// Appends the character that starts at `pos`. Invalid UTF-8 bytes become '?', so the file always parses.
-/// @return The number of bytes used from `text`.
-std::size_t AppendCharacter(std::string& out, const std::string& text, std::size_t pos) {
-    if (static_cast<unsigned char>(text[pos]) < 0x80) {
-        AppendAscii(out, text[pos]);
-        return 1;
-    }
-    std::size_t length = ValidSequenceLength(text, pos);
-    if (length == 0) {
-        out += '?';
-        return 1;
-    }
-    out.append(text, pos, length);
-    return length;
-}
-
-/// @return The text as a quoted JSON string.
-std::string Quote(const std::string& text) {
-    std::string out = "\"";
-    std::size_t pos = 0;
-    while (pos < text.size()) {
-        pos += AppendCharacter(out, text, pos);
-    }
-    out += '"';
-    return out;
-}
 
 // ---- numbers ----
 
@@ -157,7 +57,7 @@ std::string Array(const std::vector<std::string>& items) {
 /// Adds `"key": value` where value is already JSON text.
 void AddRaw(Fields& fields, const char* key, const std::string& json) { fields.push_back("\"" + std::string(key) + "\": " + json); }
 
-void AddText(Fields& fields, const char* key, const std::string& value) { AddRaw(fields, key, Quote(value)); }
+void AddText(Fields& fields, const char* key, const std::string& value) { AddRaw(fields, key, JsonQuote(value)); }
 
 void AddWholeNumber(Fields& fields, const char* key, std::uint64_t value) { AddRaw(fields, key, std::to_string(value)); }
 
@@ -347,13 +247,13 @@ void AddSourceLog(std::string& log, const char* id, const SourceCommon& common) 
 std::string WriteCapabilitiesJson(const ScanResult& result) {
     std::string out = "{\n";
     out += "  \"schema\": 1,\n";
-    out += "  \"scanned_utc\": " + Quote(result.scannedUtc) + ",\n";
-    out += "  \"context\": " + Quote(ContextWord(result.context)) + ",\n";
+    out += "  \"scanned_utc\": " + JsonQuote(result.scannedUtc) + ",\n";
+    out += "  \"context\": " + JsonQuote(ContextWord(result.context)) + ",\n";
     out += "  \"machine\": " + MachineJson(result.machine) + ",\n";
     out += "  \"sources\": [\n    " + Join(SourceLines(result), ",\n    ") + "\n  ],\n";
-    out += "  \"level\": " + Quote(LevelWord(result.level)) + ",\n";
-    out += "  \"calibration\": " + Quote(CalibrationWord(result.calibration)) + ",\n";
-    out += "  \"device_type\": " + Quote(DeviceTypeWord(result.deviceType)) + "\n";
+    out += "  \"level\": " + JsonQuote(LevelWord(result.level)) + ",\n";
+    out += "  \"calibration\": " + JsonQuote(CalibrationWord(result.calibration)) + ",\n";
+    out += "  \"device_type\": " + JsonQuote(DeviceTypeWord(result.deviceType)) + "\n";
     out += "}\n";
     return out;
 }
