@@ -10,7 +10,7 @@
 
 namespace ews {
 
-/// The two brightness levels the driver reports, in percent as the driver gave them (not yet checked).
+/// The two brightness levels the driver reports, in percent as the driver gave them (raw values, unchecked at this point).
 struct DisplayBrightness {
     std::uint8_t onMains = 0;    ///< Level used on mains (AC).
     std::uint8_t onBattery = 0;  ///< Level used on battery (DC).
