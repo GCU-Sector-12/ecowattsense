@@ -15,7 +15,7 @@ describe('useSampleData', () => {
     const request = deferred()
     const loader = vi.fn(() => request.promise)
     const { result, rerender } = renderHook(() => useSampleData(loader))
-    expect(result.current).toEqual({ data: null, error: null })
+    expect(result.current).toMatchObject({ data: null, error: null })
     await act(async () => request.resolve({ devices: [] }))
     expect(result.current.data).toEqual({ devices: [] })
     rerender()
@@ -49,10 +49,10 @@ describe('useSampleData', () => {
     rerender({ loader: nextLoader })
     await act(async () => current.resolve('new'))
     await act(async () => old.resolve('old'))
-    expect(result.current).toEqual({ data: 'new', error: null })
+    expect(result.current).toMatchObject({ data: 'new', error: null })
     const pending = deferred()
     rerender({ loader: () => pending.promise })
-    expect(result.current).toEqual({ data: null, error: null })
+    expect(result.current).toMatchObject({ data: null, error: null })
     await act(async () => pending.resolve('latest'))
     expect(result.current.data).toBe('latest')
   })
@@ -64,6 +64,20 @@ describe('useSampleData', () => {
     await act(async () => {})
     unmount()
     await act(async () => request.reject(new Error('Late failure')))
-    expect(result.current).toEqual({ data: null, error: null })
+    expect(result.current).toMatchObject({ data: null, error: null })
   })
 })
+
+/** @returns {Promise<void>} Checks that retry clears the error and starts the same loader again. */
+async function retriesFailure() {
+  const loader = vi.fn().mockRejectedValueOnce(new Error('Unavailable')).mockResolvedValueOnce('recovered')
+  const { result } = renderHook(() => useSampleData(loader))
+  await waitFor(() => expect(result.current.error).toBeTruthy())
+  const retry = result.current.retry
+  act(retry)
+  expect(result.current.error).toBeNull()
+  await waitFor(() => expect(result.current.data).toBe('recovered'))
+  expect(loader).toHaveBeenCalledTimes(2)
+  expect(result.current.retry).toBe(retry)
+}
+it('retries a failed loader', retriesFailure)

@@ -46,9 +46,10 @@ export default function DashboardPage() {
   const { data, error, retry } = useSampleData(loadDashboard)
   if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="dashboard" />
   const [summary, { devices }, settings] = data
-  const referenceTime = import.meta.env.VITE_SUMMARY_DATA_SOURCE === 'real'
-    ? new Date().toISOString()
-    : sampleScreen.generated_at
+  const realDevices = import.meta.env.VITE_DEVICES_DATA_SOURCE === 'real'
+  const realSummary = import.meta.env.VITE_SUMMARY_DATA_SOURCE === 'real'
+  const generatedAt = realDevices || realSummary ? new Date().toISOString() : sampleScreen.generated_at
+  const referenceTime = realDevices ? generatedAt : sampleScreen.generated_at
   const cards = [
     { state: 'active', icon: Monitor, caption: stateDisplay.active.caption },
     { state: 'idle', icon: Clock, caption: `No activity for ${formatThreshold(settings.idle_threshold_seconds)}` },
@@ -59,7 +60,7 @@ export default function DashboardPage() {
     <Stack gap="md">
       <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
-        generatedAt={referenceTime} userName={sampleScreen.user_name} />
+        generatedAt={generatedAt} userName={sampleScreen.user_name} />
       <SimpleGrid cols={4} spacing="md">
         {cards.map(({ state, icon, caption }) => (
           <StatCard key={state} state={state} icon={icon}

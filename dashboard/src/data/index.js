@@ -1,7 +1,6 @@
-// Sample providers used by dashboard pages instead of importing JSON in the UI.
-// Await the exported functions for independent copies of API-shaped responses.
+// Data providers used by dashboard pages to load API responses and sample data.
 import { loadSummary } from './summaryProvider.js'
-import devices from './devices.json'
+import { loadDevices } from './devicesProvider.js'
 import history from './history.json'
 import settings from './settings.json'
 import { applyDevelopmentControls } from './developmentControls.js'
@@ -19,13 +18,14 @@ export async function getSummary(date) {
 }
 
 /**
- * Returns an independent copy of the sample device-list response.
- * @throws {Error} When the development failure switch is enabled.
+ * Loads devices from the selected sample or authenticated API provider.
+ * @param {object} [options] - Optional device filters.
+ * @throws {Error} When development controls or the API request fail.
  * @returns {Promise<{devices: object[]}>} Devices in API contract form.
  */
-export async function getDevices() {
-  await applyDevelopmentControls()
-  return structuredClone(devices)
+export async function getDevices(options) {
+  if (import.meta.env.VITE_DEVICES_DATA_SOURCE !== 'real') await applyDevelopmentControls()
+  return loadDevices(options)
 }
 
 /**
