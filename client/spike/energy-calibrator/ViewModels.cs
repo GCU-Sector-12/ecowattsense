@@ -206,6 +206,46 @@ internal static class Fmt
         if (s.Has(key)) { return Show(s, key, "0.00", "W"); }
         return "not available: no value yet (a power needs two readings) or this instance is not reported";
     }
+
+    /// <summary>The processor power settings for battery use, from the active power plan, and the Windows power mode.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>For example "EPP 50, boost Aggressive, max 100%, min 5%, power mode Balanced".</returns>
+    public static string PowerSettings(Sample s)
+    {
+        string epp = Whole(s, SampleKeys.PowerEpp, "");
+        string max = Whole(s, SampleKeys.PowerMax, "%");
+        string min = Whole(s, SampleKeys.PowerMin, "%");
+        return $"EPP {epp}, boost {BoostText(s)}, max {max}, min {min}, power mode {OverlayText(s)}";
+    }
+
+    /// <summary>Formats a value as a whole number with a suffix.</summary>
+    /// <param name="s">The sample.</param>
+    /// <param name="key">The value name.</param>
+    /// <param name="suffix">Text after the number, for example "%".</param>
+    /// <returns>The text, or "unknown".</returns>
+    private static string Whole(Sample s, string key, string suffix)
+    {
+        double? value = s.Get(key);
+        return value.HasValue ? $"{value.Value.ToString("0", Inv)}{suffix}" : "unknown";
+    }
+
+    /// <summary>Gives the name of the boost mode of a sample.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>The name, or "unknown".</returns>
+    private static string BoostText(Sample s)
+    {
+        double? mode = s.Get(SampleKeys.PowerBoost);
+        return mode.HasValue ? PowerNames.Boost((uint)mode.Value) : "unknown";
+    }
+
+    /// <summary>Gives the name of the Windows power mode of a sample.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>The name, or "unknown".</returns>
+    private static string OverlayText(Sample s)
+    {
+        double? code = s.Get(SampleKeys.PowerOverlay);
+        return code.HasValue ? PowerNames.OverlayFromCode((int)code.Value) : "unknown";
+    }
 }
 
 /// <summary>One line of the live readings: a name and the latest value, or why the source is not available.</summary>
@@ -269,6 +309,7 @@ internal static class ReadingRows
             new("Intel DTT participants", SampleKeys.SourceDtt, Fmt.DttList, "Every participant is logged in samples.csv as dtt_p<number>_power_w and dtt_p<number>_temp_c."),
             new("CPU use", SampleKeys.SourceCpuTimes, Fmt.CpuUse, "Total over all logical processors, from GetSystemTimes."),
             new("CPU performance and frequency", SampleKeys.SourceCpuPerformance, Fmt.CpuPerformance, "Processor Information counters."),
+            new("Power settings on battery", SampleKeys.SourcePowerSettings, Fmt.PowerSettings, "Processor settings of the active power plan for battery use (powrprof): energy performance preference (EPP, 0 favours speed), boost mode, maximum and minimum processor state, and the Windows power mode. The test sets maximum performance and puts the values back afterwards."),
             new("Temperature", SampleKeys.SourceThermal, Fmt.Thermal, "Thermal Zone Information counters, Kelvin converted to Celsius."),
             new("GPU 3D engine", SampleKeys.SourceGpu, Fmt.Gpu, "GPU Engine counters of type 3D: summed per engine over all processes, the busiest engine is shown."),
             new("Disk throughput", SampleKeys.SourceDisk, Fmt.Disk),
@@ -495,12 +536,19 @@ internal static class StartGate
 /// <summary>The text that tells the user what to do before the test.</summary>
 internal static class InstructionTexts
 {
+    /// <summary>Gives the length of the whole test, rounded up to whole minutes.</summary>
+    /// <returns>The minutes.</returns>
+    public static double TotalMinutes()
+    {
+        int totalSeconds = PhaseCatalogue.All.Sum(phase => phase.Seconds);
+        return Math.Ceiling(totalSeconds / 60.0);
+    }
+
     /// <summary>Builds the instruction text from the settings.</summary>
     /// <returns>The text, one numbered step per line.</returns>
     public static string Build()
     {
-        int totalSeconds = PhaseCatalogue.All.Sum(phase => phase.Seconds);
-        double minutes = Math.Ceiling(totalSeconds / 60.0);
+        double minutes = TotalMinutes();
         string offMinutes = (TestSettings.PhaseSeconds / 60.0).ToString("0.#", CultureInfo.InvariantCulture);
         return string.Join(Environment.NewLine,
             "1. Unplug the charger. The test measures how fast the battery empties.",

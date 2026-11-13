@@ -60,6 +60,9 @@ internal static class TestSettings
     /// <summary>Seed of the random numbers that place the shapes, so every run draws the same scene.</summary>
     public const int GraphicsSeed = 20261111;
 
+    /// <summary>Power in watts that the start warning assumes for the whole test, to estimate the share of the battery it uses.</summary>
+    public const double FullPowerEstimateWatts = 15;
+
     /// <summary>Seconds of tolerance when deciding whether the user touched the mouse or keyboard while the display was off.</summary>
     public const double InputGraceSeconds = 3;
 

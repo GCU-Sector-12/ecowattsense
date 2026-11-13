@@ -36,6 +36,7 @@ internal sealed class SampleCollector
         Guard(SampleKeys.SourceNetwork, counters.ReadNetwork, sample);
         Guard(SampleKeys.SourceBrightness, brightness.Read, sample);
         Guard(SampleKeys.SourceEnergyMeter, energyMeter.Read, sample);
+        Guard(SampleKeys.SourcePowerSettings, PowerSettingsReader.Read, sample);
         return sample;
     }
 

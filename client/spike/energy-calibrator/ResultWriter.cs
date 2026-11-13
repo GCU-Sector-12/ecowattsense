@@ -14,7 +14,8 @@ namespace EnergyCalibrator;
 /// <param name="Outcome">Samples, statuses and how the run ended.</param>
 /// <param name="Results">One result per phase.</param>
 /// <param name="Model">The power model.</param>
-internal sealed record RunReport(MachineInfo Machine, TestOutcome Outcome, IReadOnlyList<PhaseResult> Results, PowerModel Model);
+/// <param name="Power">What happened to the processor power settings during the run.</param>
+internal sealed record RunReport(MachineInfo Machine, TestOutcome Outcome, IReadOnlyList<PhaseResult> Results, PowerModel Model, PowerRunRecord Power);
 
 /// <summary>Creates the folder for one run: results\yyyyMMdd-HHmmss next to the program.</summary>
 internal static class ResultFolder
@@ -159,7 +160,7 @@ internal static class PhasesCsv
     /// <returns>The header text.</returns>
     public static string Header()
     {
-        return "phase,name,status,target_brightness_pct,samples_used,seconds,battery_drop_mwh,battery_w_ioctl,battery_w_wmi,battery_w_used,wmi_drop_mwh,mean_cpu_util_pct,mean_cpu_package_w_dtt,mean_emi_pkg_w,mean_emi_cores_w,mean_emi_gpu_w,mean_emi_dram_w,emi_package_mwh,mean_gpu_3d_pct,mean_brightness_pct,mean_thermal_zone_max_c,mean_dtt_package_c,cpu_share_pct,display_off_pct,warning";
+        return "phase,name,status,target_brightness_pct,samples_used,seconds,battery_drop_mwh,battery_w_ioctl,battery_w_wmi,battery_w_used,wmi_drop_mwh,mean_cpu_util_pct,mean_cpu_performance_pct,mean_cpu_package_w_dtt,mean_emi_pkg_w,mean_emi_cores_w,mean_emi_gpu_w,mean_emi_dram_w,emi_package_mwh,mean_gpu_3d_pct,mean_brightness_pct,mean_thermal_zone_max_c,mean_dtt_package_c,cpu_share_pct,display_off_pct,warning";
     }
 
     /// <summary>Builds one row, without a line break.</summary>
@@ -172,7 +173,7 @@ internal static class PhasesCsv
             r.Phase.Number.ToString(CultureInfo.InvariantCulture), Csv.Quote(r.Phase.Name), Csv.Quote(PhaseStatusTexts.Describe(r.Status)),
             Csv.Num(r.Phase.BrightnessPercent), r.SampleCount.ToString(CultureInfo.InvariantCulture), Csv.Num(r.Seconds), Csv.Num(r.DropMwh),
             Csv.Num(r.IoctlWatts), Csv.Num(r.WmiWatts), Csv.Num(r.BatteryWatts), Csv.Num(r.WmiDropMwh),
-            Csv.Num(r.MeanCpuPercent), Csv.Num(r.MeanCpuPackageWatts), Csv.Num(r.MeanEmiPackageWatts), Csv.Num(r.MeanEmiCoresWatts),
+            Csv.Num(r.MeanCpuPercent), Csv.Num(r.MeanCpuPerformance), Csv.Num(r.MeanCpuPackageWatts), Csv.Num(r.MeanEmiPackageWatts), Csv.Num(r.MeanEmiCoresWatts),
             Csv.Num(r.MeanEmiGpuWatts), Csv.Num(r.MeanEmiDramWatts), Csv.Num(r.EmiPackageMwh), Csv.Num(r.MeanGpuPercent), Csv.Num(r.MeanBrightness),
             Csv.Num(r.MeanZoneTempC), Csv.Num(r.MeanPackageTempC), Csv.Num(r.CpuShare * 100), Csv.Num(r.DisplayOffShare * 100), Csv.Quote(r.Warning)
         ];
@@ -217,6 +218,7 @@ internal static class ModelJson
                 cpu_w_per_pct_from_cpu50 = m.CpuWattsPerPercentFromHalf,
                 graphics_w = m.GraphicsWatts
             },
+            power_settings = report.Power.ToDocument(),
             phase_power_w = report.Results.ToDictionary(r => r.Phase.Name, r => r.BatteryWatts),
             cpu_share_by_phase = report.Results.ToDictionary(r => r.Phase.Name, r => r.CpuShare),
             warnings = m.Warnings
@@ -236,6 +238,7 @@ internal static class SummaryText
         List<string> lines = new();
         AddHeader(lines, report);
         AddMethod(lines);
+        AddPowerSettings(lines, report.Power);
         AddPhases(lines, report.Results);
         AddProcessorEnergy(lines, report.Results);
         AddModel(lines, report.Model);
@@ -266,6 +269,15 @@ internal static class SummaryText
         lines.Add($"Each phase ran for {TestSettings.PhaseSeconds} seconds. The first {TestSettings.SettleSeconds} seconds were ignored while the laptop settled.");
         lines.Add("The power of a phase is the fall of the battery charge divided by the time: watts = mWh x 3.6 / seconds.");
         lines.Add("It is the power of the whole laptop. The model below is made by subtracting the powers of the phases.");
+        lines.Add("");
+    }
+
+    /// <summary>Adds the processor power settings before, during and after the test.</summary>
+    /// <param name="lines">The text lines.</param>
+    /// <param name="power">What happened to the power settings.</param>
+    private static void AddPowerSettings(List<string> lines, PowerRunRecord power)
+    {
+        lines.AddRange(power.DescribeLines());
         lines.Add("");
     }
 
@@ -346,6 +358,7 @@ internal static class SummaryText
     {
         List<string> warnings = report.Results.Where(r => r.Warning.Length > 0).Select(r => $"Phase {r.Phase.Number} ({r.Phase.Name}): {r.Warning}").ToList();
         warnings.AddRange(report.Model.Warnings);
+        warnings.AddRange(report.Power.Warnings());
         warnings.AddRange(report.Outcome.RestoreProblems);
         lines.Add("Warnings");
         lines.AddRange(warnings.Count == 0 ? ["None."] : warnings.Select(warning => $"- {warning}"));

@@ -93,6 +93,28 @@ internal sealed class WmiBatteryReader
     }
 }
 
+/// <summary>Reads the full charge capacity of the battery (root\wmi BatteryFullChargedCapacity). Used for the estimate in the start warning.</summary>
+internal static class BatteryFullCharge
+{
+    /// <summary>Reads the capacity and gives null instead of throwing.</summary>
+    /// <returns>The full charge capacity in mWh, or null when it cannot be read or is not believable.</returns>
+    public static double? TryReadMwh()
+    {
+        try { return ReadMwh(); }
+        catch (Exception) { return null; }
+    }
+
+    /// <summary>Runs the WMI query.</summary>
+    /// <returns>The capacity of the first battery in mWh, or null when WMI shows none or the value is out of range.</returns>
+    private static double? ReadMwh()
+    {
+        List<Dictionary<string, object?>> rows = WmiHelper.Query(@"root\wmi", "SELECT FullChargedCapacity FROM BatteryFullChargedCapacity");
+        if (rows.Count == 0) { return null; }
+        double? mwh = WmiHelper.ToDouble(rows[0], "FullChargedCapacity");
+        return mwh is >= 1000 and <= 1_000_000 ? mwh : null;
+    }
+}
+
 /// <summary>
 /// Reads Intel Dynamic Tuning (root\wmi EsifDeviceInformation). It needs administrator rights.
 /// Every participant is stored by the number at the end of its instance name, never by the full name (which can hold ids).

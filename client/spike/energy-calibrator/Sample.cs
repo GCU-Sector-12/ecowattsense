@@ -105,6 +105,17 @@ internal static class SampleKeys
     /// <summary>Power of the memory (RAPL DRAM) from the Windows Energy Meter, in watts since the previous sample.</summary>
     public const string EmiDramWatts = "emi_dram_w";
 
+    /// <summary>Processor energy performance preference on battery (0 to 100) of the active power plan.</summary>
+    public const string PowerEpp = "power_epp";
+    /// <summary>Processor performance boost mode on battery (2 is Aggressive).</summary>
+    public const string PowerBoost = "power_boost_mode";
+    /// <summary>Maximum processor state on battery, in percent.</summary>
+    public const string PowerMax = "power_max_state_pct";
+    /// <summary>Minimum processor state on battery, in percent.</summary>
+    public const string PowerMin = "power_min_state_pct";
+    /// <summary>Windows 11 power mode overlay as a code: 0 Balanced, 1 Best power efficiency, 2 Better performance, 3 Best performance, 4 other.</summary>
+    public const string PowerOverlay = "power_mode_code";
+
     /// <summary>Source name: battery IOCTL.</summary>
     public const string SourceBatteryIoctl = "Battery (IOCTL)";
     /// <summary>Source name: GetSystemPowerStatus.</summary>
@@ -131,6 +142,8 @@ internal static class SampleKeys
     public const string SourceBrightness = "Screen brightness (WMI)";
     /// <summary>Source name: Energy Meter counter set.</summary>
     public const string SourceEnergyMeter = "Energy Meter counters";
+    /// <summary>Source name: processor power settings of the active power plan (powrprof).</summary>
+    public const string SourcePowerSettings = "Power settings (powrprof)";
     /// <summary>Source name: last user input.</summary>
     public const string SourceUserInput = "Last user input";
     /// <summary>Source name: display state from the power setting notification. It is never marked unavailable; "unknown" is a state.</summary>
@@ -141,7 +154,8 @@ internal static class SampleKeys
     [
         BatteryState, BatteryMwh, BatteryMv, BatteryRateMw, BatteryPercent, AcLine, WmiMwh, WmiMv, WmiOnline,
         CpuUtil, CpuPerformance, CpuMhz, ThermalMax, Gpu3D, DiskBytes, NetBytes, Brightness, UserIdle,
-        DttPackageWatts, DttPackageTemp, EmiPackageWatts, EmiCoresWatts, EmiGpuWatts, EmiDramWatts
+        DttPackageWatts, DttPackageTemp, EmiPackageWatts, EmiCoresWatts, EmiGpuWatts, EmiDramWatts,
+        PowerEpp, PowerBoost, PowerMax, PowerMin, PowerOverlay
     ];
 }
 

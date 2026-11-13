@@ -3,7 +3,8 @@
 // Who uses it: MainWindow creates one TestRunner for each run and awaits RunAsync.
 // How it works: it lives on the UI thread. Samples arrive from the SamplingLoop. A phase lasts as long as a wait on a
 // cancellation token; a stop request (Stop button, charger, low battery, input while the display is off, error) cancels that wait.
-// Whatever happens, RestoreAsync puts the brightness back, stops the load, closes the graphics window and turns the display on.
+// Whatever happens, RestoreAsync puts the processor power settings back (the session that changed them is given by MainWindow),
+// puts the brightness back, stops the load, closes the graphics window and turns the display on.
 namespace EnergyCalibrator;
 
 /// <summary>Why a run stopped before the last phase ended.</summary>
@@ -79,14 +80,17 @@ internal sealed class TestRunner
     private AbortReason abortReason = AbortReason.None;
     private string failureText = "";
     private readonly IntPtr windowHandle;
+    private readonly PowerSettingsSession power;
 
     /// <summary>Creates a runner.</summary>
     /// <param name="sampling">The loop that delivers a sample every 2 seconds.</param>
     /// <param name="windowHandle">Handle of the main window; the display-off command is sent to it.</param>
-    public TestRunner(SamplingLoop sampling, IntPtr windowHandle)
+    /// <param name="power">The session that changed the power settings for this run; the runner restores them in its clean-up.</param>
+    public TestRunner(SamplingLoop sampling, IntPtr windowHandle, PowerSettingsSession power)
     {
         this.sampling = sampling;
         this.windowHandle = windowHandle;
+        this.power = power;
     }
 
     /// <summary>Raised when the clock of a phase starts.</summary>
@@ -311,14 +315,24 @@ internal sealed class TestRunner
         KeepAwake.On();
     }
 
-    /// <summary>Puts everything back: stops listening, stops the load, restores the brightness and ends the keep-awake request.</summary>
+    /// <summary>Puts everything back: stops listening, puts the power settings back, stops the load, restores the brightness and ends the keep-awake request.</summary>
     private async Task RestoreAsync()
     {
         sampling.SampleReady -= OnSampleReady;
         activePhase = null;
+        // The power settings come first: they are the change that outlives the program if anything below throws.
+        await RestorePowerAsync();
         StopLoad();
         await RestoreBrightnessAsync();
         KeepAwake.Off();
+    }
+
+    /// <summary>Puts the processor power settings back on a pool thread. A failure is reported in the outcome.</summary>
+    private async Task RestorePowerAsync()
+    {
+        PowerRunRecord record = await Task.Run(power.Restore);
+        if (record.RestoreProblem.Length == 0) { return; }
+        restoreProblems.Add($"the processor power settings could not be put back ({record.RestoreProblem}); the backup file {PowerSettingsBackup.FilePath()} was kept");
     }
 
     /// <summary>Sets the brightness that the laptop had before the test. A failure is reported in the outcome.</summary>

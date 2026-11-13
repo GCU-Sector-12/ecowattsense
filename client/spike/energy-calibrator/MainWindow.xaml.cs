@@ -2,6 +2,8 @@
 // Who uses it: App.xaml opens it. It owns the SamplingLoop (live readings every 2 seconds, from the moment the window opens),
 // starts a TestRunner when the user presses Start, shows the phase list and the results, and saves the result files.
 // How the Start button is decided: every sample re-checks it (StartGate), so there is no extra loop or timer for it.
+// Power settings: at start the window restores a backup left by a crashed run; Start first shows a warning (StartWarning) and a
+// PowerSettingsSession changes the processor settings for the run; the settings are put back when the run ends and when the window closes.
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -26,6 +28,9 @@ public partial class MainWindow : Window
     private string? resultsFolder;
     private bool testRunning;
     private bool closeAfterTest;
+    private bool confirming;
+    private PowerSettingsSession? powerSession;
+    private string startupNote = "";
 
     /// <summary>Creates the window and its XAML parts.</summary>
     public MainWindow()
@@ -41,18 +46,19 @@ public partial class MainWindow : Window
         DisplayStateMonitor.Attach(this);
     }
 
-    /// <summary>Ends the display state registration when the window is gone.</summary>
+    /// <summary>Puts the power settings back if a run left them changed, and ends the display state registration when the window is gone.</summary>
     /// <param name="e">Passed on.</param>
     protected override void OnClosed(EventArgs e)
     {
+        powerSession?.Restore();
         DisplayStateMonitor.Detach();
         base.OnClosed(e);
     }
 
-    /// <summary>Fills the window and starts the live readings.</summary>
+    /// <summary>Fills the window, restores power settings left by a crashed run, and starts the live readings.</summary>
     /// <param name="sender">The window.</param>
     /// <param name="e">Not used.</param>
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         ReadingsList.ItemsSource = readingRows;
         ResultsGrid.ItemsSource = resultRows;
@@ -60,6 +66,7 @@ public partial class MainWindow : Window
         InstructionText.Text = InstructionTexts.Build();
         BuildPhaseRows();
         AdminButton.Visibility = Elevation.IsElevated() ? Visibility.Collapsed : Visibility.Visible;
+        startupNote = await Task.Run(new PowerSettingsSession().Recover);
         sampling.SampleReady += OnSampleReady;
         sampling.Start();
         _ = LoadMachineInfoAsync();
@@ -104,44 +111,89 @@ public partial class MainWindow : Window
         UpdateStartState();
     }
 
-    /// <summary>Enables or disables Start and shows why. It does nothing while a test runs.</summary>
+    /// <summary>Enables or disables Start and shows why. It does nothing while a test runs or while the start warning is open.</summary>
     private void UpdateStartState()
     {
-        if (testRunning) { return; }
+        if (testRunning || confirming) { return; }
         (bool canStart, string message) = StartGate.Evaluate(latestSample);
         StartButton.IsEnabled = canStart;
-        StatusText.Text = message;
+        StatusText.Text = startupNote.Length == 0 ? message : $"{startupNote} {message}";
     }
 
-    /// <summary>Starts the test.</summary>
+    /// <summary>Warns the user, and starts the test when the user presses OK.</summary>
     /// <param name="sender">The button.</param>
     /// <param name="e">Not used.</param>
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
+        confirming = true;
+        StartButton.IsEnabled = false;
+        bool confirmed = await ConfirmStartAsync();
+        confirming = false;
+        if (!confirmed) { UpdateStartState(); return; }
         await RunTestSafelyAsync();
     }
 
-    /// <summary>Runs the test, reports any error, and always brings the window back to the idle state.</summary>
+    /// <summary>Shows the warning about the battery use and the power settings.</summary>
+    /// <returns>True when the user pressed OK. Cancel changes nothing.</returns>
+    private async Task<bool> ConfirmStartAsync()
+    {
+        double? fullChargeMwh = await Task.Run(BatteryFullCharge.TryReadMwh);
+        string text = StartWarning.Build(fullChargeMwh);
+        MessageBoxResult answer = MessageBox.Show(this, text, "Energy Calibrator", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+        return answer == MessageBoxResult.OK;
+    }
+
+    /// <summary>Runs the test, reports any error, puts the power settings back, and always brings the window back to the idle state.</summary>
     private async Task RunTestSafelyAsync()
     {
         try { await RunTestAsync(); }
         catch (Exception ex) { ReportFailure(ex); }
+        await RestorePowerSafelyAsync();
         EndRunUi();
     }
 
-    /// <summary>Creates the results folder, runs the test, and shows and saves the results.</summary>
+    /// <summary>
+    /// Puts the power settings back once more after the run. The runner has done it already, so this does nothing then; it covers an
+    /// error that was thrown before the runner started or while it cleaned up. A failure is shown in a message box.
+    /// </summary>
+    private async Task RestorePowerSafelyAsync()
+    {
+        if (powerSession == null) { return; }
+        PowerRunRecord record = await Task.Run(powerSession.Restore);
+        if (record.RestoreProblem.Length == 0) { return; }
+        string text = $"The processor power settings could not be put back ({record.RestoreProblem}). The backup file stays at {PowerSettingsBackup.FilePath()}; the program tries again when it starts next time.";
+        MessageBox.Show(this, text, "Energy Calibrator", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Creates the results folder, changes the power settings, runs the test, and shows and saves the results.</summary>
     private async Task RunTestAsync()
     {
         resultsFolder = ResultFolder.CreateNew();
         recorder = new RunRecorder(resultsFolder);
         BeginRunUi();
         ReportSaveProblem(recorder.Start());
-        runner = new TestRunner(sampling, new WindowInteropHelper(this).Handle);
+        powerSession = new PowerSettingsSession();
+        await BeginPowerAsync(powerSession);
+        runner = new TestRunner(sampling, new WindowInteropHelper(this).Handle, powerSession);
         runner.PhaseStarted += OnPhaseStarted;
         runner.PhaseEnded += OnPhaseEnded;
         runner.SampleAccepted += OnSampleAccepted;
         TestOutcome outcome = await runner.RunAsync();
         FinishRun(outcome);
+    }
+
+    /// <summary>
+    /// Sets the processor power settings to maximum performance on battery. If that fails, a message box gives the reason and the test
+    /// goes on with the settings unchanged (the record says so, and summary.txt shows it).
+    /// </summary>
+    /// <param name="session">The session of this run.</param>
+    private async Task BeginPowerAsync(PowerSettingsSession session)
+    {
+        StatusText.Text = "Setting the processor power settings for the test...";
+        PowerRunRecord record = await Task.Run(session.Begin);
+        if (record.ChangeProblem.Length == 0) { return; }
+        string text = $"The processor power settings could not be changed ({record.ChangeProblem}). The test runs with the settings unchanged, so the CPU 100% phase may not show full power.";
+        MessageBox.Show(this, text, "Energy Calibrator", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     /// <summary>Puts the window in the "running" state.</summary>
@@ -258,7 +310,8 @@ public partial class MainWindow : Window
         try
         {
             bool writeSamples = recorder?.SamplesNeedRewrite(outcome.Samples) ?? true;
-            ResultWriter.Save(resultsFolder!, new RunReport(machine, outcome, results, model), writeSamples);
+            PowerRunRecord power = powerSession?.Record ?? new PowerRunRecord();
+            ResultWriter.Save(resultsFolder!, new RunReport(machine, outcome, results, model, power), writeSamples);
             return "The results are saved; press \"Open results folder\".";
         }
         catch (Exception ex)

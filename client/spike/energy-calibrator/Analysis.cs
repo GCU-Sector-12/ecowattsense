@@ -41,6 +41,9 @@ internal sealed class PhaseResult
     /// <summary>Mean CPU use in percent.</summary>
     public double? MeanCpuPercent { get; init; }
 
+    /// <summary>Mean "% Processor Performance" counter; above 100 means the processor ran faster than its base speed (boost).</summary>
+    public double? MeanCpuPerformance { get; init; }
+
     /// <summary>Mean power of the processor package from Intel DTT, in watts.</summary>
     public double? MeanCpuPackageWatts { get; init; }
 
@@ -132,6 +135,7 @@ internal static class PhaseAnalyser
             WmiDropMwh = wmi.Mwh,
             WmiWatts = wmi.Watts,
             MeanCpuPercent = Mean(used, SampleKeys.CpuUtil),
+            MeanCpuPerformance = Mean(used, SampleKeys.CpuPerformance),
             MeanCpuPackageWatts = Mean(used, SampleKeys.DttPackageWatts),
             MeanEmiPackageWatts = Mean(used, SampleKeys.EmiPackageWatts),
             MeanEmiCoresWatts = Mean(used, SampleKeys.EmiCoresWatts),
@@ -212,6 +216,7 @@ internal static class PhaseWarnings
         AddText(warnings, BatteryWarning(result));
         AddText(warnings, BrightnessWarning(result));
         AddText(warnings, LoadWarning(result));
+        AddText(warnings, BoostWarning(result));
         return string.Join("; ", warnings);
     }
 
@@ -267,6 +272,16 @@ internal static class PhaseWarnings
         if (r.Phase.Load == PhaseLoad.CpuFull && !(r.MeanCpuPercent >= TestSettings.CpuFullMinimumPercent)) { return $"CPU use {Show(r.MeanCpuPercent)} is below {TestSettings.CpuFullMinimumPercent:0}%"; }
         if (r.Phase.Load == PhaseLoad.Graphics && !(r.MeanGpuPercent >= TestSettings.GraphicsMinimumGpuPercent)) { return $"GPU 3D use {Show(r.MeanGpuPercent)} is very low, so the graphics load may not have registered"; }
         return "";
+    }
+
+    /// <summary>Warns when the full CPU load did not make the processor boost above its base speed.</summary>
+    /// <param name="r">The result.</param>
+    /// <returns>A warning or an empty string. Nothing is said when the counter was not read.</returns>
+    private static string BoostWarning(PhaseResult r)
+    {
+        if (r.Status == PhaseStatus.NotRun || r.Phase.Load != PhaseLoad.CpuFull) { return ""; }
+        if (r.MeanCpuPerformance is not double performance || performance > 100) { return ""; }
+        return $"the processor did not boost (mean processor performance {performance:0}%); power settings or the laptop maker's power limits held it back";
     }
 
     /// <summary>Shows a percentage for a warning text.</summary>

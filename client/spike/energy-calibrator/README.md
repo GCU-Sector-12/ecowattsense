@@ -35,7 +35,7 @@ out\EnergyCalibrator.exe
 1. Unplug the charger. "Start" stays disabled until a reading shows that the laptop runs on battery
    (and the battery is above 30%, so the test cannot reach the 15% stop limit).
 2. Close other programs. Do not touch the mouse or keyboard until the test is over.
-3. Press Start. The window shows the phase list with a progress bar for each phase. At the end the "Results" tab opens.
+3. Press Start and read the warning (battery use, power settings). OK starts the test, Cancel does nothing. The window shows the phase list with a progress bar for each phase. At the end the "Results" tab opens.
 
 ## The seven phases
 
@@ -75,6 +75,7 @@ Each source is optional. An unavailable source shows "not available: <reason>" a
 | Performance counters | % Processor Performance, Processor Frequency, Thermal Zone Temperature (Kelvin to Celsius), GPU Engine 3D, disk bytes/s, network bytes/s | English counter names. A rate needs two reads, so the first sample has no counter values. |
 | Screen brightness (WMI WmiMonitorBrightness) | percent | Works on laptops with a built-in panel. |
 | Energy Meter counter set | raw Energy and Time of every instance, and watts of package, cores, graphics and memory | Windows 11 on supported processors only; "not available" elsewhere. See "Windows 11 Energy Meter" below. |
+| Power settings (powrprof.dll) | energy performance preference, boost mode, maximum and minimum processor state on battery, Windows power mode | Works for a normal user. See "Power settings during the test". |
 | Last user input (GetLastInputInfo) | idle seconds | Used to detect input during the "Screen off" phase. |
 | Display state (power setting notification) | off, on, dimmed or unknown | Column `display_state`. See the next section. |
 
@@ -105,6 +106,38 @@ A missing set or instance, a counter that did not move forward, or a value above
 `mean_emi_gpu_w`, `mean_emi_dram_w` (means over the used samples) and `emi_package_mwh` (the package energy of the used samples in mWh:
 the sum of the energy steps divided by 1e9), to be read next to `battery_drop_mwh`. The CPU share (`cpu_share_pct`) uses the package
 power of the Energy Meter when it was read, otherwise Intel DTT; `summary.txt` names the source for each phase.
+
+## Power settings during the test
+
+On battery, Windows can hold the processor back, so a "CPU 100%" phase may not reach full power (on 12 Nov 2026, on a Windows 11 laptop,
+100% CPU use gave only 92% processor performance and 7.3 W package power, instead of about 24 W). So the program sets the processor
+power settings for battery use to maximum performance for the test, and puts them back afterwards.
+
+* **Warning first.** Press Start and a box says that the test runs about 18 minutes on battery and drains it at full power, with an
+  estimate of the battery share it uses (18 minutes at about 15 W against the full charge capacity of the battery, rounded; the
+  number 15 W is `FullPowerEstimateWatts` in `TestSettings.cs`). It also says that the power settings are changed and put back, and asks not to
+  plug in the charger or close the lid. Cancel starts nothing and changes nothing.
+* **What is read.** The live row "Power settings on battery" shows, for the active power plan (powrprof.dll, documented functions
+  `PowerGetActiveScheme` and `PowerReadDCValueIndex`) the energy performance preference (PERFEPP), the boost mode (PERFBOOSTMODE),
+  the maximum and minimum processor state (PROCTHROTTLEMAX, PROCTHROTTLEMIN), and the Windows 11 power mode
+  (`PowerGetEffectiveOverlayScheme`). The same values are in `samples.csv` (`power_epp`, `power_boost_mode`, `power_max_state_pct`,
+  `power_min_state_pct`, `power_mode_code`: 0 Balanced, 1 Best power efficiency, 2 Better performance, 3 Best performance, 4 other).
+* **What is changed.** On OK, the program first saves the original values (plan GUID, the four battery values and the power mode) to
+  `power-settings-backup.json` next to the exe. Only then it writes the battery values `PERFEPP = 0`, `PERFBOOSTMODE = 2` (Aggressive),
+  `PROCTHROTTLEMAX = 100` into the active plan (`PowerWriteDCValueIndex`) and applies them (`PowerSetActiveScheme` on the same plan).
+  The minimum state is kept. The power mode overlay is only recorded: changing it needs an undocumented API, which the program does not use.
+  The charger (AC) values are never touched.
+* **When it is put back.** At the normal end, on Stop, after any error in the run (the existing clean-up path of `TestRunner`), and when the
+  window closes. The program writes the original values back, reads them again, compares, and only then deletes the backup file.
+  If the plan was changed by the user during the test, the values are written to the original plan but that plan is not made active again.
+* **After a crash.** If the program was killed during a test, `power-settings-backup.json` is still there. At the next start the program
+  puts the settings back from it first and says so in the status line. If that fails, the file stays and the status line says so.
+* **If the change fails** (for example access denied), a box shows the reason, whatever was written is put back, and the test runs with the
+  settings unchanged. `summary.txt` says so in "Power settings of the processor on battery" and in the warnings.
+* **In the results.** `summary.txt` and `model.json` (`power_settings`) hold the settings before the test, the settings used and whether
+  they were restored (read back and compared). The plan GUID is not written to the result files. The "CPU 100%" phase gets a warning when its mean
+  processor performance (`mean_cpu_performance_pct` in `phases.csv`) is not above 100: "the processor did not boost; power settings or the
+  laptop maker's power limits held it back".
 
 ## How the display state is measured
 
@@ -194,5 +227,6 @@ pwsh -NoProfile -File Check-Nesting.ps1             # checks all .cs files in th
 * `PhaseModels.cs`: the seven phases. `TestRunner.cs`: runs them and restores everything.
 * `SampleCollector.cs`, `BatteryIoctlReader.cs`, `WmiReaders.cs`, `LoadReaders.cs`, `NativeMethods.cs`: the readers.
 * `CpuLoad.cs`, `DisplayControl.cs`, `GraphicsWindow.xaml(.cs)`: the loads and the display control.
+* `PowerSettingsApi.cs`, `PowerSettingsSession.cs`: read, change and restore the processor power settings, the backup file and the start warning.
 * `Analysis.cs`: per-phase results and the model. `ResultWriter.cs`: the result files.
 * `MainWindow.xaml(.cs)`, `ViewModels.cs`: the window.
