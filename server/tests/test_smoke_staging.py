@@ -79,3 +79,49 @@ def test_admin_login_and_devices():
 def test_devices_without_cookie():
     response = httpx.get(f"{BASE_URL}/api/devices", timeout=10)
     assert response.status_code == 401
+
+
+# One fixed test computer. Its report has a fixed timestamp, so running the smoke test again
+# gives "duplicate" and adds no new row to staging.
+SMOKE_DEVICE_ID = "5e0b6f2a-3c1d-4b7e-9a48-0d2f6c1b7e93"
+SMOKE_REPORT = {
+    "device_id": SMOKE_DEVICE_ID,
+    "timestamp": "2026-11-01T12:00:00Z",
+    "interval_seconds": 300,
+    "state": 2,
+    "idle_seconds": 0,
+    "cpu_percent": 1.0,
+    "screen_locked": False,
+    "on_battery": False,
+    "os": "linux",
+    "device_type": "desktop",
+}
+
+needs_admin = pytest.mark.skipif(
+    not ADMIN_USERNAME or not ADMIN_PASSWORD,
+    reason="EWS_ADMIN_USERNAME and EWS_ADMIN_PASSWORD are required",
+)
+
+
+@pytest.fixture
+def admin_client():
+    """An HTTP client that is logged in as the admin."""
+    with httpx.Client(base_url=BASE_URL, timeout=10) as client:
+        login = client.post("/api/login", json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD})
+        assert login.status_code == 200
+        yield client
+
+
+@needs_admin
+def test_admin_summary(admin_client):
+    response = admin_client.get("/api/summary")
+    assert response.status_code == 200
+    assert "counts" in response.json()
+
+
+@needs_admin
+def test_a_posted_report_shows_the_device_in_devices(admin_client):
+    posted = httpx.post(f"{BASE_URL}/api/reports", json=SMOKE_REPORT, headers={"X-EWS-Key": CLIENT_KEY}, timeout=10)
+    assert posted.status_code in (200, 201)
+    devices = admin_client.get("/api/devices").json()["devices"]
+    assert SMOKE_DEVICE_ID in [device["device_id"] for device in devices]
