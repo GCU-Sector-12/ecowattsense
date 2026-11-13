@@ -331,6 +331,51 @@ IntelDttResult BuildIntelDtt(const Reading<bool>& reading) {
     return result;
 }
 
+// ---- PawnIO ----
+
+/// @return True when the device open proves that PawnIO exists (it opened, or Windows refused access).
+bool DeviceProvesPresence(PawnIoDevice device) { return device == PawnIoDevice::Opened || device == PawnIoDevice::Denied; }
+
+/// Decides "present" (SPEC 3.5): true when the registry value exists or the device opened or was denied;
+/// false when the registry says missing and the device was not found; otherwise unknown.
+Tri PawnIoPresent(const PawnIoState& state) {
+    if (state.registry == PawnIoRegistry::Found || DeviceProvesPresence(state.device)) {
+        return Tri::True;
+    }
+    bool bothMissing = state.registry == PawnIoRegistry::Missing && state.device == PawnIoDevice::NotFound;
+    return bothMissing ? Tri::False : Tri::Unknown;
+}
+
+/// Decides "readable": only when PawnIO is present. True when the device opened; false when it was denied or not found;
+/// unknown after any other error.
+Tri PawnIoReadable(Tri present, PawnIoDevice device) {
+    if (present != Tri::True) {
+        return Tri::Unknown;
+    }
+    if (device == PawnIoDevice::Opened) {
+        return Tri::True;
+    }
+    bool refused = device == PawnIoDevice::Denied || device == PawnIoDevice::NotFound;
+    return refused ? Tri::False : Tri::Unknown;
+}
+
+/// Builds the PawnIO result from one read (SPEC 3.3, 3.5). The error code is the one of the device open.
+/// The version text comes from the registry, so it is used only when IsValidPawnIoVersion says yes.
+PawnIoResult BuildPawnIo(const Reading<PawnIoState>& reading) {
+    PawnIoResult result;
+    if (!reading.ok()) {
+        result.common.error = reading.error;
+        return result;
+    }
+    const PawnIoState& state = reading.value;
+    result.common.present = PawnIoPresent(state);
+    result.common.readable = PawnIoReadable(result.common.present, state.device);
+    result.common.error = state.deviceError;
+    if (state.versionText.has_value() && IsValidPawnIoVersion(*state.versionText)) {
+        result.version = state.versionText;
+    }
+    return result;
+}
 // ---- decisions ----
 
 /// @return True when the channel is live and has this kind.
@@ -379,6 +424,7 @@ ScanResult RunScan(const ScanSources& sources, ScanContext context, const std::s
     result.display = BuildDisplay(sources.display.Read(), sources.onBattery());
     result.gpu = BuildGpu(sources.gpu.ListAdapters(), sources.gpu.ReadNvmlPower());
     result.intelDtt = BuildIntelDtt(sources.intelDtt.IsPresent());
+    result.pawnIo = BuildPawnIo(sources.pawnIo.Read());
     Decide(result);
     return result;
 }

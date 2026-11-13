@@ -10,7 +10,7 @@
 namespace ews {
 
 /// Builds the text of capabilities.json (SPEC 3.5): fixed key names and order, sources in the order
-/// emi, battery, acpi_power_meter, display, gpu, intel_dtt. A field with an unknown value is left out;
+/// emi, battery, acpi_power_meter, display, gpu, intel_dtt, pawnio. A field with an unknown value is left out;
 /// `live` unknown is null. Text is UTF-8; bytes that are not valid UTF-8 are replaced by '?'.
 /// @param result The scan result.
 /// @return The JSON text, ending with a newline.

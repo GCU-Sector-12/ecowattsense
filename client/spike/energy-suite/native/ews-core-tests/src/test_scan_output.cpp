@@ -46,6 +46,9 @@ ews::ScanResult SmallResult() {
 
     r.intelDtt.common = {Tri::False, Tri::True, Tri::Unknown, 0, std::nullopt};
 
+    r.pawnIo.common = {Tri::True, Tri::False, Tri::Unknown, 5, std::nullopt};
+    r.pawnIo.version = "2.1.0";
+
     r.level = ews::MeasurementLevel::L2;
     r.calibration = ews::Calibration::Needed;
     r.deviceType = ews::DeviceType::Laptop;
@@ -76,7 +79,8 @@ EWS_TEST(JsonExactTextOfASmallResult) {
         "    { \"id\": \"gpu\", \"present\": true, \"readable\": true, \"live\": null, \"error\": 0, "
         "\"adapters\": [ { \"name\": \"Test\", \"vendor_id\": 32902, \"memory_mb\": 128, \"software\": false } ], "
         "\"nvml\": \"unavailable\" },\n"
-        "    { \"id\": \"intel_dtt\", \"present\": false, \"readable\": true, \"live\": null, \"error\": 0 }\n"
+        "    { \"id\": \"intel_dtt\", \"present\": false, \"readable\": true, \"live\": null, \"error\": 0 },\n"
+        "    { \"id\": \"pawnio\", \"present\": true, \"readable\": false, \"live\": null, \"error\": 5, \"version\": \"2.1.0\" }\n"
         "  ],\n"
         "  \"level\": \"L2\",\n"
         "  \"calibration\": \"needed\",\n"
@@ -124,6 +128,7 @@ EWS_TEST(JsonSourcesAreInTheFixedOrder) {
     CHECK(meter < display);
     CHECK(display < gpu);
     CHECK(gpu < dtt);
+    CHECK(dtt < text.find("\"id\": \"pawnio\""));
 }
 
 EWS_TEST(JsonNumbersUseADotAndThreeDecimalsAtMost) {
@@ -158,6 +163,9 @@ EWS_TEST(LogHasOneLinePerStepAndTheDecisions) {
     CHECK(Has(log, "calibration needed\n"));
     CHECK(Has(log, "device_type laptop\n"));
     CHECK(Has(log, "intel_dtt step=present result=no error=0 sample=-\n"));
+    CHECK(Has(log, "pawnio step=present result=yes error=5 sample=-\n"));
+    CHECK(Has(log, "pawnio step=readable result=no error=5 sample=-\n"));
+    CHECK(Has(log, "pawnio step=live result=unknown error=5 sample=-\n"));
 }
 
 EWS_TEST(FileNamesFollowTheContext) {
