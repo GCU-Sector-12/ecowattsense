@@ -1,3 +1,5 @@
+// Handles duplicate-launch activation for the Windows GUI client and its running window.
+
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -21,7 +23,10 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
     private readonly CancellationTokenSource stop = new();
     private readonly Task listener;
 
-    // Construct on a pool thread so listener setup and all pipe I/O stay off the dispatcher.
+    /// <summary>Starts the listener on a pool thread when called from one, keeping pipe I/O off the dispatcher.</summary>
+    /// <param name="lockPath">The path to the instance lock.</param>
+    /// <param name="restore">Restores the running window and reports whether it opened.</param>
+    /// <exception cref="IOException">The server pipe could not be created.</exception>
     internal GuiActivationPipe(string lockPath, Func<CancellationToken, Task<bool>> restore)
     {
         var pipe = new NamedPipeServerStream(NameFor(lockPath), PipeDirection.InOut, 1,
@@ -29,6 +34,9 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         listener = ListenAsync(pipe, restore);
     }
 
+    /// <summary>Builds the pipe name for the current user, session and lock.</summary>
+    /// <param name="lockPath">The path to the instance lock.</param>
+    /// <returns>The activation pipe name.</returns>
     internal static string NameFor(string lockPath)
     {
         using var identity = WindowsIdentity.GetCurrent();
@@ -38,38 +46,69 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         return $"EcoWattSense.Open.{identity.User!.Value}.{process.SessionId}.{hash}";
     }
 
+    /// <summary>Listens for activation requests until shutdown.</summary>
+    /// <param name="pipe">The server pipe, which this method disposes.</param>
+    /// <param name="restore">Restores the running window and reports whether it opened.</param>
+    /// <returns>A task that completes when the listener stops.</returns>
     private async Task ListenAsync(NamedPipeServerStream pipe, Func<CancellationToken, Task<bool>> restore)
     {
-        using (pipe)
+        using var server = pipe;
+        while (!stop.IsCancellationRequested)
+            await ListenOnceAsync(server, restore);
+    }
+
+    /// <summary>Handles one connection attempt and resets the pipe.</summary>
+    /// <param name="pipe">The server pipe.</param>
+    /// <param name="restore">Restores the running window and reports whether it opened.</param>
+    /// <returns>A task that completes after the pipe is reset.</returns>
+    private async Task ListenOnceAsync(NamedPipeServerStream pipe, Func<CancellationToken, Task<bool>> restore)
+    {
+        try
         {
-            while (!stop.IsCancellationRequested)
-            {
-                try
-                {
-                    await pipe.WaitForConnectionAsync(stop.Token);
-                    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
-                    deadline.CancelAfter(Timeout);
-                    using var process = Process.GetCurrentProcess();
-                    if (GetNamedPipeClientSessionId(pipe.SafePipeHandle, out uint session) &&
-                        session == process.SessionId && await ReceiveAsync(pipe, Open, deadline.Token) &&
-                        await restore(deadline.Token))
-                    {
-                        await pipe.WriteAsync(Opened, deadline.Token);
-                        // Disconnect discards unread data. Let the client read its reply and close first.
-                        _ = await pipe.ReadAsync(new byte[1], deadline.Token);
-                    }
-                }
-                catch (OperationCanceledException) { /* Shutdown or a stalled client. */ }
-                catch (IOException) { /* The launching process may exit at any point. */ }
-                finally
-                {
-                    // IsConnected can already be false after a broken pipe.
-                    try { pipe.Disconnect(); } catch (InvalidOperationException) { }
-                }
-            }
+            await pipe.WaitForConnectionAsync(stop.Token);
+            await HandleConnectionAsync(pipe, restore);
+        }
+        catch (OperationCanceledException) { /* Shutdown or a stalled client. */ }
+        catch (IOException) { /* The launching process may exit at any point. */ }
+        finally
+        {
+            Disconnect(pipe);
         }
     }
 
+    /// <summary>Restores the window for a valid request from the current session.</summary>
+    /// <param name="pipe">The server pipe.</param>
+    /// <param name="restore">Restores the running window and reports whether it opened.</param>
+    /// <returns>A task that completes when the request has been handled.</returns>
+    /// <exception cref="IOException">The connection fails.</exception>
+    /// <exception cref="OperationCanceledException">The request times out or the listener stops.</exception>
+    private async Task HandleConnectionAsync(NamedPipeServerStream pipe, Func<CancellationToken, Task<bool>> restore)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
+        deadline.CancelAfter(Timeout);
+        using var process = Process.GetCurrentProcess();
+        if (!GetNamedPipeClientSessionId(pipe.SafePipeHandle, out uint session) ||
+            session != process.SessionId || !await ReceiveAsync(pipe, Open, deadline.Token) ||
+            !await restore(deadline.Token))
+            return;
+
+        await pipe.WriteAsync(Opened, deadline.Token);
+        // Disconnect discards unread data. Let the client read its reply and close first.
+        _ = await pipe.ReadAsync(new byte[1], deadline.Token);
+    }
+
+    /// <summary>Resets the server pipe even after a broken connection.</summary>
+    /// <param name="pipe">The server pipe.</param>
+    private static void Disconnect(NamedPipeServerStream pipe)
+    {
+        // IsConnected can already be false after a broken pipe.
+        try { pipe.Disconnect(); } catch (InvalidOperationException) { }
+    }
+
+    /// <summary>Asks the running GUI to open its window.</summary>
+    /// <param name="lockPath">The path to the instance lock.</param>
+    /// <param name="cancellation">Cancels the request.</param>
+    /// <returns>True if the running GUI confirms that it opened its window.</returns>
     internal static async Task<bool> RequestAsync(string lockPath, CancellationToken cancellation)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -94,6 +133,13 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         }
     }
 
+    /// <summary>Reads and checks a single pipe message.</summary>
+    /// <param name="pipe">The connected pipe.</param>
+    /// <param name="expected">The expected message bytes.</param>
+    /// <param name="token">Cancels the read.</param>
+    /// <returns>True if the complete message matches.</returns>
+    /// <exception cref="IOException">The read fails.</exception>
+    /// <exception cref="OperationCanceledException">The read is cancelled.</exception>
     private static async Task<bool> ReceiveAsync(PipeStream pipe, byte[] expected, CancellationToken token)
     {
         var buffer = new byte[expected.Length];
@@ -101,6 +147,8 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         return count == expected.Length && pipe.IsMessageComplete && buffer.AsSpan().SequenceEqual(expected);
     }
 
+    /// <summary>Stops the listener and disposes its cancellation source.</summary>
+    /// <returns>A task that completes when the listener has stopped.</returns>
     public async ValueTask DisposeAsync()
     {
         stop.Cancel();
@@ -108,12 +156,27 @@ internal sealed class GuiActivationPipe : IAsyncDisposable
         finally { stop.Dispose(); }
     }
 
+    /// <summary>Reads the Windows session of the client connected to a server pipe.</summary>
+    /// <param name="pipe">The connected server pipe handle.</param>
+    /// <param name="session">Receives the client session ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeClientSessionId(SafePipeHandle pipe, out uint session);
+    /// <summary>Reads the Windows session of the server connected to a client pipe.</summary>
+    /// <param name="pipe">The connected client pipe handle.</param>
+    /// <param name="session">Receives the server session ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeServerSessionId(SafePipeHandle pipe, out uint session);
+    /// <summary>Reads the process ID of the server connected to a client pipe.</summary>
+    /// <param name="pipe">The connected client pipe handle.</param>
+    /// <param name="pid">Receives the server process ID on success.</param>
+    /// <returns>True if Windows provides the requested ID. Otherwise, false.</returns>
     [DllImport("kernel32.dll")]
     private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint pid);
+    /// <summary>Asks Windows to let the running GUI process activate its window.</summary>
+    /// <param name="pid">The process ID of the running GUI.</param>
+    /// <returns>True if Windows accepts the request. Otherwise, false.</returns>
     [DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(uint pid);
 }
