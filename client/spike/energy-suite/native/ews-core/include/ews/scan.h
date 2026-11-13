@@ -15,6 +15,7 @@
 #include "ews/gpu.h"
 #include "ews/intel_dtt.h"
 #include "ews/machine_info.h"
+#include "ews/pawnio.h"
 #include "ews/power_meter.h"
 #include "ews/reading.h"
 
@@ -98,6 +99,12 @@ struct IntelDttResult {
     SourceCommon common;
 };
 
+/// PawnIO: the common steps and the version, when it is known and valid.
+struct PawnIoResult {
+    SourceCommon common;
+    std::optional<std::string> version;  ///< Only a valid version text (1 to 32 digits and dots).
+};
+
 /// The whole scan: everything that goes into capabilities.json.
 struct ScanResult {
     std::string scannedUtc;  ///< "2026-11-14T10:00:00Z".
@@ -109,6 +116,7 @@ struct ScanResult {
     DisplayResult display;
     GpuResult gpu;
     IntelDttResult intelDtt;
+    PawnIoResult pawnIo;
     MeasurementLevel level = MeasurementLevel::L4;
     Calibration calibration = Calibration::NotPossible;
     DeviceType deviceType = DeviceType::Desktop;
@@ -183,6 +191,7 @@ struct ScanSources {
     IDisplaySource& display;
     IGpuSource& gpu;
     IIntelDttSource& intelDtt;
+    IPawnIoSource& pawnIo;
     IScanWaiter& waiter;
     Reading<bool> (*onBattery)();  ///< The on-battery reading (ReadOnBattery in the real program).
 };

@@ -192,6 +192,12 @@ std::string GpuJson(const GpuResult& gpu) {
 
 std::string IntelDttJson(const IntelDttResult& dtt) { return Object(SourceFields("intel_dtt", dtt.common)); }
 
+std::string PawnIoJson(const PawnIoResult& pawnIo) {
+    Fields fields = SourceFields("pawnio", pawnIo.common);
+    AddOptionalText(fields, "version", pawnIo.version);
+    return Object(fields);
+}
+
 /// @return The machine object. Unknown fields are left out.
 std::string MachineJson(const MachineInfo& machine) {
     Fields fields;
@@ -207,10 +213,11 @@ std::string MachineJson(const MachineInfo& machine) {
     return Object(fields);
 }
 
-/// @return The six source objects, in the order of SPEC 3.5, one per entry.
+/// @return The seven source objects, in the order of SPEC 3.5, one per entry.
 std::vector<std::string> SourceLines(const ScanResult& result) {
     return {EmiJson(result.emi),         BatteryJson(result.battery), PowerMeterJson(result.powerMeter),
-            DisplayJson(result.display), GpuJson(result.gpu),         IntelDttJson(result.intelDtt)};
+            DisplayJson(result.display), GpuJson(result.gpu),         IntelDttJson(result.intelDtt),
+            PawnIoJson(result.pawnIo)};
 }
 
 /// @return The items joined by the separator.
@@ -266,6 +273,7 @@ std::string WriteScanLog(const ScanResult& result) {
     AddSourceLog(log, "display", result.display.common);
     AddSourceLog(log, "gpu", result.gpu.common);
     AddSourceLog(log, "intel_dtt", result.intelDtt.common);
+    AddSourceLog(log, "pawnio", result.pawnIo.common);
     log += std::string("level ") + LevelWord(result.level) + "\n";
     log += std::string("calibration ") + CalibrationWord(result.calibration) + "\n";
     log += std::string("device_type ") + DeviceTypeWord(result.deviceType) + "\n";

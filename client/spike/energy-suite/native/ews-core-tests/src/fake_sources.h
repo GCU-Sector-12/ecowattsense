@@ -70,6 +70,13 @@ public:
     ews::Reading<bool> IsPresent() override { return result; }
 };
 
+/// Fake PawnIO source.
+class FakePawnIo final : public ews::IPawnIoSource {
+public:
+    ews::Reading<ews::PawnIoState> result;
+    ews::Reading<ews::PawnIoState> Read() override { return result; }
+};
+
 /// Fake waiter: counts the calls and does not wait.
 class FakeWaiter final : public ews::IScanWaiter {
 public:
@@ -91,13 +98,14 @@ public:
     FakeDisplay display;
     FakeGpu gpu;
     FakeDtt dtt;
+    FakePawnIo pawnIo;
     FakeWaiter waiter;
 
     Scenario();
 
     /// @return The sources of this scenario, wired to the mains reading.
     ews::ScanSources Sources() {
-        return ews::ScanSources{machine, emi, battery, powerMeter, display, gpu, dtt, waiter, OnMains};
+        return ews::ScanSources{machine, emi, battery, powerMeter, display, gpu, dtt, pawnIo, waiter, OnMains};
     }
 };
 

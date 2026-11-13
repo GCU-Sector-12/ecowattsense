@@ -17,6 +17,7 @@
 #include "ews/gpu.h"
 #include "ews/handles.h"
 #include "ews/intel_dtt.h"
+#include "ews/pawnio.h"
 #include "ews/machine_info.h"
 #include "ews/power_meter.h"
 #include "ews/scan.h"
@@ -74,6 +75,7 @@ void PrintSummary(const ews::ScanResult& result) {
     PrintSourceLine("display", result.display.common);
     PrintSourceLine("gpu", result.gpu.common);
     PrintSourceLine("intel_dtt", result.intelDtt.common);
+    PrintSourceLine("pawnio", result.pawnIo.common);
     std::printf("level: %s\ncalibration: %s\ndevice_type: %s\n", ews::LevelWord(result.level), ews::CalibrationWord(result.calibration),
                 ews::DeviceTypeWord(result.deviceType));
 }
@@ -87,8 +89,9 @@ ews::ScanResult ScanThisComputer(ews::ScanContext context) {
     ews::SystemDisplaySource display;
     ews::SystemGpuSource gpu;
     ews::SystemIntelDttSource intelDtt;
+    ews::SystemPawnIoSource pawnIo;
     ews::SystemScanWaiter waiter;
-    ews::ScanSources sources{machine, emi, battery, powerMeter, display, gpu, intelDtt, waiter, ews::ReadOnBattery};
+    ews::ScanSources sources{machine, emi, battery, powerMeter, display, gpu, intelDtt, pawnIo, waiter, ews::ReadOnBattery};
     return ews::RunScan(sources, context, NowUtcText());
 }
 

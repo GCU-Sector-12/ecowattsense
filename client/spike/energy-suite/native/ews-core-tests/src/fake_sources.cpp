@@ -87,6 +87,12 @@ Scenario::Scenario() {
     gpu.nvml = ews::Reading<std::vector<ews::NvmlPower>>::Failure(ews::Status::Unavailable, 0);
 
     dtt.result = ews::Reading<bool>::Success(false);
-}
+
+    // PawnIO is not installed: no registry value, no device.
+    ews::PawnIoState notInstalled;
+    notInstalled.registry = ews::PawnIoRegistry::Missing;
+    notInstalled.device = ews::PawnIoDevice::NotFound;
+    notInstalled.deviceError = 2;
+    pawnIo.result = ews::Reading<ews::PawnIoState>::Success(notInstalled);}
 
 }  // namespace ews_test
