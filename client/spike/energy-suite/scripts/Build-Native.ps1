@@ -23,5 +23,6 @@ if (-not $msbuild -or -not (Test-Path -LiteralPath $msbuild)) {
     exit 2
 }
 
-& $msbuild $solution /nologo /m /v:minimal /p:Configuration=$Configuration /p:Platform=x64
+# /nodeReuse:false: otherwise MSBuild worker processes stay alive after the build and keep the build folder locked.
+& $msbuild $solution /nologo /m /nodeReuse:false /v:minimal /p:Configuration=$Configuration /p:Platform=x64
 exit $LASTEXITCODE

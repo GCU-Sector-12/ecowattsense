@@ -12,9 +12,8 @@
 #include <vector>
 
 #include "ews/battery.h"
+#include "ews/device_paths.h"
 #include "ews/handles.h"
-
-#pragma comment(lib, "setupapi.lib")
 
 namespace ews {
 
@@ -26,57 +25,6 @@ constexpr std::uint64_t kMicrojoulesPerMilliwattHour = 3600000ULL;
 constexpr std::uint32_t kUnknownU32 = 0xFFFFFFFFu;               // BATTERY_UNKNOWN_CAPACITY and BATTERY_UNKNOWN_VOLTAGE
 constexpr std::int32_t kUnknownRate = static_cast<std::int32_t>(0x80000000u);  // BATTERY_UNKNOWN_RATE
 constexpr std::size_t kMaxBatteries = 64;                        // a sane upper bound for one computer
-
-/// The device paths found by the enumeration, and the first error met on the way (0 = none).
-struct PathList {
-    std::vector<std::wstring> paths;
-    unsigned long error = 0;
-};
-
-/// Reads the device path of one enumerated interface and appends it to the list.
-/// @param devices The device information set.
-/// @param data The interface returned by SetupDiEnumDeviceInterfaces.
-/// @param list The list to extend; list.error is set when the path cannot be read.
-void AppendPath(HDEVINFO devices, SP_DEVICE_INTERFACE_DATA& data, PathList& list) {
-    DWORD size = 0;
-    SetupDiGetDeviceInterfaceDetailW(devices, &data, nullptr, 0, &size, nullptr);  // asks for the size; fails on purpose
-    if (size < sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) || size > 4096) {
-        list.error = ERROR_INVALID_DATA;
-        return;
-    }
-    std::vector<unsigned char> buffer(size);
-    auto* detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(buffer.data());
-    detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
-    if (!SetupDiGetDeviceInterfaceDetailW(devices, &data, detail, size, nullptr, nullptr)) {
-        list.error = GetLastError();
-        return;
-    }
-    buffer[size - 1] = 0;  // the string must end inside the buffer
-    buffer[size - 2] = 0;
-    list.paths.emplace_back(detail->DevicePath);
-}
-
-/// Lists the device paths of every present battery interface.
-/// @return The paths; error is 0 when the enumeration ended normally (also when there is no battery).
-PathList ListBatteryPaths() {
-    PathList list;
-    UniqueDevInfo devices(SetupDiGetClassDevsW(&kBatteryInterface, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
-    if (!devices.valid()) {
-        list.error = GetLastError();
-        return list;
-    }
-    SP_DEVICE_INTERFACE_DATA data{};
-    data.cbSize = sizeof(data);
-    DWORD index = 0;
-    while (list.paths.size() < kMaxBatteries && SetupDiEnumDeviceInterfaces(devices.get(), nullptr, &kBatteryInterface, index, &data)) {
-        AppendPath(devices.get(), data, list);
-        ++index;
-    }
-    DWORD last = GetLastError();
-    bool endedNormally = last == ERROR_NO_MORE_ITEMS || list.paths.size() >= kMaxBatteries;
-    list.error = list.error != 0 ? list.error : (endedNormally ? 0 : last);
-    return list;
-}
 
 /// Asks the battery for its tag (IOCTL_BATTERY_QUERY_TAG).
 /// @param device An open battery handle.
@@ -209,7 +157,7 @@ void CollectBattery(const std::wstring& path, Collected& collected) {
 
 Reading<std::vector<BatteryState>> SystemBatterySource::Read() {
     using Result = Reading<std::vector<BatteryState>>;
-    PathList list = ListBatteryPaths();
+    DevicePathList list = ListDeviceInterfacePaths(kBatteryInterface, kMaxBatteries);
     if (list.paths.empty() && list.error != 0) {
         return Result::FromError(list.error);
     }
