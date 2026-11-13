@@ -1,3 +1,9 @@
+"""POST /api/ping (contract 5.5): tell a client if it is registered and which settings_version is current.
+
+The clients call this endpoint every ping_interval_seconds with the header X-EWS-Key. A ping
+never creates a computer. registered is true only when the devices table has the computer.
+The command list stays empty until the commands table exists.
+"""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
