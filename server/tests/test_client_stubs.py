@@ -1,8 +1,13 @@
+# server/tests/test_client_stubs.py
+"""The checks of the client endpoints (GET /api/settings, POST /api/ping, PUT /api/devices):
+the key, the request validation and the answers, on a temporary database."""
 import json
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import create_engine
 
+from ecowattsense_server import db
 from ecowattsense_server.config import settings
 from ecowattsense_server.main import app
 
@@ -13,11 +18,18 @@ DEVICE = {"device_name": " Lab 1 PC 03 ", "os": "windows", "device_type": "deskt
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
+    """A test client on a temporary SQLite file, never the real database.
+
+    init_db() and get_session() both use db.engine, so the swap covers the seed and the requests.
+    """
+    engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})
+    monkeypatch.setattr(db, "engine", engine)
     monkeypatch.setattr(settings, "client_key", "client-test-key")
     with TestClient(app) as test_client:
         test_client.headers["X-EWS-Key"] = "client-test-key"
         yield test_client
+    engine.dispose()
 
 
 @pytest.mark.parametrize("key", [None, "wrong"])
@@ -31,12 +43,11 @@ def test_key_required(client, key, method, path, body):
     assert client.request(method, path, json=body).status_code == 401
 
 
-def test_settings(client, monkeypatch):
-    monkeypatch.setattr(settings, "report_interval_seconds", 450)
+def test_settings(client):
     response = client.get("/api/settings")
     assert response.status_code == 200
     assert response.json() == {
-        "settings_version": 1, "report_interval_seconds": 450,
+        "settings_version": 1, "report_interval_seconds": 300,
         "ping_interval_seconds": 60, "idle_threshold_seconds": 600,
         "unused_threshold_seconds": 3600, "no_data_after_cycles": 3,
         "tariff_valid_from": "2000-01-01T00:00:00Z",
@@ -47,7 +58,7 @@ def test_settings(client, monkeypatch):
 def test_ping(client):
     response = client.post("/api/ping", json={**PING, "acks": [{"command_id": 41, "result": "done"}]})
     assert response.status_code == 200
-    assert response.json() == {"settings_version": 1, "registered": True, "commands": []}
+    assert response.json() == {"settings_version": 1, "registered": False, "commands": []}
     assert client.post("/api/ping", json=PING).status_code == 200
 
 
@@ -64,10 +75,10 @@ def test_ping_validation(client, changes):
 
 @pytest.mark.parametrize("name,expected", [(" Lab 1 PC 03 ", "Lab 1 PC 03"), ("", None), ("   ", None), (None, None)])
 def test_device_name(client, name, expected):
-    for _ in range(2):
+    for created in (True, False):
         response = client.put(DEVICE_PATH, json={**DEVICE, "device_name": name})
         assert response.status_code == 200
-        assert response.json() == {"device_id": DEVICE_ID, "device_name": expected, "created": True}
+        assert response.json() == {"device_id": DEVICE_ID, "device_name": expected, "created": created}
 
 
 def test_optional_device_name(client):
