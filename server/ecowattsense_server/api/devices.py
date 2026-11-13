@@ -27,10 +27,27 @@ router = APIRouter(prefix="/api", tags=["devices"])
 
 
 def utc_now() -> datetime:
+    """Give the server clock in UTC.
+
+    It is a function of its own, so the tests can set the time.
+
+    Returns:
+        The current time with the UTC time zone.
+    """
     return datetime.now(timezone.utc)
 
 
 def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
+    """Make the row of a computer that registers before its first report.
+
+    Args:
+        device_id: The id of the computer, from the path.
+        body: The registration: device_name, os and device_type.
+        now: The time of the registration. It is first_seen_at and last_seen_at (contract 5.3).
+
+    Returns:
+        A Device that is not saved yet.
+    """
     return Device(
         id=device_id,
         display_name=body.device_name,
@@ -42,12 +59,31 @@ def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
 
 
 def update_device(device: Device, body: DeviceIn) -> None:
+    """Set the name, os and device_type of a known computer. The last call wins (contract 5.3).
+
+    Args:
+        device: The stored computer.
+        body: The registration: device_name, os and device_type.
+    """
     device.display_name = body.device_name
     device.os = body.os
     device.device_type = body.device_type
 
 
 def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> bool:
+    """Store one registration: update the computer when it is known, add it when it is not.
+
+    Args:
+        session: The database session.
+        device_id: The id of the computer, from the path.
+        body: The registration: device_name, os and device_type.
+
+    Returns:
+        True when this call added the computer, False when it was known before.
+
+    Raises:
+        IntegrityError: Another call added the same computer at the same moment.
+    """
     device = session.get(Device, device_id)
     if device is not None:
         update_device(device, body)
@@ -62,6 +98,16 @@ def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> bool
             dependencies=[Depends(require_client_key), Depends(require_json)])
 def register_device(device_id: UUID, body: DeviceIn,
                     session: Annotated[Session, Depends(get_session)]) -> DeviceOut:
+    """Register a computer or change its name (contract 5.3).
+
+    Args:
+        device_id: The id of the computer, from the path.
+        body: The registration: device_name, os and device_type.
+        session: The database session.
+
+    Returns:
+        The id, the name now, and created (true only when this call added the computer).
+    """
     try:
         created = save_registration(session, device_id, body)
     except IntegrityError:
