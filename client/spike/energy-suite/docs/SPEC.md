@@ -108,6 +108,13 @@ Calibration: `not_needed` for L1, `needed` for L2 and L3 when a battery that rep
 
 `device_type`: `laptop` when the chassis type is a portable one or a battery is present, else `desktop`.
 
+Details of the rules:
+
+- The levels are tested in the order L1, L2, L3. A live `dram` channel without a live `cpu_package` channel does not give L2.
+- "A battery that reports mWh": at least one battery with the unit mWh and a known full charge. With several batteries, `unit` is `mWh` when any of them is, `rate_known` is true when any of them reports a rate, and `full_mwh` is the sum of the known ones.
+- Status of a read: `Unavailable` gives `present: false`; `Denied` gives `present: true, readable: false`; any other failure leaves `present` and `readable` out.
+- Bytes that are not valid UTF-8 in a name become `?`. Sample numbers have at most 3 decimals.
+
 ### 3.5 `capabilities.json`
 
 ```json
@@ -181,7 +188,8 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 
 ### 4.3 Unknown values
 
-- A failed read, a counter that went backwards, or the first interval after a start: that value is unknown for the interval.
+- A failed read or a counter that went backwards: that value is unknown for the interval.
+- The service takes a first read of every counter at its start. Nothing is reported for the time before that read.
 - An unknown value needed for a field: the field is left out of the report. It is never sent as 0.
 - L4, or L2 and L3 without a valid model: `energy_uj` is left out on mains. On battery section 4.1 applies in full.
 
@@ -190,6 +198,17 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - A change of the power source ends the interval at once and starts a new one. Each report then has one true `on_battery` value.
 - Suspend ends the interval. Resume starts a new one. No report covers the time asleep.
 - An interval shorter than 1 second is dropped.
+
+### 4.5 Calculation details
+
+- The service works in energy, not in watts. For each minute: measured energy = the growth of the EMI counters of the counted kinds, in µJ (1 pWh = 0.0036 µJ). Model energy = watts × seconds of the minute × 1 000 000.
+- L1 in the service uses an EMI `system` channel only. The ACPI power meter is not used for energy, because its unit is not confirmed on any computer (section 12, point 6); a computer whose only whole-computer source is that meter is calculated at the next level down.
+- Level of one minute: L1 when the `system` growth is known; else L2 when the model is valid and the growth of every kind in `measured_parts` is known; else L3 when the model is valid and the processor percent is known; else the minute is unknown.
+- An interval with one unknown minute has an unknown `device_energy_uj`, so `energy_uj` and `device_energy_uj` are left out for it.
+- Battery change of an interval = charge at its end minus charge at its start. It is known only when both reads are known, the unit is mWh and the number of batteries did not change.
+- On mains: a battery is present but its change is unknown: `energy_uj` is left out. No battery is present: `energy_uj` = `device_energy_uj`.
+- `cpu_percent` of an interval is the average over its minutes, weighted by their length.
+- All energy values are rounded to the nearest whole µJ at the end, not per minute.
 
 ## 5. Service
 
@@ -231,12 +250,16 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 
 The JSON is written by hand with exactly these fields. The server refuses unknown fields.
 
+Formats: `timestamp` as `2026-11-14T10:05:00Z` (UTC, whole seconds). `interval_seconds` a whole number, at least 1. `cpu_percent` with one decimal, 0 to 100. `state` 2, 1 or 0. `screen_locked` and `on_battery` as `true` or `false`. `device_id` in lower case with hyphens. Energy fields are whole numbers; an unknown one is absent, never `null`.
+
 ### 5.5 Queue and sending
 
 - `<data>\queue\reports.jsonl`: one report per line, oldest first, at most 2016 lines (7 days). When full, the oldest line is dropped and counted in the log.
 - Send: `POST <server_url>/api/reports`, header `X-EWS-Key`, body a list of up to 100 reports, WinHTTP, 10 second timeout, no redirects. HTTPS only; HTTP is allowed only for loopback.
 - 200 or 201: sent lines leave the queue. An item marked `rejected` leaves the queue and is counted.
 - 401, 429, 5xx, network error: the queue stays. The next try waits 1, 2, 4, ... up to 60 intervals.
+- Any other 4xx answer: the sent lines leave the queue and are counted as rejected, because a retry cannot fix them.
+- The certificate of the server is always checked. The answer is read up to 64 KB; more is ignored.
 - Sending happens only at a report tick.
 - `server_enabled=0`: reports are queued and not sent.
 
@@ -366,3 +389,4 @@ Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task
 3. Brightness through `\\.\LCD` is denied for a standard user on the HP 250 G7 (measured 13 Nov 2026). Whether the service account can read it is not tested yet. The pipe value is the fallback.
 4. EMI on AMD and on other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
+6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on the HP 250 G7). Until a computer with a live meter is found, the service does not use it for energy.
