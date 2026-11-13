@@ -91,6 +91,8 @@
                                 <DataGridTextColumn Header="Battery W (WMI)" Binding="{Binding WattsWmi}" />
                                 <DataGridTextColumn Header="CPU %" Binding="{Binding Cpu}" />
                                 <DataGridTextColumn Header="CPU pkg W (DTT)" Binding="{Binding CpuPackage}" />
+                                <DataGridTextColumn Header="CPU pkg W (EMI)" Binding="{Binding EmiPackage}" />
+                                <DataGridTextColumn Header="CPU pkg mWh (EMI)" Binding="{Binding EmiMwh}" />
                                 <DataGridTextColumn Header="CPU share %" Binding="{Binding Share}" />
                                 <DataGridTextColumn Header="GPU 3D %" Binding="{Binding Gpu}" />
                                 <DataGridTextColumn Header="Screen %" Binding="{Binding Brightness}" />

@@ -218,24 +218,66 @@ internal sealed class CounterReaders
     }
 }
 
+/// <summary>The raw Energy (picowatt-hours) and Time (milliseconds) counters of one Energy Meter instance, read at one moment.</summary>
+/// <param name="Energy">Cumulative energy in picowatt-hours.</param>
+/// <param name="Milliseconds">Cumulative time in milliseconds (in this counter set the unit is ms, not 100 ns).</param>
+internal readonly record struct EnergyReading(long Energy, long Milliseconds);
+
+/// <summary>The energy used and the time that passed between two readings of one instance.</summary>
+/// <param name="Pwh">Energy in picowatt-hours.</param>
+/// <param name="Milliseconds">Time in milliseconds.</param>
+internal readonly record struct EnergyStep(double Pwh, double Milliseconds);
+
 /// <summary>
-/// Optional "Energy Meter" counter set (Windows 11 with RAPL energy counters). Logs the raw Energy and Time values of every instance.
+/// Optional "Energy Meter" counter set (Windows 11 with RAPL energy counters; a normal user may read it). Logs the raw Energy and Time
+/// values of every instance and the power of the package, cores, graphics and memory in watts since the previous sample.
 /// </summary>
 internal sealed class EnergyMeterReader
 {
     private const string Category = "Energy Meter";
+    private const string PackageInstance = "RAPL_Package0_PKG";
 
-    /// <summary>Reads the Energy and Time counters of all instances.</summary>
-    /// <param name="sample">The sample to fill.</param>
+    // 1 picowatt-hour is 3.6e-9 joules, so picowatt-hours per millisecond x 3.6e-6 gives watts.
+    private const double WattsPerPwhPerMillisecond = 3.6e-6;
+
+    // A value above this many watts is a bad read (a counter that was reset or wrapped), so it stays unknown.
+    private const double MaxBelievableWatts = 500.0;
+
+    // PKG is the whole package and already holds PP0 and PP1; the four values must never be added up.
+    private static readonly (string Instance, string Key)[] Channels =
+    [
+        (PackageInstance, SampleKeys.EmiPackageWatts),
+        ("RAPL_Package0_PP0", SampleKeys.EmiCoresWatts),
+        ("RAPL_Package0_PP1", SampleKeys.EmiGpuWatts),
+        ("RAPL_Package0_DRAM", SampleKeys.EmiDramWatts)
+    ];
+
+    private Dictionary<string, EnergyReading> previous = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Reads the Energy and Time counters of all instances and works out the watts since the previous read.</summary>
+    /// <param name="sample">The sample to fill. The first read has no watts, because a power needs two reads.</param>
     /// <exception cref="SourceUnavailableException">The counter set is missing or has no instance.</exception>
     public void Read(Sample sample)
+    {
+        InstanceDataCollectionCollection all = OpenSet();
+        StoreRaw(sample, all["Energy"], "energy");
+        StoreRaw(sample, all["Time"], "time");
+        Dictionary<string, EnergyReading> now = Readings(all["Energy"], all["Time"]);
+        foreach ((string instance, string key) in Channels) { StoreWatts(sample, key, Step(instance, now)); }
+        sample.EmiPackageDeltaPwh = Step(PackageInstance, now)?.Pwh;
+        previous = now;
+    }
+
+    /// <summary>Reads the whole counter set and checks that it has what is needed.</summary>
+    /// <returns>The counter data.</returns>
+    /// <exception cref="SourceUnavailableException">The counter set is missing or has no instance.</exception>
+    private static InstanceDataCollectionCollection OpenSet()
     {
         if (!PerformanceCounterCategory.Exists(Category)) { throw new SourceUnavailableException("counter set 'Energy Meter' not found (Windows 11 with a supported processor only)"); }
         InstanceDataCollectionCollection all = new PerformanceCounterCategory(Category).ReadCategory();
         if (!all.Contains("Energy") || !all.Contains("Time")) { throw new SourceUnavailableException("'Energy Meter' has no Energy and Time counters"); }
         if (all["Energy"].Count == 0) { throw new SourceUnavailableException("'Energy Meter' has no instances"); }
-        StoreRaw(sample, all["Energy"], "energy");
-        StoreRaw(sample, all["Time"], "time");
+        return all;
     }
 
     /// <summary>Stores the raw value of every instance of one counter.</summary>
@@ -245,6 +287,62 @@ internal sealed class EnergyMeterReader
     private static void StoreRaw(Sample sample, InstanceDataCollection counter, string suffix)
     {
         foreach (InstanceData data in counter.Values) { sample.Set($"{SampleKeys.EnergyMeterPrefix}{Clean(data.InstanceName)}_{suffix}", data.RawValue); }
+    }
+
+    /// <summary>Pairs the Energy and the Time value of every instance that has both.</summary>
+    /// <param name="energy">The Energy counter data.</param>
+    /// <param name="time">The Time counter data.</param>
+    /// <returns>The readings by instance name (case does not matter).</returns>
+    private static Dictionary<string, EnergyReading> Readings(InstanceDataCollection energy, InstanceDataCollection time)
+    {
+        Dictionary<string, long> times = RawValues(time);
+        Dictionary<string, EnergyReading> readings = new(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, long> pair in RawValues(energy)) { AddReading(readings, pair, times); }
+        return readings;
+    }
+
+    /// <summary>Adds one instance to the readings when its Time value is known.</summary>
+    /// <param name="readings">The readings to fill.</param>
+    /// <param name="energy">The instance name and its Energy value.</param>
+    /// <param name="times">The Time values by instance name.</param>
+    private static void AddReading(Dictionary<string, EnergyReading> readings, KeyValuePair<string, long> energy, Dictionary<string, long> times)
+    {
+        if (!times.TryGetValue(energy.Key, out long milliseconds)) { return; }
+        readings[energy.Key] = new EnergyReading(energy.Value, milliseconds);
+    }
+
+    /// <summary>Takes the raw value of every instance of one counter.</summary>
+    /// <param name="counter">The counter data.</param>
+    /// <returns>The raw values by instance name (case does not matter).</returns>
+    private static Dictionary<string, long> RawValues(InstanceDataCollection counter)
+    {
+        Dictionary<string, long> raw = new(StringComparer.OrdinalIgnoreCase);
+        foreach (InstanceData data in counter.Values) { raw[data.InstanceName] = data.RawValue; }
+        return raw;
+    }
+
+    /// <summary>Works out the energy and time between the previous read and this one for one instance.</summary>
+    /// <param name="instance">The instance name.</param>
+    /// <param name="now">The readings of this read.</param>
+    /// <returns>The step, or null when the instance is missing, there was no earlier read, or a counter did not move forward (reset).</returns>
+    private EnergyStep? Step(string instance, Dictionary<string, EnergyReading> now)
+    {
+        if (!now.TryGetValue(instance, out EnergyReading current)) { return null; }
+        if (!previous.TryGetValue(instance, out EnergyReading before)) { return null; }
+        long pwh = current.Energy - before.Energy;
+        long milliseconds = current.Milliseconds - before.Milliseconds;
+        if (pwh < 0 || milliseconds <= 0) { return null; }
+        return new EnergyStep(pwh, milliseconds);
+    }
+
+    /// <summary>Stores the watts of a step; an unknown step or an unbelievable value stays unknown.</summary>
+    /// <param name="sample">The sample to fill.</param>
+    /// <param name="key">The column name.</param>
+    /// <param name="step">The energy and time between two reads, or null.</param>
+    private static void StoreWatts(Sample sample, string key, EnergyStep? step)
+    {
+        if (step is not EnergyStep known) { return; }
+        sample.SetChecked(key, known.Pwh * WattsPerPwhPerMillisecond / known.Milliseconds, 0, MaxBelievableWatts);
     }
 
     /// <summary>Keeps only letters and digits of an instance name, for use in a column name.</summary>

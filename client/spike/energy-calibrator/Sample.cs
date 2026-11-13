@@ -94,8 +94,16 @@ internal static class SampleKeys
     public const string DttPackageTemp = "dtt_p3_temp_c";
     /// <summary>Start of the name of every Intel DTT column.</summary>
     public const string DttPrefix = "dtt_p";
-    /// <summary>Start of the name of every Energy Meter column.</summary>
+    /// <summary>Start of the name of every raw Energy Meter column.</summary>
     public const string EnergyMeterPrefix = "energymeter_";
+    /// <summary>Power of the whole processor package (RAPL PKG) from the Windows Energy Meter, in watts since the previous sample.</summary>
+    public const string EmiPackageWatts = "emi_pkg_w";
+    /// <summary>Power of the processor cores (RAPL PP0) from the Windows Energy Meter, in watts since the previous sample.</summary>
+    public const string EmiCoresWatts = "emi_cores_w";
+    /// <summary>Power of the integrated graphics (RAPL PP1) from the Windows Energy Meter, in watts since the previous sample.</summary>
+    public const string EmiGpuWatts = "emi_gpu_w";
+    /// <summary>Power of the memory (RAPL DRAM) from the Windows Energy Meter, in watts since the previous sample.</summary>
+    public const string EmiDramWatts = "emi_dram_w";
 
     /// <summary>Source name: battery IOCTL.</summary>
     public const string SourceBatteryIoctl = "Battery (IOCTL)";
@@ -133,7 +141,7 @@ internal static class SampleKeys
     [
         BatteryState, BatteryMwh, BatteryMv, BatteryRateMw, BatteryPercent, AcLine, WmiMwh, WmiMv, WmiOnline,
         CpuUtil, CpuPerformance, CpuMhz, ThermalMax, Gpu3D, DiskBytes, NetBytes, Brightness, UserIdle,
-        DttPackageWatts, DttPackageTemp
+        DttPackageWatts, DttPackageTemp, EmiPackageWatts, EmiCoresWatts, EmiGpuWatts, EmiDramWatts
     ];
 }
 
@@ -154,6 +162,12 @@ internal sealed class Sample
 
     /// <summary>What the display was doing when the reading started, from the power notification. Unknown when no notification arrived.</summary>
     public DisplayStateKind DisplayState { get; set; } = DisplayStateKind.Unknown;
+
+    /// <summary>
+    /// Energy that the processor package used since the previous sample, in picowatt-hours; null when unknown.
+    /// It feeds the per-phase energy sum and is not a column of samples.csv.
+    /// </summary>
+    public double? EmiPackageDeltaPwh { get; set; }
 
     /// <summary>Every value that could be read, by key. A missing key means "unknown".</summary>
     public Dictionary<string, double> Values { get; } = new();

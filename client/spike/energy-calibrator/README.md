@@ -74,7 +74,7 @@ Each source is optional. An unavailable source shows "not available: <reason>" a
 | CPU use (GetSystemTimes) | total over all logical processors | |
 | Performance counters | % Processor Performance, Processor Frequency, Thermal Zone Temperature (Kelvin to Celsius), GPU Engine 3D, disk bytes/s, network bytes/s | English counter names. A rate needs two reads, so the first sample has no counter values. |
 | Screen brightness (WMI WmiMonitorBrightness) | percent | Works on laptops with a built-in panel. |
-| Energy Meter counter set | raw Energy and Time of every instance | Windows 11 on supported processors only; "not available" elsewhere. |
+| Energy Meter counter set | raw Energy and Time of every instance, and watts of package, cores, graphics and memory | Windows 11 on supported processors only; "not available" elsewhere. See "Windows 11 Energy Meter" below. |
 | Last user input (GetLastInputInfo) | idle seconds | Used to detect input during the "Screen off" phase. |
 | Display state (power setting notification) | off, on, dimmed or unknown | Column `display_state`. See the next section. |
 
@@ -82,6 +82,29 @@ GPU 3D use: the instances of "GPU Engine" whose name holds `engtype_3D` are grou
 summed over all processes for each engine, and the busiest engine is taken (at most 100%).
 
 A value that cannot be read, or that is outside a believable range, is left empty ("unknown"). It is never replaced by 0.
+
+## Windows 11 Energy Meter
+
+Windows 11 (measured on build 26300) shows processor energy in the performance counter set "Energy Meter". It needs no administrator
+rights: a normal user reads it with `new PerformanceCounter("Energy Meter", "Energy" | "Time", instance, readOnly: true).RawValue`.
+
+* Instances: `RAPL_Package0_PKG` (the whole processor package), `RAPL_Package0_PP0` (the cores), `RAPL_Package0_PP1` (the integrated graphics),
+  `RAPL_Package0_DRAM` (the memory), and `_Total`. PKG already holds PP0 and PP1, so the values are never added up.
+* Units in this counter set: `Energy` is cumulative picowatt-hours. `Time` is cumulative **milliseconds** (not 100 ns).
+* The `Power` counter is not watts (its raw value equals the cumulative energy), so it is not used.
+
+```
+watts = (Energy2 - Energy1) in pWh / (Time2 - Time1) in ms x 3.6e-6
+```
+
+Check: 9,637,423,889 pWh over 5,026 ms is 6.90 W. A power needs two reads, so the first sample has empty `emi_*` columns.
+A missing set or instance, a counter that did not move forward, or a value above 500 W is left empty (unknown), never 0.
+
+`samples.csv` has the fixed columns `emi_pkg_w`, `emi_cores_w`, `emi_gpu_w` and `emi_dram_w` (watts since the previous sample). The raw
+`energymeter_<instance>_energy` and `_time` columns stay in the final file. `phases.csv` has `mean_emi_pkg_w`, `mean_emi_cores_w`,
+`mean_emi_gpu_w`, `mean_emi_dram_w` (means over the used samples) and `emi_package_mwh` (the package energy of the used samples in mWh:
+the sum of the energy steps divided by 1e9), to be read next to `battery_drop_mwh`. The CPU share (`cpu_share_pct`) uses the package
+power of the Energy Meter when it was read, otherwise Intel DTT; `summary.txt` names the source for each phase.
 
 ## How the display state is measured
 
@@ -135,6 +158,7 @@ A file error is shown in the status line and never stops the test.
 ## Result files (`results\<yyyyMMdd-HHmmss>\`)
 
 * `samples.csv`: every sample, every source as a column, empty cell = unknown. `display_state` is off, on, dimmed or unknown. Phase 0 means "no phase was running".
+  Fixed columns include `emi_pkg_w`, `emi_cores_w`, `emi_gpu_w`, `emi_dram_w` (Windows Energy Meter watts).
   Extra columns are `dtt_p<n>_power_w`, `dtt_p<n>_temp_c` (Intel DTT participants), `thermal_zone_<n>_c`, `energymeter_<name>_energy` and `_time`.
 * `phases.csv`: one row per phase with the numbers above and a warning column.
 * `model.json`: the model, the power of each phase and the CPU share per phase.

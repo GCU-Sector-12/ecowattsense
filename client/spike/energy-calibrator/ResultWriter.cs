@@ -159,7 +159,7 @@ internal static class PhasesCsv
     /// <returns>The header text.</returns>
     public static string Header()
     {
-        return "phase,name,status,target_brightness_pct,samples_used,seconds,battery_drop_mwh,battery_w_ioctl,battery_w_wmi,battery_w_used,wmi_drop_mwh,mean_cpu_util_pct,mean_cpu_package_w_dtt,mean_gpu_3d_pct,mean_brightness_pct,mean_thermal_zone_max_c,mean_dtt_package_c,cpu_share_pct,display_off_pct,warning";
+        return "phase,name,status,target_brightness_pct,samples_used,seconds,battery_drop_mwh,battery_w_ioctl,battery_w_wmi,battery_w_used,wmi_drop_mwh,mean_cpu_util_pct,mean_cpu_package_w_dtt,mean_emi_pkg_w,mean_emi_cores_w,mean_emi_gpu_w,mean_emi_dram_w,emi_package_mwh,mean_gpu_3d_pct,mean_brightness_pct,mean_thermal_zone_max_c,mean_dtt_package_c,cpu_share_pct,display_off_pct,warning";
     }
 
     /// <summary>Builds one row, without a line break.</summary>
@@ -172,7 +172,8 @@ internal static class PhasesCsv
             r.Phase.Number.ToString(CultureInfo.InvariantCulture), Csv.Quote(r.Phase.Name), Csv.Quote(PhaseStatusTexts.Describe(r.Status)),
             Csv.Num(r.Phase.BrightnessPercent), r.SampleCount.ToString(CultureInfo.InvariantCulture), Csv.Num(r.Seconds), Csv.Num(r.DropMwh),
             Csv.Num(r.IoctlWatts), Csv.Num(r.WmiWatts), Csv.Num(r.BatteryWatts), Csv.Num(r.WmiDropMwh),
-            Csv.Num(r.MeanCpuPercent), Csv.Num(r.MeanCpuPackageWatts), Csv.Num(r.MeanGpuPercent), Csv.Num(r.MeanBrightness),
+            Csv.Num(r.MeanCpuPercent), Csv.Num(r.MeanCpuPackageWatts), Csv.Num(r.MeanEmiPackageWatts), Csv.Num(r.MeanEmiCoresWatts),
+            Csv.Num(r.MeanEmiGpuWatts), Csv.Num(r.MeanEmiDramWatts), Csv.Num(r.EmiPackageMwh), Csv.Num(r.MeanGpuPercent), Csv.Num(r.MeanBrightness),
             Csv.Num(r.MeanZoneTempC), Csv.Num(r.MeanPackageTempC), Csv.Num(r.CpuShare * 100), Csv.Num(r.DisplayOffShare * 100), Csv.Quote(r.Warning)
         ];
         return string.Join(",", fields);
@@ -236,6 +237,7 @@ internal static class SummaryText
         AddHeader(lines, report);
         AddMethod(lines);
         AddPhases(lines, report.Results);
+        AddProcessorEnergy(lines, report.Results);
         AddModel(lines, report.Model);
         AddSources(lines, report.Outcome.Samples);
         AddWarnings(lines, report);
@@ -284,8 +286,30 @@ internal static class SummaryText
     {
         string power = Fmt.WithUnit(r.BatteryWatts, "0.00", "W");
         string drop = r.DropMwh.HasValue ? $"battery fell {r.DropMwh.Value.ToString("0", CultureInfo.InvariantCulture)} mWh in {Fmt.Number(r.Seconds, "0")} s" : "no battery drop measured";
-        string share = r.CpuShare.HasValue ? $"; processor package {Fmt.Number(r.CpuShare * 100, "0")}% of it (Intel DTT)" : "";
+        string share = r.CpuShare.HasValue ? $"; processor package {Fmt.Number(r.CpuShare * 100, "0")}% of it ({r.CpuShareSource})" : "";
         return $"{r.Phase.Number}. {r.Phase.Name}: {power} ({drop}; CPU use {Fmt.Number(r.MeanCpuPercent, "0")}%; brightness {Fmt.Number(r.MeanBrightness, "0")}%; display off in {Fmt.Number(r.DisplayOffShare * 100, "0")}% of samples){share} [{PhaseStatusTexts.Describe(r.Status)}]";
+    }
+
+    /// <summary>Adds the processor energy of each phase from the Windows Energy Meter, next to the battery drop, and says which source the CPU share used.</summary>
+    /// <param name="lines">The text lines.</param>
+    /// <param name="results">One result per phase.</param>
+    private static void AddProcessorEnergy(List<string> lines, IReadOnlyList<PhaseResult> results)
+    {
+        lines.Add("Processor energy by phase (Windows Energy Meter, a normal user may read it)");
+        lines.Add("The package value is the whole processor package and already holds the cores and the graphics; do not add the values up.");
+        lines.Add("The CPU share of a phase uses the package power of the Windows Energy Meter when it was read, otherwise Intel DTT; each phase line above names the source.");
+        foreach (PhaseResult result in results) { lines.Add(EnergyLine(result)); }
+        lines.Add("");
+    }
+
+    /// <summary>Describes the Energy Meter values of one phase in one line.</summary>
+    /// <param name="r">The phase result.</param>
+    /// <returns>The line.</returns>
+    private static string EnergyLine(PhaseResult r)
+    {
+        string watts = $"package {Fmt.WithUnit(r.MeanEmiPackageWatts, "0.00", "W")}, cores {Fmt.WithUnit(r.MeanEmiCoresWatts, "0.00", "W")}, graphics {Fmt.WithUnit(r.MeanEmiGpuWatts, "0.00", "W")}, memory {Fmt.WithUnit(r.MeanEmiDramWatts, "0.00", "W")}";
+        string energy = $"package energy {Fmt.WithUnit(r.EmiPackageMwh, "0.0", "mWh")} against battery drop {Fmt.WithUnit(r.DropMwh, "0.0", "mWh")}";
+        return $"{r.Phase.Number}. {r.Phase.Name}: {watts}; {energy}";
     }
 
     /// <summary>Adds the model lines.</summary>

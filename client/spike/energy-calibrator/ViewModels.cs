@@ -177,13 +177,34 @@ internal static class Fmt
     /// <returns>"off", "on", "dimmed" or "unknown".</returns>
     public static string Display(Sample s) => DisplayStateTexts.Describe(s.DisplayState);
 
-    /// <summary>Number of Energy Meter instances that were read.</summary>
+    /// <summary>Power of the processor package from the Windows Energy Meter.</summary>
     /// <param name="s">The sample.</param>
     /// <returns>The text.</returns>
-    public static string EnergyMeter(Sample s)
+    public static string EmiPackage(Sample s) => Emi(s, SampleKeys.EmiPackageWatts);
+
+    /// <summary>Power of the processor cores from the Windows Energy Meter.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>The text.</returns>
+    public static string EmiCores(Sample s) => Emi(s, SampleKeys.EmiCoresWatts);
+
+    /// <summary>Power of the integrated graphics from the Windows Energy Meter.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>The text.</returns>
+    public static string EmiGpu(Sample s) => Emi(s, SampleKeys.EmiGpuWatts);
+
+    /// <summary>Power of the memory from the Windows Energy Meter.</summary>
+    /// <param name="s">The sample.</param>
+    /// <returns>The text.</returns>
+    public static string EmiDram(Sample s) => Emi(s, SampleKeys.EmiDramWatts);
+
+    /// <summary>Formats one Windows Energy Meter power value.</summary>
+    /// <param name="s">The sample.</param>
+    /// <param name="key">The value name.</param>
+    /// <returns>The watts, or "not available" with the reason when the value is unknown.</returns>
+    private static string Emi(Sample s, string key)
     {
-        int count = s.Values.Keys.Count(key => key.StartsWith(SampleKeys.EnergyMeterPrefix, StringComparison.Ordinal) && key.EndsWith("_energy", StringComparison.Ordinal));
-        return $"{count} energy counters read (raw values in samples.csv)";
+        if (s.Has(key)) { return Show(s, key, "0.00", "W"); }
+        return "not available: no value yet (a power needs two readings) or this instance is not reported";
     }
 }
 
@@ -254,7 +275,10 @@ internal static class ReadingRows
             new("Network throughput", SampleKeys.SourceNetwork, Fmt.Network),
             new("Screen brightness", SampleKeys.SourceBrightness, Fmt.Brightness),
             new("Display state", SampleKeys.SourceDisplayState, Fmt.Display, "Reported by Windows (power setting GUID_CONSOLE_DISPLAY_STATE): off, on or dimmed. Unknown until the first notification arrives."),
-            new("Energy Meter (RAPL)", SampleKeys.SourceEnergyMeter, Fmt.EnergyMeter, "Optional counter set of Windows 11 on supported processors.")
+            new("CPU package (Windows Energy Meter)", SampleKeys.SourceEnergyMeter, Fmt.EmiPackage, "RAPL PKG, the whole processor package: watts since the previous reading from the Energy Meter counter set of Windows 11. A normal user may read it. It already holds the cores and the graphics."),
+            new("CPU cores (Windows Energy Meter)", SampleKeys.SourceEnergyMeter, Fmt.EmiCores, "RAPL PP0: the processor cores."),
+            new("Integrated graphics (Windows Energy Meter)", SampleKeys.SourceEnergyMeter, Fmt.EmiGpu, "RAPL PP1: the integrated graphics."),
+            new("Memory (Windows Energy Meter)", SampleKeys.SourceEnergyMeter, Fmt.EmiDram, "RAPL DRAM: the memory.")
         ];
     }
 }
@@ -405,6 +429,10 @@ internal sealed class PhaseResultRow
     public string Cpu { get; init; } = "";
     /// <summary>Mean CPU package power from Intel DTT.</summary>
     public string CpuPackage { get; init; } = "";
+    /// <summary>Mean CPU package power from the Windows Energy Meter.</summary>
+    public string EmiPackage { get; init; } = "";
+    /// <summary>Package energy from the Windows Energy Meter in mWh.</summary>
+    public string EmiMwh { get; init; } = "";
     /// <summary>Mean GPU 3D use.</summary>
     public string Gpu { get; init; } = "";
     /// <summary>Mean screen brightness.</summary>
@@ -434,6 +462,8 @@ internal sealed class PhaseResultRow
             WattsWmi = Fmt.Number(r.WmiWatts, "0.00"),
             Cpu = Fmt.Number(r.MeanCpuPercent, "0.0"),
             CpuPackage = Fmt.Number(r.MeanCpuPackageWatts, "0.00"),
+            EmiPackage = Fmt.Number(r.MeanEmiPackageWatts, "0.00"),
+            EmiMwh = Fmt.Number(r.EmiPackageMwh, "0.0"),
             Gpu = Fmt.Number(r.MeanGpuPercent, "0.0"),
             Brightness = Fmt.Number(r.MeanBrightness, "0"),
             ZoneTemp = Fmt.Number(r.MeanZoneTempC, "0.0"),

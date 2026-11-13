@@ -44,6 +44,21 @@ internal sealed class PhaseResult
     /// <summary>Mean power of the processor package from Intel DTT, in watts.</summary>
     public double? MeanCpuPackageWatts { get; init; }
 
+    /// <summary>Mean power of the whole processor package from the Windows Energy Meter, in watts.</summary>
+    public double? MeanEmiPackageWatts { get; init; }
+
+    /// <summary>Mean power of the processor cores from the Windows Energy Meter, in watts.</summary>
+    public double? MeanEmiCoresWatts { get; init; }
+
+    /// <summary>Mean power of the integrated graphics from the Windows Energy Meter, in watts.</summary>
+    public double? MeanEmiGpuWatts { get; init; }
+
+    /// <summary>Mean power of the memory from the Windows Energy Meter, in watts.</summary>
+    public double? MeanEmiDramWatts { get; init; }
+
+    /// <summary>Energy that the processor package used in the used samples, from the Windows Energy Meter, in mWh.</summary>
+    public double? EmiPackageMwh { get; init; }
+
     /// <summary>Mean use of the busiest GPU 3D engine in percent.</summary>
     public double? MeanGpuPercent { get; init; }
 
@@ -65,8 +80,22 @@ internal sealed class PhaseResult
     /// <summary>Power used by the model: the IOCTL value, or the WMI value when the IOCTL gave none.</summary>
     public double? BatteryWatts => IoctlWatts ?? WmiWatts;
 
-    /// <summary>Share of the laptop power that Intel DTT reports for the processor package (0 to 1), or null.</summary>
-    public double? CpuShare => MeanCpuPackageWatts.HasValue && BatteryWatts is > 0 ? MeanCpuPackageWatts / BatteryWatts : null;
+    /// <summary>Package power used for the CPU share: the Windows Energy Meter value when present, else the Intel DTT value.</summary>
+    public double? SharePackageWatts => MeanEmiPackageWatts ?? MeanCpuPackageWatts;
+
+    /// <summary>Name of the source of the CPU share: "Windows Energy Meter", "Intel DTT" or "none".</summary>
+    public string CpuShareSource
+    {
+        get
+        {
+            if (MeanEmiPackageWatts.HasValue) { return "Windows Energy Meter"; }
+            if (MeanCpuPackageWatts.HasValue) { return "Intel DTT"; }
+            return "none";
+        }
+    }
+
+    /// <summary>Share of the laptop power that the processor package uses (0 to 1), or null. See CpuShareSource.</summary>
+    public double? CpuShare => SharePackageWatts.HasValue && BatteryWatts is > 0 ? SharePackageWatts / BatteryWatts : null;
 }
 
 /// <summary>Works out the result of every phase from the samples.</summary>
@@ -104,6 +133,11 @@ internal static class PhaseAnalyser
             WmiWatts = wmi.Watts,
             MeanCpuPercent = Mean(used, SampleKeys.CpuUtil),
             MeanCpuPackageWatts = Mean(used, SampleKeys.DttPackageWatts),
+            MeanEmiPackageWatts = Mean(used, SampleKeys.EmiPackageWatts),
+            MeanEmiCoresWatts = Mean(used, SampleKeys.EmiCoresWatts),
+            MeanEmiGpuWatts = Mean(used, SampleKeys.EmiGpuWatts),
+            MeanEmiDramWatts = Mean(used, SampleKeys.EmiDramWatts),
+            EmiPackageMwh = PackageMwh(used),
             MeanGpuPercent = Mean(used, SampleKeys.Gpu3D),
             MeanBrightness = Mean(used, SampleKeys.Brightness),
             MeanZoneTempC = Mean(used, SampleKeys.ThermalMax),
@@ -128,6 +162,16 @@ internal static class PhaseAnalyser
         double seconds = last.MonotonicSeconds - first.MonotonicSeconds;
         double? watts = mwh > 0 && seconds > 0 ? mwh * 3.6 / seconds : null;
         return new DropMeasurement(mwh, seconds, watts);
+    }
+
+    /// <summary>Adds up the energy that the processor package used between the used samples.</summary>
+    /// <param name="used">The samples after the settling time.</param>
+    /// <returns>The energy in mWh (1 mWh is 1e9 picowatt-hours), or null when no used sample has an energy step.</returns>
+    private static double? PackageMwh(List<Sample> used)
+    {
+        List<double> steps = used.Where(sample => sample.EmiPackageDeltaPwh.HasValue).Select(sample => sample.EmiPackageDeltaPwh!.Value).ToList();
+        if (steps.Count == 0) { return null; }
+        return steps.Sum() / 1e9;
     }
 
     /// <summary>Works out the share of samples that were taken while the display was off.</summary>
