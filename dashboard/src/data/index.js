@@ -1,6 +1,5 @@
-// Data providers used by dashboard pages for sample responses and real devices.
-// Device mode selects the authenticated API; the other providers return sample copies.
-import summary from './summary.json'
+// Data providers used by dashboard pages to load API responses and sample data.
+import { loadSummary } from './summaryProvider.js'
 import { loadDevices } from './devicesProvider.js'
 import history from './history.json'
 import settings from './settings.json'
@@ -8,18 +7,14 @@ import { applyDevelopmentControls } from './developmentControls.js'
 import { ujToKwh } from './units.js'
 
 /**
- * Returns an independent sample summary; unrecorded dates have empty energy data.
- * @param {string} [date=summary.date] - Requested YYYY-MM-DD day.
- * @throws {Error} When the development failure switch is enabled.
+ * Loads summary data from the selected sample or authenticated API provider.
+ * @param {string} [date] - Requested YYYY-MM-DD day.
+ * @throws {Error} When development controls or the API request fail.
  * @returns {Promise<object>} Summary using API contract field names.
  */
-export async function getSummary(date = summary.date) {
-  await applyDevelopmentControls()
-  // Only one day is recorded in the sample. Do not relabel its readings as
-  // another day; device counts still describe the current sample devices.
-  return structuredClone(date === summary.date ? summary : {
-    ...summary, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [],
-  })
+export async function getSummary(date) {
+  if (import.meta.env.VITE_SUMMARY_DATA_SOURCE !== 'real') await applyDevelopmentControls()
+  return loadSummary(date)
 }
 
 /**
