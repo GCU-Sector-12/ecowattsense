@@ -67,7 +67,7 @@ Each source goes through the same four steps. The result of each step is stored.
 
 1. `present`: the device, counter or library exists.
 2. `readable`: it opens and one read succeeds. A failure stores the Windows error code.
-3. `live`: two reads, 3 seconds apart, with a 1 second processor load in between. A source that counts energy (EMI) is live when the counter grew. A source that reports power (ACPI power meter) is live when one of the two reads is above zero. A source whose value says nothing in 3 seconds (battery, display, graphics, Intel DTT) stores `live: null`.
+3. `live`: two reads, 3 seconds apart, with a 1 second processor load in between. A source that counts energy (EMI) is live when the counter grew. A source that reports power (ACPI power meter) is live when one of the two reads is above zero. A source whose value says nothing in 3 seconds (battery, display, graphics, Intel DTT, PawnIO) stores `live: null`.
 4. `sample`: one value in the unit of the source, for the log.
 
 A failed step is "unknown", never "does not exist". The scan never stops on one failed source.
@@ -82,6 +82,7 @@ A failed step is "unknown", never "does not exist". The scan never stops on one 
 | `display` | Brightness | `IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS` on `\\.\LCD`. On the HP 250 G7 a standard user is denied (error 5); the scan records that. | yes, when readable in the service context |
 | `gpu` | List of graphics adapters (DXGI); power from NVML when `nvml.dll` loads | DXGI, dynamic load of NVML | no, logged only (section 12, point 1) |
 | `intel_dtt` | Intel DTT participants | presence of the `esifsvc` service | no, logged only |
+| `pawnio` | The signed PawnIO driver, which gives programs the raw processor registers (among them the whole-platform energy counter that EMI does not show on the HP 250 G7) | whether PawnIO is installed, its version, and whether its device opens in this context. The scanner sends no command to the driver and loads no module. | no, logged only |
 | `machine` | Maker, model, chassis type (SMBIOS), processor vendor and name, logical processors, Windows build | `GetSystemFirmwareTable`, CPUID | yes (device type) |
 
 EMI channel kinds, set from the channel name:
@@ -146,8 +147,9 @@ The other sources use the same four common fields (`present`, `readable`, `live`
 | `display` | `brightness_pct` (only when readable) |
 | `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software" }`; `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count) |
 | `intel_dtt` | none (`present` says whether the service exists) |
+| `pawnio` | `version` (only when known). `present` says whether PawnIO is installed; `readable` says whether its device opened. |
 
-The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `intel_dtt`. A field with an unknown value is left out.
+The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `intel_dtt`, `pawnio`. A field with an unknown value is left out.
 
 `context`: the value of `--context`. Without the flag it is `admin` when the process is elevated, else `user`. With context `service` the files are named `capabilities.service.json` and `scan.service.log`.
 
