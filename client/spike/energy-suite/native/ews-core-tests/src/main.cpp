@@ -1,11 +1,13 @@
 // main.cpp: entry point of ews-core-tests.
 // Run with no argument to run all tests; the exit code is the number of failed checks (at most 255).
 // Run with --live to print one line per real reader on this computer (exit code 0).
+// Run with --send <base-url> to send two test lines to a local listener (used by scripts/Test-Sender.ps1).
 #include <cstdio>
 #include <cstring>
 #include <vector>
 
 #include "live.h"
+#include "send_mode.h"
 #include "test_common.h"
 
 namespace ews_test {
@@ -54,6 +56,10 @@ int main(int argc, char** argv) {
     bool live = argc > 1 && std::strcmp(argv[1], "--live") == 0;
     if (live) {
         return ews_test::RunLive();
+    }
+    bool send = argc > 2 && std::strcmp(argv[1], "--send") == 0;
+    if (send) {
+        return ews_test::RunSend(argv[2]);
     }
     ews_test::RunAll();
     int failed = ews_test::FailedChecks();
