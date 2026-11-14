@@ -113,7 +113,18 @@ public sealed class RealProcessOps : IProcessOps
     {
         List<IntPtr> handles = [];
         int code = -1;
-        try { code = LaunchAndWait(exePath, handles); }
+        try { code = Launch(exePath, handles, true); }
+        catch (Exception) { code = -1; }
+        finally { CloseAll(handles); }
+        return code;
+    }
+
+    /// <inheritdoc />
+    public int StartAsLoggedOnUser(string exePath)
+    {
+        List<IntPtr> handles = [];
+        int code = -1;
+        try { code = Launch(exePath, handles, false); }
         catch (Exception) { code = -1; }
         finally { CloseAll(handles); }
         return code;
@@ -124,7 +135,8 @@ public sealed class RealProcessOps : IProcessOps
         foreach (IntPtr handle in handles) ShellLaunch.CloseHandle(handle);
     }
 
-    private static int LaunchAndWait(string exePath, List<IntPtr> handles)
+    /// <summary>Starts a program with the shell token. Waits and returns its exit code, or returns 0 at once when wait is false.</summary>
+    private static int Launch(string exePath, List<IntPtr> handles, bool wait)
     {
         IntPtr token = DuplicateShellToken(handles);
         if (token == IntPtr.Zero) return -1;
@@ -134,6 +146,7 @@ public sealed class RealProcessOps : IProcessOps
         if (!started) return -1;
         handles.Add(information.Process);
         handles.Add(information.Thread);
+        if (!wait) return 0;
         ShellLaunch.WaitForSingleObject(information.Process, ShellLaunch.Infinite);
         return ShellLaunch.GetExitCodeProcess(information.Process, out uint exitCode) ? (int)exitCode : -1;
     }

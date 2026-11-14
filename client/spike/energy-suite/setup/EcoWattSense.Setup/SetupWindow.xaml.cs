@@ -26,6 +26,7 @@ public partial class SetupWindow : Window
     private static readonly SolidColorBrush ActiveBrush = new(Color.FromRgb(0x28, 0x5E, 0x50));
     private static readonly SolidColorBrush ErrorBrush = new(Color.FromRgb(0xB3, 0x26, 0x1E));
     private static readonly SolidColorBrush GoodBrush = new(Color.FromRgb(0x1B, 0x6E, 0x3C));
+    private static readonly SolidColorBrush WaitBrush = new(Color.FromRgb(0x9A, 0xA5, 0xB1));
 
     private readonly SetupMode _mode;
     private readonly SetupServices _services;
@@ -43,6 +44,10 @@ public partial class SetupWindow : Window
     private bool _hadUrl;
     private bool _keyStored;
     private bool _busy;
+    private bool _installDone;
+    private int _doneSteps;
+    private readonly Dictionary<string, TextBlock> _marks = [];
+    private readonly Dictionary<string, TextBlock> _texts = [];
     private readonly WizardNav _nav = new();
     private readonly ConnectionTester _tester;
 
@@ -151,7 +156,19 @@ public partial class SetupWindow : Window
 
     private Task NextScan() { Show(1); return Task.CompletedTask; }
 
-    private Task NextClose() { Close(); return Task.CompletedTask; }
+    /// <summary>Finish: starts the client when the box is ticked, then closes. A start problem shows one line and keeps the window open once.</summary>
+    private async Task NextClose()
+    {
+        if (_mode != SetupMode.Install) { Close(); return; }
+        bool ticked = StartClientBox.IsChecked == true;
+        SetBusy(true);
+        int code = await Task.Run(() => _install.Finish(ticked));
+        SetBusy(false);
+        if (code == 0) { Close(); return; }
+        StartClientMessage.Text = "EcoWattSense could not be started. Start EcoWattSense.Client.Gui.exe from the program folder.";
+        _finished = true;
+        Show(3);
+    }
 
     private Task NextServer()
     {
@@ -187,23 +204,98 @@ public partial class SetupWindow : Window
 
     private async Task NextInstall()
     {
+        if (_installDone) { ShowCalibration(); return; }
         SetBusy(true);
         InstallText.Text = "Installing. This can take a minute.";
+        BuildStepList();
+        IProgress<InstallProgress> progress = new Progress<InstallProgress>(ShowProgress);
         InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), KeyBox.Password, SendBox.IsChecked == true, DeviceNameBox.Text);
-        StepOutcome outcome = await Task.Run(() => _install.Install(request));
+        StepOutcome outcome = await Task.Run(() => _install.Install(request, progress));
         KeyBox.Clear();
         SetBusy(false);
         FinishInstall(outcome);
     }
 
+    /// <summary>Makes one row for each install step, all waiting, and shows the bar. Rows are plain text, no timer.</summary>
+    private void BuildStepList()
+    {
+        StepList.Children.Clear();
+        _marks.Clear();
+        _texts.Clear();
+        _doneSteps = 0;
+        InstallBar.Maximum = InstallTitles.Order.Length;
+        InstallBar.Value = 0;
+        InstallBar.Visibility = Visibility.Visible;
+        foreach (string name in InstallTitles.Order) StepList.Children.Add(MakeRow(name));
+    }
+
+    private Grid MakeRow(string name)
+    {
+        Grid row = new() { Margin = new Thickness(0, 0, 0, 6) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        TextBlock mark = new() { FontSize = 15, FontWeight = FontWeights.Bold };
+        TextBlock text = new() { FontSize = 15, TextWrapping = TextWrapping.Wrap, Text = InstallTitles.For(name) };
+        Grid.SetColumn(text, 1);
+        row.Children.Add(mark);
+        row.Children.Add(text);
+        _marks[name] = mark;
+        _texts[name] = text;
+        SetMark(name, StepState.Waiting, InstallTitles.For(name));
+        return row;
+    }
+
+    /// <summary>Shows one report from the install: the mark, the text and the bar. Runs on the UI thread.</summary>
+    private void ShowProgress(InstallProgress report)
+    {
+        SetMark(report.Name, report.State, report.Text);
+        _doneSteps += report.State == StepState.Done ? 1 : 0;
+        double copyPart = report.Total > 0 && report.State == StepState.Working ? (double)report.Done / report.Total : 0;
+        InstallBar.Value = _doneSteps + copyPart;
+    }
+
+    private void SetMark(string name, StepState state, string text)
+    {
+        _marks[name].Text = MarkFor(state);
+        _marks[name].Foreground = BrushFor(state);
+        _texts[name].Text = text;
+        _texts[name].Foreground = state == StepState.Failed ? ErrorBrush : Brushes.Black;
+    }
+
+    private static string MarkFor(StepState state) => state switch
+    {
+        StepState.Working => "\u25B6",
+        StepState.Done => "\u2713",
+        StepState.Failed => "\u2717",
+        _ => "\u25CB",
+    };
+
+    private static Brush BrushFor(StepState state) => state switch
+    {
+        StepState.Working => ActiveBrush,
+        StepState.Done => GoodBrush,
+        StepState.Failed => ErrorBrush,
+        _ => WaitBrush,
+    };
+
+    /// <summary>Marks a step that was skipped, for example the computer name when none was given, as done.</summary>
+    private void CompleteWaitingRows()
+    {
+        foreach (string name in InstallTitles.Order.Where(item => _marks[item].Text == MarkFor(StepState.Waiting))) SetMark(name, StepState.Done, InstallTitles.For(name));
+    }
+
     private void FinishInstall(StepOutcome outcome)
     {
         _finished = !outcome.Ok;
-        InstallText.Text = outcome.Ok ? "Installed." : outcome.Message;
         InstallNoteText.Text = outcome.Note;
-        if (!outcome.Ok) { Show(2); return; }
+        if (!outcome.Ok) { InstallText.Text = outcome.Message; Show(2); return; }
+        CompleteWaitingRows();
+        InstallBar.Value = InstallBar.Maximum;
+        InstallText.Text = $"The programs are installed in {_layout.ProgramDir}.";
+        _installDone = true;
+        _nextTexts[2] = "Next";
         _nav.Lock();
-        ShowCalibration();
+        Show(2);
     }
 
     private void ShowCalibration()

@@ -37,22 +37,25 @@ public sealed class StepRunner
     /// <param name="steps">The steps in order.</param>
     /// <param name="undoOnFailure">True to undo the finished steps when one fails.</param>
     /// <param name="what">Word for the message: install, uninstall or settings.</param>
+    /// <param name="progress">Gets a report when a step starts, ends well or fails; null for none.</param>
     /// <returns>The outcome with a message.</returns>
-    public StepOutcome Run(IReadOnlyList<InstallStep> steps, bool undoOnFailure, string what)
+    public StepOutcome Run(IReadOnlyList<InstallStep> steps, bool undoOnFailure, string what, IProgress<InstallProgress>? progress = null)
     {
         List<InstallStep> done = [];
         InstallStep? failed = null;
         int code = 0;
         for (int index = 0; index < steps.Count && failed == null; index++)
         {
-            code = RunOne(steps[index], done);
+            code = RunOne(steps[index], done, progress);
             failed = code == 0 ? null : steps[index];
         }
         if (failed == null) return new StepOutcome(true, "Done.");
         if (undoOnFailure) UndoAll(done);
         string tail = undoOnFailure ? "The steps before it were undone." : "Nothing more was done.";
         string hint = Hints.GetValueOrDefault(failed.Name, "");
-        return new StepOutcome(false, $"The {what} stopped at the step \"{failed.Name}\" (error {code}). {hint} {tail} See install.log.");
+        StepOutcome outcome = new(false, $"The {what} stopped at the step \"{failed.Name}\" (error {code}). {hint} {tail} See install.log.");
+        progress?.Report(new InstallProgress(failed.Name, StepState.Failed, outcome.Message));
+        return outcome;
     }
 
     /// <summary>A short help text for the steps that fail most often.</summary>
@@ -65,11 +68,14 @@ public sealed class StepRunner
         ["configure"] = "The server address or key was not accepted.",
     };
 
-    private int RunOne(InstallStep step, List<InstallStep> done)
+    private int RunOne(InstallStep step, List<InstallStep> done, IProgress<InstallProgress>? progress)
     {
+        string title = InstallTitles.For(step.Name);
+        progress?.Report(new InstallProgress(step.Name, StepState.Working, title));
         int code = step.Run();
         _log.Line(step.Name, code == 0 ? "ok" : "failed", code);
         if (code == 0) done.Add(step);
+        if (code == 0) progress?.Report(new InstallProgress(step.Name, StepState.Done, title));
         return code;
     }
 
@@ -146,6 +152,7 @@ public sealed class InstallEngine
     private bool _serviceExisted;
     private bool _serviceWasRunning;
     private bool _programDirExisted;
+    private IProgress<InstallProgress>? _progress;
 
     /// <summary>Creates the engine.</summary>
     /// <param name="services">The operations.</param>
@@ -176,9 +183,11 @@ public sealed class InstallEngine
 
     /// <summary>Steps 4 to 8: stop an old service, copy, rights, configuration, service, autostart. Undoes on failure.</summary>
     /// <param name="request">The Server page values and the package folder.</param>
-    public StepOutcome Install(InstallRequest request)
+    /// <param name="progress">Gets a report for each step change and for each file copied; null for none.</param>
+    public StepOutcome Install(InstallRequest request, IProgress<InstallProgress>? progress = null)
     {
         _request = request;
+        _progress = progress;
         InstallStep[] steps =
         [
             new("stop_old_service", StepStopOld, UndoStopOld),
@@ -189,7 +198,7 @@ public sealed class InstallEngine
             new("start_service", StepStart, UndoStart),
             new("autostart_task", StepTask, UndoTask),
         ];
-        StepOutcome outcome = _runner.Run(steps, true, "install");
+        StepOutcome outcome = _runner.Run(steps, true, "install", progress);
         return outcome.Ok ? WithDeviceName(outcome) : outcome;
     }
 
@@ -197,9 +206,39 @@ public sealed class InstallEngine
     private StepOutcome WithDeviceName(StepOutcome outcome)
     {
         if (_deviceName == null || _request.DeviceName == null) return outcome;
+        const string name = "device_name";
+        _progress?.Report(new InstallProgress(name, StepState.Working, InstallTitles.For(name)));
         string deviceType = Scan?.DeviceType ?? "desktop";
         StepOutcome sent = _deviceName.Apply(_request.DeviceName, _request.Url, _request.Key, deviceType);
+        StepState state = sent.Message.Length == 0 ? StepState.Done : StepState.Failed;
+        string text = sent.Message.Length == 0 ? InstallTitles.For(name) : sent.Message;
+        _progress?.Report(new InstallProgress(name, state, text));
         return outcome with { Note = sent.Message };
+    }
+
+    /// <summary>
+    /// The Finish button: starts the client as the logged-on user, not elevated, without waiting, when the box was ticked.
+    /// A failure is logged as `start_client failed` and returned; it never fails the install.
+    /// </summary>
+    /// <param name="startClient">True when "Start EcoWattSense now" was ticked.</param>
+    /// <returns>0 when the client started or was not asked for, otherwise the error code or -1.</returns>
+    public int Finish(bool startClient)
+    {
+        if (!startClient) return 0;
+        int code = _services.Processes.StartAsLoggedOnUser(_layout.ClientExe);
+        _log.Line("start_client", code == 0 ? "started" : "failed", code);
+        return code;
+    }
+
+    /// <summary>Reports each file copied as "Copying programs n of total" to the install progress.</summary>
+    private sealed class CopyReporter(IProgress<InstallProgress>? target, int total) : IProgress<int>
+    {
+        /// <summary>Sends one report for the number of files copied so far.</summary>
+        public void Report(int copied)
+        {
+            string text = $"{InstallTitles.For("copy_programs")} {copied} of {total}";
+            target?.Report(new InstallProgress("copy_programs", StepState.Working, text, copied, total));
+        }
     }
 
     /// <summary>Step 9, "Calibrate now": runs the calibrator as the logged-on user and logs its exit code.</summary>
@@ -250,7 +289,9 @@ public sealed class InstallEngine
     {
         _programDirExisted = _services.Files.DirectoryExists(_layout.ProgramDir);
         bool sameFolder = string.Equals(Path.GetFullPath(_request.PackageDir).TrimEnd('\\'), Path.GetFullPath(_layout.ProgramDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
-        return sameFolder ? 0 : _services.Files.CopyDirectory(_request.PackageDir, _layout.ProgramDir);
+        if (sameFolder) return 0;
+        CopyReporter reporter = new(_progress, _services.Files.CountFiles(_request.PackageDir));
+        return _services.Files.CopyDirectory(_request.PackageDir, _layout.ProgramDir, reporter);
     }
 
     private void UndoCopy()

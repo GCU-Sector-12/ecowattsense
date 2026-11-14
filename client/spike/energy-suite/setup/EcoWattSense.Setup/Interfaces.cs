@@ -51,8 +51,14 @@ public interface IFileOps
     /// <summary>Creates a folder with its parents; an existing folder is fine. Returns 0 or an error code.</summary>
     int CreateDirectory(string path);
 
-    /// <summary>Copies a whole folder tree over another one, replacing files. Returns 0 or an error code.</summary>
-    int CopyDirectory(string source, string target);
+    /// <summary>Counts the files in a folder tree. Returns 0 when the folder cannot be read.</summary>
+    int CountFiles(string path);
+
+    /// <summary>
+    /// Copies a whole folder tree over another one, replacing files. Returns 0 or an error code.
+    /// The progress, when given, gets the number of files copied so far after each file.
+    /// </summary>
+    int CopyDirectory(string source, string target, IProgress<int>? copied = null);
 
     /// <summary>Deletes a folder tree; a missing folder is fine. Returns 0 or an error code.</summary>
     int DeleteDirectory(string path);
@@ -126,6 +132,9 @@ public interface IProcessOps
 
     /// <summary>Runs a program as the logged-on user, not elevated, and waits. Returns its exit code or -1.</summary>
     int RunAsLoggedOnUser(string exePath);
+
+    /// <summary>Starts a program as the logged-on user, not elevated, and does not wait. Returns 0 or an error code, -1 when it could not start.</summary>
+    int StartAsLoggedOnUser(string exePath);
 
     /// <summary>Starts a program and does not wait. Returns 0 or an error code.</summary>
     int StartDetached(string exePath, string arguments);

@@ -43,17 +43,30 @@ public sealed class RealFileOps : IFileOps
     }
 
     /// <inheritdoc />
-    public int CopyDirectory(string source, string target)
+    public int CountFiles(string path)
     {
-        try { CopyTree(source, target); return 0; }
+        try { return Directory.GetFiles(path, "*", SearchOption.AllDirectories).Length; }
+        catch (Exception) { return 0; }
+    }
+
+    /// <inheritdoc />
+    public int CopyDirectory(string source, string target, IProgress<int>? copied = null)
+    {
+        int count = 0;
+        try { CopyTree(source, target, copied, ref count); return 0; }
         catch (Exception exception) { return ErrorCodes.From(exception); }
     }
 
-    private static void CopyTree(string source, string target)
+    private static void CopyTree(string source, string target, IProgress<int>? copied, ref int count)
     {
         Directory.CreateDirectory(target);
-        foreach (string file in Directory.GetFiles(source)) File.Copy(file, Path.Combine(target, Path.GetFileName(file)), true);
-        foreach (string folder in Directory.GetDirectories(source)) CopyTree(folder, Path.Combine(target, Path.GetFileName(folder)));
+        foreach (string file in Directory.GetFiles(source))
+        {
+            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), true);
+            count++;
+            copied?.Report(count);
+        }
+        foreach (string folder in Directory.GetDirectories(source)) CopyTree(folder, Path.Combine(target, Path.GetFileName(folder)), copied, ref count);
     }
 
     /// <inheritdoc />
