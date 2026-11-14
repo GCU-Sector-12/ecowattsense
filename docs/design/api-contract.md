@@ -65,6 +65,9 @@ The other server settings keep their current names for now. Whether they also ge
 | GET | `/api/devices/{device_id}/history` | admin | cookie | Reports and totals of one computer |
 | GET | `/api/summary` | admin | cookie | Counts, energy, cost and CO2 for one day |
 | PATCH | `/api/admin/devices/{device_id}` | admin | cookie | Change the name, the room or the archived flag of a computer |
+| GET | `/api/locations` | admin | cookie | List the rooms |
+| POST | `/api/admin/locations` | admin | cookie | Add a room |
+| PATCH | `/api/admin/locations/{location_id}` | admin | cookie | Change the name or the building of a room |
 
 ## 5. Endpoints
 
@@ -659,6 +662,105 @@ Example body (replace `settings_version` with the latest GET value):
  "tariff_valid_from":"2026-11-17T00:00:00Z","price_gbp_per_kwh":0.25,"co2_kg_per_kwh":0.207}
 ```
 
+### 5.13 GET /api/locations
+
+- Caller: the admin, from the dashboard.
+- Auth: the cookie `ews_session`, the same as `GET /api/devices` (section 5.8).
+- It lists the rooms, so the dashboard can fill a room picker.
+
+Response 200: the rooms, sorted by `name` and then by `building`. An empty list is valid.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `locations[].id` | integer | The room id. It is `location_id` in the other endpoints |
+| `locations[].name` | string | For example "Lab 1". Unique |
+| `locations[].building` | string or null | Null when no building is set |
+
+Status codes:
+
+- 200: The list
+- 401: There is no valid cookie
+
+Example response:
+
+```json
+{"locations": [{"id": 1, "name": "Lab 1", "building": "George Moore"}, {"id": 2, "name": "Lab 2", "building": null}]}
+```
+
+### 5.14 POST /api/admin/locations
+
+- Caller: the admin, from the dashboard.
+- Auth: the cookie `ews_session`.
+- It adds one room.
+
+Request body (a JSON object):
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `name` | string | yes | Trimmed. 1 to 60 characters. Unique |
+| `building` | string or null | no | Trimmed. At most 60 characters. A blank string or null means no building |
+
+A field that is not in this table is an error.
+
+Response 201: the new room, in the shape of one element of `locations[]` in section 5.13.
+
+Status codes:
+
+- 201: The room is added
+- 401: There is no valid cookie
+- 409: A room with the same `name` exists, whatever its building
+- 422: A field has the wrong type, a field is unknown, `name` is missing, blank or longer than 60 characters, or `building` is longer than 60 characters
+
+Example request: `POST /api/admin/locations`
+
+```json
+{"name": "Lab 3", "building": "George Moore"}
+```
+
+Example response:
+
+```json
+{"id": 3, "name": "Lab 3", "building": "George Moore"}
+```
+
+### 5.15 PATCH /api/admin/locations/{location_id}
+
+- Caller: the admin, from the dashboard.
+- Auth: the cookie `ews_session`.
+- It changes the name or the building of one room. Only the fields in the body change. The same body gives the same result.
+
+Path and request body (a JSON object):
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `location_id` | integer | yes | The room (in the path) |
+| `name` | string | no | Trimmed. 1 to 60 characters. Unique. Null is not allowed |
+| `building` | string or null | no | Trimmed. At most 60 characters. A blank string or null clears the building |
+
+At least one field is required. A field that is not in this table is an error.
+
+Response 200: the changed room, in the shape of one element of `locations[]` in section 5.13.
+
+Status codes:
+
+- 200: The room is changed. The body is the room as it is now
+- 401: There is no valid cookie
+- 404: There is no room with this `location_id`
+- 409: Another room has the same `name`
+- 422: A field has the wrong type, a field is unknown, the body is empty, `name` is null, blank or longer than 60 characters, or `building` is longer than 60 characters
+
+Example request: `PATCH /api/admin/locations/3`
+
+```json
+{"building": "Cowcaddens"}
+```
+
+Example response:
+
+```json
+{"id": 3, "name": "Lab 3", "building": "Cowcaddens"}
+```
+
 ## 6. Values
 
 **States.** The code is stored in the database and sent in reports. The name is used in replies and on screen.
@@ -721,7 +823,9 @@ What changes elsewhere to match this document:
 - The prefix of the other server settings (`ECOWATTSENSE_` today, `EWS_` proposed).
 - `device_name` in the client call versus `display_name` in the database and the admin endpoints. One word should win.
 - Clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false (a transition rule, to confirm).
-- Endpoints for the admin to change energy rates and locations and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version. Renaming or archiving a computer is in section 5.11. The admin settings are in section 5.12.
+- Endpoints for the admin to change energy rates and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version. Renaming or archiving a computer is in section 5.11. The admin settings are in section 5.12. Rooms are in sections 5.13 to 5.15.
+- There is no endpoint to delete a room. It comes later. The suggested rule is in the database brief, section 5.8: the computers of a deleted room stay without a room.
+- Room names are unique on their own (`models.py`, database brief section 5.1). So the same room name cannot exist in two buildings. If the team needs that, the rule becomes unique (`name`, `building`). That needs a model change, a database migration and a rule for an empty building, because SQLite does not compare NULL values in a unique index. To decide with the database owner.
 - The client name is stored only while `display_name` is empty (sections 5.3 and 5.11). So a client cannot change its own name later, and the server cannot tell a name from the client from a name from the admin. A column that says who set the name would fix this. It needs a change of the `devices` table and a migration of the existing staging database.
 - A `commands` table and `registered_at` in `devices` are needed for the ping and the registration. They are not in the brief or the ERD yet.
 - The lifetime of the session cookie. Admin users in the `users` table with password hashes, instead of one user in `.env`.
