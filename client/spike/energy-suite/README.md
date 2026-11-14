@@ -59,3 +59,14 @@ pwsh -NoProfile -File client\spike\energy-suite\scripts\Build-Package.ps1 [-Vers
 ```
 
 Needs Visual Studio 2022 with the C++ desktop workload and the .NET 10 SDK. The result is a ZIP and a `.sha256` file in `out\package`.
+
+## Release workflow
+
+The workflow `.github/workflows/energy-suite-release.yml` builds, signs and drafts a release. To cut a release, bump nothing and push a tag:
+
+```
+git tag v0.1.2-energy-suite
+git push origin v0.1.2-energy-suite
+```
+
+The version (here 0.1.2) is taken from the tag. The workflow needs the repository secrets `ENERGY_SUITE_SIGNING_PFX` (the .pfx file, base64) and `ENERGY_SUITE_SIGNING_PASSWORD`; without them it fails at once. It makes a DRAFT pre-release with the ZIP, the web installer, both `.sha256` files and `latest.json`. A person checks the draft and publishes it, then commits `latest.json` to `client/spike/energy-suite/release/`.
