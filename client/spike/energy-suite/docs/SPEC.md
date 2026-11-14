@@ -421,6 +421,10 @@ Settings (`Setup.exe /settings`): one page, started elevated (the client's "Chan
 
 Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task, delete the programs. The data folder stays unless the user ticks "Remove data". When it is started from `C:\Program Files\EcoWattSense\`, it first copies its folder to a temporary folder (`%TEMP%\EcoWattSetup-<guid>`, named in the code `EcoWattSenseSetup-<guid>`) and relaunches from the copy with `/uninstall /tempcopy`, because a program cannot delete the folder it runs from. The copy removes itself at the end.
 
+Progress: while installing, the Install page lists the steps in plain words, each with a mark (waiting, working, done, failed with its message), and one bar for the whole install; the copy step shows "Copying programs n of total". The steps report through IProgress on the UI thread, no timer; the list stays visible after the install and shows "The programs are installed in <program folder>."
+
+Finish: the last page has the box "Start EcoWattSense now", ticked by default (install mode only). On Finish Setup starts the client from the program folder as the logged-on user, not elevated, without waiting; a failure shows one line, is logged as `start_client failed` and never fails the install.
+
 Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter dial with a leaf), set as the application icon of the client, the calibrator and Setup. The tray icon of the client is taken from its own exe. The file is made by `scripts\New-AppIcon.ps1`.
 
 ## 11. Rules for the native code

@@ -61,6 +61,12 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     /// <summary>How many times the service was registered.</summary>
     public int RegisterCount { get; private set; }
 
+    /// <summary>How many files the fake package folder holds; the fake copy reports each one.</summary>
+    public int CopyFileCount { get; set; } = 3;
+
+    /// <summary>Result of starting the client at Finish.</summary>
+    public int ClientStartExit { get; set; }
+
     /// <summary>Exit code the fake calibrator returns.</summary>
     public int CalibratorExit { get; set; } = 7;
 
@@ -98,11 +104,16 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     }
 
     /// <inheritdoc />
-    public int CopyDirectory(string source, string target)
+    public int CountFiles(string path) => CopyFileCount;
+
+    /// <inheritdoc />
+    public int CopyDirectory(string source, string target, IProgress<int>? copied = null)
     {
         int code = Result("copydir");
-        if (code == 0) Directories.Add(target);
-        return code;
+        if (code != 0) return code;
+        Directories.Add(target);
+        for (int count = 1; count <= CopyFileCount; count++) copied?.Report(count);
+        return 0;
     }
 
     /// <inheritdoc />
@@ -242,6 +253,13 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     {
         Calls.Add("calibrator " + exePath);
         return CalibratorExit;
+    }
+
+    /// <inheritdoc />
+    public int StartAsLoggedOnUser(string exePath)
+    {
+        Calls.Add("client " + exePath);
+        return ClientStartExit;
     }
 
     /// <inheritdoc />
