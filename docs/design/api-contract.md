@@ -682,6 +682,7 @@ What changes elsewhere to match this document:
 - `device_name` in the client call versus `display_name` in the database and the admin endpoints. One word should win.
 - Clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false (a transition rule, to confirm).
 - Endpoints for the admin to change settings, energy rates, tariffs, locations and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version. Renaming or archiving a computer is now in section 5.11.
+- The client name is stored only while `display_name` is empty (sections 5.3 and 5.11). So a client cannot change its own name later, and the server cannot tell a name from the client from a name from the admin. A column that says who set the name would fix this. It needs a change of the `devices` table and a migration of the existing staging database.
 - A `commands` table and `registered_at` in `devices` are needed for the ping and the registration. They are not in the brief or the ERD yet.
 - The lifetime of the session cookie. Admin users in the `users` table with password hashes, instead of one user in `.env`.
 - A version in the path (`/api/v1`) before the first client ships.
