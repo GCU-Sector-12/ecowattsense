@@ -755,3 +755,66 @@ EWS_TEST(ServiceMainsMinutesWithNoChangeAreNeverHeld) {
     rig.Ticks(1);
     CHECK(CountLines(rig.History()) == 2);
 }
+
+namespace {
+
+/// Writes an old status.json (left by an earlier run of the service) before Start.
+void WriteOldStatus(Rig& rig, const std::string& text) {
+    ews_test::WriteText(rig.data.path() / "status" / "status.json", text);
+}
+
+/// @return An old status.json with the three kept fields as given (the clock of the rig starts at 10:00:00Z).
+std::string OldStatus(const std::string& report, const std::string& send, const std::string& result) {
+    return "{\"schema\":1,\"last_report_utc\":\"" + report + "\",\"last_send_utc\":\"" + send +
+           "\",\"last_send_result\":\"" + result + "\",\"queued\":0}\n";
+}
+
+}  // namespace
+
+EWS_TEST(ServiceRestartKeepsLastReportAndSend) {
+    Rig rig("keepok");
+    WriteOldStatus(rig, OldStatus("2026-11-14T09:55:00Z", "2026-11-14T09:55:01Z", "network"));
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"last_report_utc\":\"2026-11-14T09:55:00Z\""));
+    CHECK(Has(rig.Status(), "\"last_send_utc\":\"2026-11-14T09:55:01Z\""));
+    CHECK(Has(rig.Status(), "\"last_send_result\":\"network\""));
+}
+
+EWS_TEST(ServiceRestartIgnoresBadValuesOneByOne) {
+    Rig rig("keepbad");
+    // The report time is in the future by more than 5 minutes, the send time is not a time, the word is unknown.
+    WriteOldStatus(rig, OldStatus("2026-11-14T10:06:00Z", "yesterday", "fine"));
+    StartOk(rig);
+    CHECK(!Has(rig.Status(), "last_report_utc"));
+    CHECK(!Has(rig.Status(), "last_send_utc"));
+    CHECK(Has(rig.Status(), "\"last_send_result\":\"never\""));
+}
+
+EWS_TEST(ServiceRestartKeepsTheValidFieldsAmongBadOnes) {
+    Rig rig("keepmixed");
+    WriteOldStatus(rig, OldStatus("2026-11-14T10:05:00Z", "2026-13-45T99:99:99Z", "ok"));
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"last_report_utc\":\"2026-11-14T10:05:00Z\""));
+    CHECK(!Has(rig.Status(), "last_send_utc"));
+    CHECK(Has(rig.Status(), "\"last_send_result\":\"ok\""));
+}
+
+EWS_TEST(ServiceRestartIgnoresBrokenOrHugeStatusFile) {
+    Rig broken("keepbroken");
+    WriteOldStatus(broken, "{\"last_report_utc\":\"2026-11-14T09:55:00Z\"");
+    StartOk(broken);
+    CHECK(!Has(broken.Status(), "last_report_utc"));
+    Rig huge("keephuge");
+    WriteOldStatus(huge, OldStatus("2026-11-14T09:55:00Z", "2026-11-14T09:55:01Z", "ok") + std::string(70 * 1024, ' '));
+    StartOk(huge);
+    CHECK(!Has(huge.Status(), "last_report_utc"));
+    CHECK(Has(huge.Status(), "\"last_send_result\":\"never\""));
+}
+
+EWS_TEST(ServiceStartWithoutStatusFileGivesNoKeptValues) {
+    Rig rig("keepnone");
+    StartOk(rig);
+    CHECK(!Has(rig.Status(), "last_report_utc"));
+    CHECK(!Has(rig.Status(), "last_send_utc"));
+    CHECK(Has(rig.Status(), "\"last_send_result\":\"never\""));
+}

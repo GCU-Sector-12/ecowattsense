@@ -2,6 +2,7 @@
 #include <string>
 
 #include "ews/history_format.h"
+#include "ews/json_text.h"
 #include "ews/status_format.h"
 #include "test_calc_common.h"
 #include "test_common.h"
@@ -100,4 +101,14 @@ EWS_TEST(StatusJsonEscapesTheUrl) {
     s.serviceVersion = "0.1.0";
     s.serverUrl = "a\"b\\c\nd";
     CHECK(BuildStatusJson(s).find("\"server_url\":\"a\\\"b\\\\c\\u000ad\"") != std::string::npos);
+}
+
+EWS_TEST(ParseUtcTimeReadsWhatFormatUtcTimeWrites) {
+    std::int64_t unix = 0;
+    CHECK(ews::ParseUtcTime("2026-11-14T10:05:00Z", unix) && unix == ews_test::kTestTime);
+    CHECK(ews::ParseUtcTime("2024-02-29T23:59:59Z", unix) && ews::FormatUtcTime(unix) == "2024-02-29T23:59:59Z");
+    CHECK(!ews::ParseUtcTime("2026-02-29T00:00:00Z", unix));
+    CHECK(!ews::ParseUtcTime("2026-11-14 10:05:00Z", unix));
+    CHECK(!ews::ParseUtcTime("2026-11-14T24:00:00Z", unix));
+    CHECK(!ews::ParseUtcTime("", unix));
 }

@@ -303,6 +303,8 @@ device_type=laptop
 
 `last_send_result` is one of: `ok`, `disabled`, `unauthorised`, `rejected`, `server_error`, `network`, `never`. Written to a temporary file and renamed.
 
+At start the service reads the old `status.json` (at most 64 KB) and keeps `last_report_utc`, `last_send_utc` and `last_send_result` when each is valid (time in the form above and not more than 5 minutes in the future; one of the seven words); anything missing or invalid is left out, so a restart does not blank the client until the next report.
+
 The service also writes the settings it uses, because the client cannot read `config\` (closed to users). They are the values read at start (5.3: config is read only at start), and they are always present:
 
 - `server_url`: the URL in use, or `""` when there is none (missing or bad URL). JSON-escaped.
