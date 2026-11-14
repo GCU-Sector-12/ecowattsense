@@ -48,6 +48,7 @@ public sealed class MaintenanceEngine
             new("stop_service", StepStop, null),
             new("delete_service", StepDeleteService, null),
             new("delete_task", StepDeleteTask, null),
+            new("close_client", () => ClientCloser.Run(_services, _log), null),
             new("delete_programs", StepDeletePrograms, null),
         ];
         if (removeData) steps.Add(new InstallStep("remove_data", StepRemoveData, null));

@@ -398,6 +398,7 @@ The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. 
   - Group principal (a `GroupId` in the XML: the task made by Setup for every user): the box is ticked and disabled, with the line "Set for every user by Setup. Use Change... to switch it."
   - User principal (the per-user task of `Install-Autostart.ps1`) or no task: the box works as before. Ticking it runs `Install-Autostart.ps1` (needs the device type); unticking runs `Uninstall-Autostart.ps1`. No administrator rights are needed.
   - If schtasks gives no clear answer, the box is disabled with "The autostart setting could not be read."
+  - Uninstall card (the last one): the line "Removes the programs and the service. Your data stays unless you choose to remove it." and the button "Uninstall EcoWattSense...", which starts `Setup.exe /uninstall` elevated (same lookup as "Change...") and, when Setup started, stops monitoring and closes the client; a cancelled UAC prompt keeps the client open; without Setup.exe the button is disabled with "Setup.exe not found.".
 
 ## 10. Setup
 
@@ -421,6 +422,7 @@ Settings (`Setup.exe /settings`): one page, started elevated (the client's "Chan
 
 Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task, delete the programs. The data folder stays unless the user ticks "Remove data". When it is started from `C:\Program Files\EcoWattSense\`, it first copies its folder to a temporary folder (`%TEMP%\EcoWattSetup-<guid>`, named in the code `EcoWattSenseSetup-<guid>`) and relaunches from the copy with `/uninstall /tempcopy`, because a program cannot delete the folder it runs from. The copy removes itself at the end.
 
+Closing the client: before the programs are copied (install, upgrade) and before they are deleted (uninstall), Setup closes every running `EcoWattSense.Client.Gui` and `EnergyCalibrator` process of any user (CloseMainWindow, wait up to 5 seconds, then Kill). It is its own step "Closing the client" (`close_client`, after `stop_old_service`); the log gets the line `close_client <count closed>`. A process that cannot be closed fails the step, and the undo applies.
 Progress: while installing, the Install page lists the steps in plain words, each with a mark (waiting, working, done, failed with its message), and one bar for the whole install; the copy step shows "Copying programs n of total". The steps report through IProgress on the UI thread, no timer; the list stays visible after the install and shows "The programs are installed in <program folder>."
 
 Finish: the last page has the box "Start EcoWattSense now", ticked by default (install mode only). On Finish Setup starts the client from the program folder as the logged-on user, not elevated, without waiting; a failure shows one line, is logged as `start_client failed` and never fails the install.

@@ -171,4 +171,39 @@ public sealed class RealProcessOps : IProcessOps
         try { Process.Start(new ProcessStartInfo(exePath, arguments) { UseShellExecute = false, CreateNoWindow = true })?.Dispose(); return 0; }
         catch (Exception exception) { return ErrorCodes.From(exception); }
     }
+
+    private static readonly string[] ClientProcessNames = ["EcoWattSense.Client.Gui", "EnergyCalibrator"];
+
+    /// <inheritdoc />
+    public int CloseClients(out int closed)
+    {
+        List<Process> found = ClientProcessNames.SelectMany(Process.GetProcessesByName).ToList();
+        closed = 0;
+        int code = 0;
+        for (int index = 0; index < found.Count; index++)
+        {
+            int one = CloseOne(found[index]);
+            closed += one == 0 ? 1 : 0;
+            code = code == 0 ? one : code;
+        }
+        return code;
+    }
+
+    /// <summary>Closes one process and frees its handle. A process that is already gone counts as closed.</summary>
+    private static int CloseOne(Process process)
+    {
+        try { return TryClose(process) ? 0 : 1; }
+        catch (InvalidOperationException) { return 0; }
+        catch (Exception exception) { return ErrorCodes.From(exception); }
+        finally { process.Dispose(); }
+    }
+
+    /// <summary>Asks the window to close, waits 5 seconds, then kills the process and waits 5 seconds more.</summary>
+    private static bool TryClose(Process process)
+    {
+        process.CloseMainWindow();
+        if (process.WaitForExit(5000)) return true;
+        process.Kill();
+        return process.WaitForExit(5000);
+    }
 }

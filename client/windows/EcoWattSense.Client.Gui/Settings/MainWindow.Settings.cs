@@ -82,6 +82,9 @@ public partial class MainWindow
         bool found = ProgramLocator.FindSetup() is not null;
         ChangeServerButton.IsEnabled = found;
         ChangeServerNote.Text = found ? "" : "Setup.exe not found.";
+        UninstallState uninstall = UninstallButton.Decide(found);
+        UninstallAppButton.IsEnabled = uninstall.Enabled;
+        UninstallNote.Text = uninstall.Note;
     }
 
     /// <summary>Starts Setup.exe with /settings, elevated.</summary>
@@ -93,20 +96,47 @@ public partial class MainWindow
         ChangeServerNote.Text = setup is null ? "Setup.exe not found." : StartSetup(setup);
     }
 
-    /// <summary>Runs Setup.exe /settings with the "runas" verb, so Windows asks for administrator rights.</summary>
+    /// <summary>Runs Setup.exe with the given mode and the "runas" verb, so Windows asks for administrator rights.</summary>
     /// <param name="setup">The full path of Setup.exe.</param>
+    /// <param name="arguments">The Setup mode: /settings or /uninstall.</param>
     /// <returns>An empty text when Setup started or the user cancelled the prompt (not an error); otherwise a short error line.</returns>
-    private static string StartSetup(string setup)
+    private static string StartSetup(string setup, string arguments = "/settings") => TryStartSetup(setup, arguments).Note;
+
+    /// <summary>Same as StartSetup, but also says whether Setup really started.</summary>
+    /// <param name="setup">The full path of Setup.exe.</param>
+    /// <param name="arguments">The Setup mode: /settings or /uninstall.</param>
+    /// <returns>Started is true only when Setup runs; a cancelled prompt gives false and an empty note.</returns>
+    private static (bool Started, string Note) TryStartSetup(string setup, string arguments)
     {
-        var info = new ProcessStartInfo(setup, "/settings")
+        var info = new ProcessStartInfo(setup, arguments)
         {
             UseShellExecute = true,
             Verb = "runas",
             WorkingDirectory = Path.GetDirectoryName(setup) ?? ""
         };
-        try { Process.Start(info)?.Dispose(); return ""; }
-        catch (Win32Exception exception) when (exception.NativeErrorCode == ErrorCancelledByUser) { return ""; }
-        catch (Win32Exception) { return "Setup could not be started."; }
+        try { Process.Start(info)?.Dispose(); return (true, ""); }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == ErrorCancelledByUser) { return (false, ""); }
+        catch (Win32Exception) { return (false, "Setup could not be started."); }
+    }
+
+    /// <summary>Starts Setup.exe with /uninstall, elevated, and closes the client when Setup started.</summary>
+    /// <param name="sender">Not used.</param>
+    /// <param name="e">Not used.</param>
+    private async void OnUninstallClick(object sender, RoutedEventArgs e)
+    {
+        string? setup = ProgramLocator.FindSetup();
+        UninstallNote.Text = setup is null ? UninstallButton.Decide(false).Note : "";
+        if (setup is null) return;
+        (bool started, string note) = TryStartSetup(setup, UninstallButton.SetupArguments);
+        UninstallNote.Text = note;
+        if (started) await CloseForUninstallAsync();
+    }
+
+    /// <summary>Stops monitoring, removes the tray icon and shuts the application down, so Setup can delete the program files.</summary>
+    private async Task CloseForUninstallAsync()
+    {
+        await ExitAsync();
+        Application.Current.Shutdown();
     }
 
     /// <summary>Registers or removes the autostart task when the user clicks the check box.</summary>

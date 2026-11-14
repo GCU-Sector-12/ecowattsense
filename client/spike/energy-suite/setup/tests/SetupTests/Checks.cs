@@ -77,7 +77,7 @@ public static class InstallChecks
         Check(outcome.Ok, "install: a fresh install works");
         string[] expected =
         [
-            "check ok", "scan_result L2_needed_sources2", "scan ok", "stop_old_service ok", "copy_programs ok", "data_folders ok",
+            "check ok", "scan_result L2_needed_sources2", "scan ok", "stop_old_service ok", "close_client 0", "close_client ok", "copy_programs ok", "data_folders ok",
             "configure ok", "register_service ok", "start_service ok", "autostart_task ok",
         ];
         Check(Kit.LogWords(world).SequenceEqual(expected), "install: the steps run and log in the order of SPEC 10");
@@ -208,7 +208,7 @@ public static class UndoChecks
         string[] expected =
         [
             "autostart_task failed", "start_service undone", "register_service undone", "configure kept", "data_folders kept",
-            "copy_programs undone", "stop_old_service undone",
+            "copy_programs undone", "close_client kept", "stop_old_service undone",
         ];
         Check(tail.SequenceEqual(expected), "undo: the finished steps are undone in reverse order and logged");
     }

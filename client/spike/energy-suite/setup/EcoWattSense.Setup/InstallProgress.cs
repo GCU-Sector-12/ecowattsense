@@ -31,13 +31,14 @@ public static class InstallTitles
     /// <summary>The step names in running order, including the last one that sends the computer name.</summary>
     public static readonly string[] Order =
     [
-        "stop_old_service", "copy_programs", "data_folders", "configure",
+        "stop_old_service", "close_client", "copy_programs", "data_folders", "configure",
         "register_service", "start_service", "autostart_task", "device_name",
     ];
 
     private static readonly Dictionary<string, string> Titles = new()
     {
         ["stop_old_service"] = "Stopping the old service",
+        ["close_client"] = "Closing the client",
         ["copy_programs"] = "Copying programs",
         ["data_folders"] = "Creating data folders",
         ["configure"] = "Writing the configuration",

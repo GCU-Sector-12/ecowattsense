@@ -43,7 +43,7 @@ public static class ProgressChecks
         FakeWorld world = new();
         ReportList reports = new();
         StepOutcome outcome = NewEngine(world).Install(new InstallRequest(Kit.Package, "", "", false), reports);
-        string[] expected = InstallTitles.Order.Take(7).ToArray();
+        string[] expected = InstallTitles.Order.Take(8).ToArray();
         Check(outcome.Ok && reports.Names(StepState.Done).SequenceEqual(expected), "progress: every step reports done, in order");
         Check(reports.Names(StepState.Working).Distinct().SequenceEqual(expected), "progress: every step reports working before it is done");
         Check(reports.Items.First().State == StepState.Working && reports.Items.First().Text == "Stopping the old service", "progress: the first report is the plain title of the first step");

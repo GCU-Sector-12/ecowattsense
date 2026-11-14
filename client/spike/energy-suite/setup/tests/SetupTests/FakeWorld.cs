@@ -70,7 +70,10 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     /// <summary>Exit code the fake calibrator returns.</summary>
     public int CalibratorExit { get; set; } = 7;
 
-    /// <summary>The operation that must fail with error 5: stop, copydir, acl, configure, register, start, task, scan.</summary>
+    /// <summary>How many client or calibrator processes the fake computer has running; CloseClients closes them all.</summary>
+    public int ClientsRunning { get; set; }
+
+    /// <summary>The operation that must fail with error 5: stop, close_client, copydir, acl, configure, register, start, task, scan.</summary>
     public string FailOn { get; set; } = "";
 
     /// <summary>Result of the Windows 11 x64 check.</summary>
@@ -260,6 +263,15 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     {
         Calls.Add("client " + exePath);
         return ClientStartExit;
+    }
+
+    /// <inheritdoc />
+    public int CloseClients(out int closed)
+    {
+        int code = Result("close_client");
+        closed = code == 0 ? ClientsRunning : 0;
+        ClientsRunning = code == 0 ? 0 : ClientsRunning;
+        return code;
     }
 
     /// <inheritdoc />

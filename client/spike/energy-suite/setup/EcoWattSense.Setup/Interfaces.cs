@@ -138,6 +138,13 @@ public interface IProcessOps
 
     /// <summary>Starts a program and does not wait. Returns 0 or an error code.</summary>
     int StartDetached(string exePath, string arguments);
+
+    /// <summary>
+    /// Closes every running EcoWattSense.Client.Gui and EnergyCalibrator process of any user: asks the main window to close,
+    /// waits up to 5 seconds, then kills the process. Returns 0 when every process is gone (or none ran), otherwise the error
+    /// code of the first one that could not be closed. closed is the number of processes that were closed.
+    /// </summary>
+    int CloseClients(out int closed);
 }
 
 /// <summary>Facts about the computer.</summary>

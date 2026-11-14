@@ -38,6 +38,7 @@ public static class Program
         MaintenanceChecks.Run();
         ConnectionChecks.Run();
         DeviceNameChecks.Run();
+        ClientCloseChecks.Run();
         NavChecks.Run();
         ProgressChecks.Run();
         Console.WriteLine($"{Harness.Total - Harness.Failed} passed, {Harness.Failed} failed, {Harness.Total} checks");

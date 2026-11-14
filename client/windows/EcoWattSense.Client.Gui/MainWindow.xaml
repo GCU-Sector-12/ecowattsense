@@ -396,6 +396,7 @@
                             <TextBlock x:Name="SettingsDataFolder" Text="unknown" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
+<Border Style="{StaticResource Card}">                        <StackPanel>                            <TextBlock Text="Uninstall" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>                            <TextBlock Text="Removes the programs and the service. Your data stays unless you choose to remove it." TextWrapping="Wrap"/>                            <Button x:Name="UninstallAppButton"                                    Content="Uninstall EcoWattSense..."                                    Style="{StaticResource PageButton}"                                    Click="OnUninstallClick"/>                            <TextBlock x:Name="UninstallNote"                                       FontSize="12"                                       Foreground="#52685D"                                       TextWrapping="Wrap"                                       Margin="0,8,0,0"/>                        </StackPanel>                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

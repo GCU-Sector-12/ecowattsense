@@ -64,6 +64,7 @@ public sealed class StepRunner
         ["check"] = "Setup needs Windows 11 (64-bit) and administrator rights.",
         ["scan"] = "The scanner did not finish.",
         ["stop_old_service"] = "The old service did not stop.",
+        ["close_client"] = "A running EcoWattSense program could not be closed; close it and try again.",
         ["copy_programs"] = "A file in the program folder may be in use; close EcoWattSense and try again.",
         ["configure"] = "The server address or key was not accepted.",
     };
@@ -191,6 +192,7 @@ public sealed class InstallEngine
         InstallStep[] steps =
         [
             new("stop_old_service", StepStopOld, UndoStopOld),
+            new("close_client", () => ClientCloser.Run(_services, _log), null),
             new("copy_programs", StepCopy, UndoCopy),
             new("data_folders", StepFolders, null),
             new("configure", StepConfigure, null),
