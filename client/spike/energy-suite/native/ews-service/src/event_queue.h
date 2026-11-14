@@ -21,7 +21,8 @@ enum class ServiceEvent {
     Resume,        ///< The computer woke up.
     DisplayOn,     ///< The console display went on.
     DisplayOff,    ///< The console display went off or dim.
-    SessionChange  ///< A session logged on or off, locked or unlocked, connected or disconnected.
+    SessionChange,  ///< A session logged on or off, locked or unlocked, connected or disconnected.
+    NetworkBack     ///< Windows reports that the internet is reachable (SPEC 5.5).
 };
 
 /// A queue of events with a signal the main thread can wait on.

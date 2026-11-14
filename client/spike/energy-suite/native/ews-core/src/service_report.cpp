@@ -19,6 +19,9 @@ namespace {
 /// The most full batches sent in one report tick, so a long queue cannot hold the loop for long.
 constexpr int kMaxBatchesPerTick = 5;
 
+/// The shortest time between two sends caused by the pipe command `EWS1 send`.
+constexpr std::int64_t kSendRequestWindowSeconds = 30;
+
 /// The largest accepted model file.
 constexpr std::size_t kMaxModelBytes = 64 * 1024;
 
@@ -178,6 +181,32 @@ void ServiceCore::SendQueued() {
     }
 }
 
+bool ServiceCore::SendNow(LogEvent event) {
+    // No server (sending off, no URL or no key) or nothing queued: nothing to try, and nothing is logged.
+    Reading<int> queued = CountReports(settings_.dataDir);
+    bool wanted = sender_ && queued.ok() && queued.value > 0;
+    if (!wanted) {
+        return false;
+    }
+    Log(event);
+    sendFailures_ = 0;
+    waitIntervals_ = 0;
+    SendQueued();
+    WriteStatus();
+    return true;
+}
+
+void ServiceCore::SendRequested() {
+    std::int64_t now = NowUnix();
+    bool tooSoon = lastSendRequestUnix_.has_value() && now >= *lastSendRequestUnix_ && now - *lastSendRequestUnix_ < kSendRequestWindowSeconds;
+    if (tooSoon) {
+        ++droppedPipeMessages_;
+        return;
+    }
+    bool tried = SendNow(LogEvent::SendRequested);
+    lastSendRequestUnix_ = tried ? std::optional<std::int64_t>(now) : lastSendRequestUnix_;
+}
+
 bool ServiceCore::SendOneBatch() {
     Reading<QueueBatch> batch = PeekReports(settings_.dataDir, kMaxBatchLines);
     if (!batch.ok()) {
@@ -203,7 +232,7 @@ void ServiceCore::HandleSendResult(const SendResult& result, int lines) {
     }
     LogSend(result, lines);
     sendFailures_ = IsRetryLater(result.word) ? sendFailures_ + 1 : 0;
-    waitIntervals_ = BackoffIntervals(sendFailures_);
+    waitIntervals_ = BackoffIntervals(sendFailures_, BackoffCapIntervals(config_.intervalSeconds));
 }
 
 void ServiceCore::LogSend(const SendResult& result, int lines) {

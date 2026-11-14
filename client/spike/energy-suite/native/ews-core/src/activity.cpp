@@ -70,6 +70,8 @@ bool ConsumeBrightness(std::string_view& text, std::optional<int>& brightness) {
 
 }  // namespace
 
+bool IsSendRequest(std::string_view bytes) { return bytes == "EWS1 send\n"; }
+
 Reading<PipeMessage> ParsePipeMessage(std::string_view bytes) {
     if (bytes.size() > kPipeMessageMaxBytes || !std::all_of(bytes.begin(), bytes.end(), IsAscii)) {
         return Rejected();

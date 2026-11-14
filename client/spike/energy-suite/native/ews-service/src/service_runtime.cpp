@@ -62,9 +62,11 @@ int ServiceRuntime::Run() {
         return kExitTimerFailed;
     }
     RefreshSessions();
+    network_ = std::make_unique<NetworkWatch>(events_);
     while (!done_) {
         done_ = Step();
     }
+    network_.reset();
     core_.Stop();
     return kExitOk;
 }
@@ -117,6 +119,7 @@ void ServiceRuntime::HandleEvent(ServiceEvent event) {
         case ServiceEvent::DisplayOn: core_.DisplayChanged(true); return;
         case ServiceEvent::DisplayOff: core_.DisplayChanged(false); return;
         case ServiceEvent::SessionChange: RefreshSessions(); return;
+        case ServiceEvent::NetworkBack: core_.NetworkBack(); return;
     }
 }
 

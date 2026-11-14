@@ -115,3 +115,18 @@ EWS_TEST(PipeMessageWrongShape) {
     CHECK(!ParsePipeMessage("").ok());
     CHECK(!ParsePipeMessage("\n").ok());
 }
+
+EWS_TEST(SendRequestIsExactText) {
+    CHECK(ews::IsSendRequest("EWS1 send\n"));
+    CHECK(!ews::IsSendRequest("EWS1 send"));
+    CHECK(!ews::IsSendRequest("EWS1 send\r\n"));
+    CHECK(!ews::IsSendRequest("EWS1 send\n\n"));
+    CHECK(!ews::IsSendRequest("EWS1  send\n"));
+    CHECK(!ews::IsSendRequest("EWS1 Send\n"));
+    CHECK(!ews::IsSendRequest("ews1 send\n"));
+    CHECK(!ews::IsSendRequest("EWS1 send now\n"));
+    CHECK(!ews::IsSendRequest("EWS2 send\n"));
+    CHECK(!ews::IsSendRequest(""));
+    CHECK(!ews::IsSendRequest(std::string("EWS1 send\0\n", 11)));
+    CHECK(!ews::ParsePipeMessage("EWS1 send\n").ok());  // it is a command, not an activity message
+}

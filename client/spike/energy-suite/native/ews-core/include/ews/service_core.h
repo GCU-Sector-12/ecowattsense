@@ -169,6 +169,10 @@ public:
     /// @param senderSessionActive True when the shell found the session of the sender in the state active.
     void PipeMessage(std::string_view text, bool senderSessionActive);
 
+    /// The network is reachable again (the shell gets the connectivity change and posts it as an event). When a
+    /// server is set and the queue is not empty, the back-off is reset and a send is tried at once.
+    void NetworkBack();
+
     /// Stop: one last read, the interval ends and its report is queued without sending, the lock is released.
     void Stop();
 
@@ -213,6 +217,12 @@ private:
     void FlushCounters();
     void FlushCounter(LogEvent event, int& count);
     void SendQueued();
+    /// Resets the back-off, tries a send now and writes status.json, when a server is set and the queue is not empty.
+    /// @param event The log event that tells why (SendOnNetwork or SendRequested).
+    /// @return True when a send was tried.
+    bool SendNow(LogEvent event);
+    /// Handles `EWS1 send`: at most one send in 30 seconds; a later one is dropped and counted.
+    void SendRequested();
     bool SendOneBatch();
     void HandleSendResult(const SendResult& result, int lines);
     void LogSend(const SendResult& result, int lines);
@@ -281,6 +291,7 @@ private:
     bool sendReasonLogged_ = false;
     std::optional<std::int64_t> lastSendUnix_;
     std::optional<std::int64_t> lastReportUnix_;
+    std::optional<std::int64_t> lastSendRequestUnix_;  ///< When the last `EWS1 send` caused a send.
     int droppedPipeMessages_ = 0;
     int skippedReports_ = 0;
     std::uint32_t lastQueued_ = 0;

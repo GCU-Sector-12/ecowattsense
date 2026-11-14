@@ -462,6 +462,10 @@ void ServiceCore::PipeMessage(std::string_view text, bool senderSessionActive) {
         ++droppedPipeMessages_;
         return;
     }
+    if (IsSendRequest(text)) {
+        SendRequested();
+        return;
+    }
     Reading<ews::PipeMessage> parsed = ParsePipeMessage(text);
     if (!parsed.ok()) {
         ++droppedPipeMessages_;
@@ -471,6 +475,13 @@ void ServiceCore::PipeMessage(std::string_view text, bool senderSessionActive) {
     activity_.idleSeconds = parsed.value.idleSeconds;
     activity_.receivedUnix = NowUnix();
     pipeBrightness_ = parsed.value.brightnessPct.has_value() ? parsed.value.brightnessPct : pipeBrightness_;
+}
+
+void ServiceCore::NetworkBack() {
+    if (!running_ || suspended_) {
+        return;
+    }
+    SendNow(LogEvent::SendOnNetwork);
 }
 
 void ServiceCore::Stop() {

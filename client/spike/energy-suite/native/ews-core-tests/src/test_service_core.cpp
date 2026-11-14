@@ -818,3 +818,131 @@ EWS_TEST(ServiceStartWithoutStatusFileGivesNoKeptValues) {
     CHECK(!Has(rig.Status(), "last_send_utc"));
     CHECK(Has(rig.Status(), "\"last_send_result\":\"never\""));
 }
+
+EWS_TEST(ServiceBackOffNeverWaitsMoreThanThirtyMinutes) {
+    Rig rig("backoffcap");  // 300 s intervals: the cap is 6 intervals
+    for (int i = 0; i < 6; ++i) {
+        rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    }
+    StartOk(rig);
+    // Failures wait 1, 2, 4, 6, 6 intervals; the sixth try comes after the series 1+2+4+6+6 skipped ticks.
+    rig.Ticks(5);                           // try 1 fails (wait 1)
+    rig.Ticks(5 * 2);                       // 1 skipped, try 2 fails (wait 2)
+    rig.Ticks(5 * 3);                       // 2 skipped, try 3 fails (wait 4)
+    rig.Ticks(5 * 5);                       // 4 skipped, try 4 fails (wait 6)
+    rig.Ticks(5 * 7);                       // 6 skipped, try 5 fails (wait 6: the cap, not 8)
+    CHECK(rig.senders.batches.size() == 5);
+    rig.Ticks(5 * 7);                       // 6 skipped, try 6
+    CHECK(rig.senders.batches.size() == 6);
+}
+
+EWS_TEST(ServiceNetworkBackWithAnEmptyQueueSendsNothing) {
+    Rig rig("netempty");
+    StartOk(rig);
+    rig.core.NetworkBack();
+    CHECK(rig.senders.batches.empty());
+    CHECK(!Has(rig.Log(), "send_on_network"));
+}
+
+EWS_TEST(ServiceNetworkBackWithoutAServerSendsNothing) {
+    Rig rig("netnoserver");
+    rig.WriteIni("server_enabled=0\ninterval_seconds=300\ndevice_type=laptop\n");
+    StartOk(rig);
+    rig.Ticks(5);
+    CHECK(CountLines(rig.Queue()) == 1);
+    rig.core.NetworkBack();
+    CHECK(rig.senders.batches.empty());
+    CHECK(!Has(rig.Log(), "send_on_network"));
+}
+
+EWS_TEST(ServiceNetworkBackSendsAtOnceAndResetsTheBackOff) {
+    Rig rig("netsend");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.Ticks(5);  // try 1 fails, wait 1
+    rig.Ticks(5);  // skipped
+    CHECK(rig.senders.batches.size() == 1);
+    rig.core.NetworkBack();  // try at once, fails again; the failure count restarts at 1 (wait 1, not 2)
+    CHECK(rig.senders.batches.size() == 2);
+    CHECK(Has(rig.Log(), " send_on_network"));
+    CHECK(Has(rig.Status(), "\"queued\":2"));
+    rig.Ticks(5);  // skipped
+    CHECK(rig.senders.batches.size() == 2);
+    rig.Ticks(5);  // sends all
+    CHECK(rig.senders.batches.size() == 3);
+    CHECK(rig.Queue().empty());
+}
+
+EWS_TEST(ServiceNetworkBackSuccessEmptiesTheQueueAndShowsIt) {
+    Rig rig("netok");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.Ticks(5);
+    CHECK(Has(rig.Status(), "\"queued\":1"));
+    rig.core.NetworkBack();
+    CHECK(rig.Queue().empty());
+    CHECK(Has(rig.Status(), "\"queued\":0"));
+    CHECK(Has(rig.Status(), "\"last_send_result\":\"ok\""));
+}
+
+EWS_TEST(ServiceSendRequestSendsAtOnce) {
+    Rig rig("reqsend");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.core.SessionsChanged(true, false);
+    rig.Ticks(5);
+    CHECK(rig.senders.batches.size() == 1);
+    rig.core.PipeMessage("EWS1 send\n", true);
+    CHECK(rig.senders.batches.size() == 2);
+    CHECK(rig.Queue().empty());
+    CHECK(Has(rig.Log(), " send_requested"));
+    CHECK(Has(rig.Status(), "\"queued\":0"));
+}
+
+EWS_TEST(ServiceSendRequestWithAnEmptyQueueSendsNothing) {
+    Rig rig("reqempty");
+    StartOk(rig);
+    rig.core.PipeMessage("EWS1 send\n", true);
+    CHECK(rig.senders.batches.empty());
+    CHECK(!Has(rig.Log(), "send_requested"));
+}
+
+EWS_TEST(ServiceSendRequestFromASessionThatIsNotActiveIsDropped) {
+    Rig rig("reqinactive");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.Ticks(5);
+    rig.core.PipeMessage("EWS1 send\n", false);
+    CHECK(rig.senders.batches.size() == 1);
+}
+
+EWS_TEST(ServiceSendRequestIsLimitedToOneInThirtySeconds) {
+    Rig rig("reqlimit");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.Ticks(5);
+    rig.core.PipeMessage("EWS1 send\n", true);  // try 2 fails
+    CHECK(rig.senders.batches.size() == 2);
+    rig.core.PipeMessage("EWS1 send\n", true);  // inside 30 s: dropped and counted
+    CHECK(rig.senders.batches.size() == 2);
+    rig.clock.Advance(31);
+    rig.core.PipeMessage("EWS1 send\n", true);  // after 30 s: sends
+    CHECK(rig.senders.batches.size() == 3);
+    CHECK(rig.Queue().empty());
+    rig.Ticks(5);
+    CHECK(Has(rig.Log(), " pipe_dropped 1"));
+}
+
+EWS_TEST(ServiceJunkNextToTheSendCommandIsDroppedAndCounted) {
+    Rig rig("reqjunk");
+    rig.senders.script.push_back(FakeSenders::Answer(ews::SendWord::Network, false));
+    StartOk(rig);
+    rig.Ticks(5);
+    rig.core.PipeMessage("EWS1 send", true);
+    rig.core.PipeMessage("EWS1 send now\n", true);
+    CHECK(rig.senders.batches.size() == 1);
+    rig.Ticks(5);
+    CHECK(Has(rig.Log(), " pipe_dropped 2"));
+}

@@ -30,6 +30,10 @@ struct PipeMessage {
 /// @return Ok with the message, or Error (ERROR_INVALID_DATA) for anything else.
 Reading<PipeMessage> ParsePipeMessage(std::string_view bytes);
 
+/// @param bytes A message as received.
+/// @return True only for the exact text `EWS1 send\n` (SPEC 6): the command to try a send at once.
+bool IsSendRequest(std::string_view bytes);
+
 /// The last message the service accepted.
 struct SessionActivity {
     bool hasMessage = false;
