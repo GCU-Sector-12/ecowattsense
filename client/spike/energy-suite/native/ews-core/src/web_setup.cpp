@@ -172,6 +172,8 @@ const wchar_t* WebSetupMessage(WebSetupResult result) {
             return L"Setup was not started.";
         case WebSetupResult::Internal:
             return L"Setup could not start its work.";
+        case WebSetupResult::SignatureRefused:
+            return L"The downloaded Setup is not signed by EcoWattSense. It was not started.";
         case WebSetupResult::Ok:
         case WebSetupResult::Cancelled:
             return L"";

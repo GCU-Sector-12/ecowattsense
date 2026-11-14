@@ -111,7 +111,7 @@ public partial class MainWindow
         if (note.Length == 0) await CloseForUninstallAsync();
     }
 
-    /// <summary>Does the three steps of the update.</summary>
+    /// <summary>Does the steps of the update: download, unpack, signature check, start.</summary>
     /// <param name="manifest">The checked manifest.</param>
     /// <returns>An empty text when Setup started; otherwise the line for the user.</returns>
     private async Task<string> RunUpdateAsync(UpdateManifest manifest)
@@ -121,6 +121,7 @@ public partial class MainWindow
         UpdateNote.Text = "Unpacking...";
         string? setup = await UpdateInstaller.ExtractAsync(download.Folder, download.ZipPath);
         if (setup is null) return CleanUp(download.Folder, "The update could not be unpacked.");
+        if (SignatureChecker.Check(setup) == SignatureVerdict.Refuse) return CleanUp(download.Folder, SignatureRules.RefusedNote);
         (bool started, string note) = TryStartSetup(setup, UpdateSetupArguments);
         if (started) return "";
         return CleanUp(download.Folder, note.Length > 0 ? note : "Update was not started.");

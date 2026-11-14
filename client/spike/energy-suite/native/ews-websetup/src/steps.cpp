@@ -1,5 +1,5 @@
 // steps.cpp: implementation of the web installer steps (steps.h, SPEC 13).
-// Order: manifest, work folder, package download, size and SHA256 check, tar.exe extraction, ShellExecuteEx of Setup.exe.
+// Order: manifest, work folder, package download, size and SHA256 check, tar.exe extraction, signature check, ShellExecuteEx of Setup.exe.
 // Failure paths: every step returns a WebSetupResult; nothing here throws. A failed or empty read means "stop", never "go on".
 #include "steps.h"
 
@@ -7,10 +7,12 @@
 #include <bcrypt.h>
 #include <shellapi.h>
 
+#include <filesystem>
 #include <string>
 
 #include "download.h"
 #include "ews/handles.h"
+#include "ews/signature_check.h"
 #include "ews/web_setup.h"
 
 #pragma comment(lib, "shell32.lib")
@@ -239,6 +241,24 @@ WebSetupResult Extract(SetupHost& host, const std::wstring& zipPath, const std::
     return WebSetupResult::Ok;
 }
 
+/// Checks the Authenticode signature of Setup.exe against the pinned thumbprint (ews/signature_check.h).
+/// A refused file is never started and the whole work folder is deleted. With the placeholder pin the check is skipped
+/// and the log line "signature_check_skipped" goes to the debugger output.
+/// @param setup The path of Setup.exe.
+/// @param folder The work folder.
+/// @return Ok when Setup.exe may be started, otherwise SignatureRefused.
+WebSetupResult CheckSignature(const std::wstring& setup, const std::wstring& folder) {
+    ews::SignatureVerdict verdict = ews::VerifySetupSignature(setup.c_str(), ews::kSigningThumbprint);
+    if (verdict == ews::SignatureVerdict::Skipped) {
+        OutputDebugStringA("signature_check_skipped\n");
+    }
+    if (verdict != ews::SignatureVerdict::Refuse) {
+        return WebSetupResult::Ok;
+    }
+    std::error_code ignored;
+    std::filesystem::remove_all(std::filesystem::path(folder), ignored);
+    return WebSetupResult::SignatureRefused;
+}
 /// Starts <folder>\EcoWattSense\Setup.exe with ShellExecuteEx; Setup.exe asks for UAC itself.
 /// @param host The progress display and cancel flag.
 /// @param folder The work folder.
@@ -253,6 +273,10 @@ WebSetupResult LaunchSetup(SetupHost& host, const std::wstring& folder, const st
     DWORD attributes = GetFileAttributesW(setup.c_str());
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         return WebSetupResult::SetupMissing;
+    }
+    WebSetupResult signature = CheckSignature(setup, folder);
+    if (signature != WebSetupResult::Ok) {
+        return signature;
     }
     host.Report(L"Starting setup...", 99);
     SHELLEXECUTEINFOW info = {};

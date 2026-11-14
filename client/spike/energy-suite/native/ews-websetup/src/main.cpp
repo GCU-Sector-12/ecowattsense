@@ -5,7 +5,8 @@
 // Cancel: sets a flag; the worker stops at the next chunk (a read waits at most 10 s), then the program ends with exit code 1.
 // Exit codes (ews::WebSetupExitCode): 0 Setup.exe started, 1 cancelled, 2 manifest download failed, 3 manifest invalid,
 //   4 temporary folder failed, 5 package download failed, 6 size differs from the manifest, 7 SHA256 differs, 8 SHA256 could not be
-//   computed, 9 tar.exe failed, 10 Setup.exe missing in the package, 11 Setup.exe not started (UAC cancelled), 12 worker thread failed.
+//   computed, 9 tar.exe failed, 10 Setup.exe missing in the package, 11 Setup.exe not started (UAC cancelled), 12 worker thread failed,
+//   13 Setup.exe is not signed by EcoWattSense (checked before it starts; folder deleted).
 // A failure shows one clear line in a second dialog; it holds no address and no raw error text.
 #include <windows.h>
 #include <commctrl.h>
