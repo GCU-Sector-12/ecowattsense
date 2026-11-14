@@ -1,0 +1,156 @@
+<!--
+  SetupWindow.xaml: the one window of Setup.exe.
+  Who uses it: App starts it in one of three modes (install, /settings, /uninstall); the code behind shows the right pages.
+  Look: the dark green sidebar and the fonts and colours of the client (EcoWattSense.Client.Gui MainWindow.xaml).
+  Text fields are left-aligned with the label above them and fill the row width. No animations are used.
+-->
+<Window x:Class="EcoWattSense.Setup.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EcoWattSense Setup"
+        Width="900" Height="620"
+        MinWidth="820" MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F7FA"
+        FontFamily="Segoe UI"
+        Foreground="#142B26">
+
+    <Window.Resources>
+        <Style x:Key="Heading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,18"/>
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#728095"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Margin" Value="0,14,0,6"/>
+        </Style>
+        <Style x:Key="Body" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="Field" TargetType="Control">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Padding" Value="8,7"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+        <Style x:Key="NavButton" TargetType="Button">
+            <Setter Property="MinWidth" Value="110"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Margin" Value="10,0,0,0"/>
+            <Setter Property="FontSize" Value="15"/>
+        </Style>
+        <Style x:Key="StepItem" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="210"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Background="#123C32">
+            <Grid Margin="22,30">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="EcoWattSense" Foreground="White" FontSize="23" FontWeight="Bold"/>
+                    <TextBlock Text="Computer Energy Monitor" Foreground="#C1D8CF" FontSize="12" Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,36,0,0">
+                    <Border x:Name="StepScanItem" Style="{StaticResource StepItem}">
+                        <TextBlock x:Name="StepScanText" Text="1  Scan" Foreground="#C1D8CF" FontSize="16" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border x:Name="StepServerItem" Style="{StaticResource StepItem}">
+                        <TextBlock x:Name="StepServerText" Text="2  Server" Foreground="#C1D8CF" FontSize="16" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border x:Name="StepInstallItem" Style="{StaticResource StepItem}">
+                        <TextBlock x:Name="StepInstallText" Text="3  Install" Foreground="#C1D8CF" FontSize="16" FontWeight="SemiBold"/>
+                    </Border>
+                    <Border x:Name="StepCalibrationItem" Style="{StaticResource StepItem}">
+                        <TextBlock x:Name="StepCalibrationText" Text="4  Calibration" Foreground="#C1D8CF" FontSize="16" FontWeight="SemiBold"/>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3">
+                    <TextBlock Text="Save Energy," Foreground="White" FontWeight="SemiBold"/>
+                    <TextBlock Text="A Greener Tomorrow" Foreground="#C1D8CF" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1" Margin="36,32,36,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <StackPanel x:Name="PageScan">
+                    <TextBlock Text="Scan this computer" Style="{StaticResource Heading}"/>
+                    <TextBlock x:Name="ScanStatus" Style="{StaticResource Body}" Text="Checking this computer..."/>
+                    <TextBlock x:Name="ScanDetail" Style="{StaticResource Body}"/>
+                </StackPanel>
+
+                <StackPanel x:Name="PageServer" Visibility="Collapsed">
+                    <TextBlock x:Name="ServerHeading" Text="Server" Style="{StaticResource Heading}"/>
+                    <TextBlock Text="Server address" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="UrlBox" Style="{StaticResource Field}" TextChanged="UrlBox_TextChanged"/>
+                    <TextBlock Text="Server key" Style="{StaticResource Label}"/>
+                    <Grid>
+                        <PasswordBox x:Name="KeyBox" Style="{StaticResource Field}" PasswordChanged="KeyBox_PasswordChanged"/>
+                        <TextBlock x:Name="KeyHint" Text="Server key" Foreground="#728095" FontSize="15"
+                                   Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                    </Grid>
+                    <CheckBox x:Name="SendBox" Content="Send reports to the server" FontSize="15" Margin="0,20,0,0"/>
+                    <StackPanel x:Name="DevicePanel" Visibility="Collapsed">
+                        <TextBlock Text="Device type" Style="{StaticResource Label}"/>
+                        <ComboBox x:Name="DeviceBox" Style="{StaticResource Field}"/>
+                    </StackPanel>
+                    <CheckBox x:Name="AutostartBox" Content="Start the client with Windows for every user" FontSize="15" Margin="0,14,0,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="ServerMessage" Style="{StaticResource Body}" Foreground="#B3261E" Margin="0,16,0,0"/>
+                </StackPanel>
+
+                <StackPanel x:Name="PageInstall" Visibility="Collapsed">
+                    <TextBlock Text="Install" Style="{StaticResource Heading}"/>
+                    <TextBlock x:Name="InstallText" Style="{StaticResource Body}"/>
+                </StackPanel>
+
+                <StackPanel x:Name="PageCalibration" Visibility="Collapsed">
+                    <TextBlock Text="Calibration" Style="{StaticResource Heading}"/>
+                    <TextBlock x:Name="CalibrationText" Style="{StaticResource Body}"/>
+                    <StackPanel x:Name="CalibrationButtons" Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="CalibrateButton" Content="Calibrate now" Style="{StaticResource NavButton}" Margin="0,0,10,0" Click="CalibrateButton_Click"/>
+                        <Button x:Name="SkipButton" Content="Skip" Style="{StaticResource NavButton}" Margin="0" Click="SkipButton_Click"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel x:Name="PageUninstall" Visibility="Collapsed">
+                    <TextBlock Text="Uninstall" Style="{StaticResource Heading}"/>
+                    <TextBlock x:Name="UninstallText" Style="{StaticResource Body}"
+                               Text="This stops and removes the EcoWattSense service and the automatic start, and deletes the programs."/>
+                    <CheckBox x:Name="RemoveDataBox" Content="Remove data" FontSize="15" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="BackButton" Content="Back" Style="{StaticResource NavButton}" Click="BackButton_Click"/>
+                <Button x:Name="NextButton" Content="Next" Style="{StaticResource NavButton}" IsDefault="True" Click="NextButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
