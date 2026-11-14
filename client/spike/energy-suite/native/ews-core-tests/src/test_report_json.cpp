@@ -43,7 +43,6 @@ EWS_TEST(ReportJsonAllFields) {
 
 EWS_TEST(ReportJsonWithoutOptionalFields) {
     ReportFields f = FullReport();
-    f.cpuPercent.reset();
     f.energyUj.reset();
     f.batteryEnergyUj.reset();
     f.deviceEnergyUj.reset();
@@ -54,7 +53,7 @@ EWS_TEST(ReportJsonWithoutOptionalFields) {
     CHECK(r.ok());
     CHECK(r.value ==
           "{\"device_id\":\"123e4567-e89b-12d3-a456-426614174000\",\"timestamp\":\"2026-11-14T10:05:00Z\","
-          "\"interval_seconds\":300,\"idle_seconds\":45,\"state\":0,\"screen_locked\":true,"
+          "\"interval_seconds\":300,\"idle_seconds\":45,\"state\":0,\"cpu_percent\":12.3,\"screen_locked\":true,"
           "\"on_battery\":true,\"os\":\"windows\",\"device_type\":\"laptop\"}");
 }
 
@@ -105,12 +104,18 @@ EWS_TEST(ReportJsonCpuPercentRounding) {
     CHECK(BuildReportJson(f).value.find("\"cpu_percent\":0.0,") != std::string::npos);
 }
 
-EWS_TEST(ReportJsonCpuPercentOutOfRangeIsClampedOrLeftOut) {
+EWS_TEST(ReportJsonFailsWithoutCpuPercent) {
+    ReportFields f = FullReport();
+    f.cpuPercent.reset();
+    CHECK(!BuildReportJson(f).ok());
+    f.cpuPercent = std::nan("");
+    CHECK(!BuildReportJson(f).ok());
+}
+
+EWS_TEST(ReportJsonCpuPercentOutOfRangeIsClamped) {
     ReportFields f = FullReport();
     f.cpuPercent = 140.0;
     CHECK(BuildReportJson(f).value.find("\"cpu_percent\":100.0,") != std::string::npos);
-    f.cpuPercent = std::nan("");
-    CHECK(BuildReportJson(f).value.find("cpu_percent") == std::string::npos);
 }
 
 EWS_TEST(UtcTimeText) {

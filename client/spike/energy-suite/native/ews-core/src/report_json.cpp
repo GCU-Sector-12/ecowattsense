@@ -29,8 +29,12 @@ bool IsValidDeviceType(const std::string& text) {
     return std::all_of(text.begin(), text.end(), IsDeviceTypeChar);
 }
 
-/// @return True when the numbers of the report are in range.
+/// @return True when the numbers of the report are in range. The processor percent must be known and finite,
+/// because the server refuses a report without it.
 bool NumbersInRange(const ReportFields& fields) {
+    if (!fields.cpuPercent.has_value() || !std::isfinite(*fields.cpuPercent)) {
+        return false;
+    }
     if (fields.intervalSeconds < 1 || fields.idleSeconds < 0) {
         return false;
     }
@@ -51,13 +55,10 @@ void AppendOptionalWhole(std::string& out, const char* key, const std::optional<
     out += "," + Member(key, std::to_string(*value));
 }
 
-/// Appends `,"cpu_percent":x.y` when the percent is a finite number. The value is limited to 0 to 100;
-/// adding 0.0 turns a negative zero into a plain zero.
+/// Appends `,"cpu_percent":x.y`. The caller has checked that the percent is a finite number. The value is limited
+/// to 0 to 100; adding 0.0 turns a negative zero into a plain zero.
 void AppendCpuPercent(std::string& out, const std::optional<double>& percent) {
-    if (!percent.has_value() || !std::isfinite(*percent)) {
-        return;
-    }
-    double limited = std::clamp(*percent, 0.0, 100.0) + 0.0;
+    double limited = std::clamp(percent.value_or(0.0), 0.0, 100.0) + 0.0;
     out += "," + Member("cpu_percent", FormatFixed(limited, 1));
 }
 

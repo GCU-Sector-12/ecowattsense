@@ -140,6 +140,15 @@ Reading<QueueBatch> PeekReports(const std::wstring& dataDir, int maxLines) {
     return Result::Success(std::move(batch));
 }
 
+Reading<int> CountReports(const std::wstring& dataDir) {
+    using Result = Reading<int>;
+    Reading<QueueState> loaded = LoadQueue(QueueFolder(dataDir) / L"reports.jsonl");
+    if (!loaded.ok()) {
+        return Result::Failure(loaded.status, loaded.error);
+    }
+    return Result::Success(static_cast<int>(loaded.value.lines.size()));
+}
+
 Reading<bool> RemoveFirstReports(const std::wstring& dataDir, int count) {
     using Result = Reading<bool>;
     std::filesystem::path folder = QueueFolder(dataDir);
