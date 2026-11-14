@@ -12,6 +12,7 @@ public sealed class MaintenanceEngine
     private readonly SetupLog _log;
     private readonly StepRunner _runner;
     private readonly ConfigWriter _config;
+    private readonly DeviceNameSync? _deviceName;
 
     private bool _serviceWasRunning;
     private string _url = "";
@@ -21,8 +22,13 @@ public sealed class MaintenanceEngine
     private bool _autostart;
 
     /// <summary>Creates the engine.</summary>
-    public MaintenanceEngine(SetupServices services, SetupLayout layout, SetupLog log)
+    /// <param name="services">The operations.</param>
+    /// <param name="layout">The folders.</param>
+    /// <param name="log">The install log.</param>
+    /// <param name="deviceName">Saves and sends the computer name; null skips the name.</param>
+    public MaintenanceEngine(SetupServices services, SetupLayout layout, SetupLog log, DeviceNameSync? deviceName = null)
     {
+        _deviceName = deviceName;
         _services = services;
         _layout = layout;
         _log = log;
@@ -57,7 +63,8 @@ public sealed class MaintenanceEngine
     /// <param name="sendReports">The server_enabled switch.</param>
     /// <param name="deviceType">laptop or desktop.</param>
     /// <param name="autostart">True to register the client autostart task for every user, false to remove it.</param>
-    public StepOutcome SaveSettings(string url, string key, bool sendReports, string deviceType, bool autostart)
+    /// <param name="computerName">The computer name; null leaves it alone, empty removes it. A problem with it is only a note.</param>
+    public StepOutcome SaveSettings(string url, string key, bool sendReports, string deviceType, bool autostart, string? computerName = null)
     {
         _autostart = autostart;
         _url = url;
@@ -71,7 +78,16 @@ public sealed class MaintenanceEngine
             new("settings_autostart", StepAutostart, null),
             new("settings_start_service", StepStartAfterSettings, null),
         ];
-        return _runner.Run(steps, true, "settings change");
+        StepOutcome outcome = _runner.Run(steps, true, "settings change");
+        return outcome.Ok ? WithDeviceName(outcome, computerName) : outcome;
+    }
+
+    /// <summary>After a good save: saves and sends the computer name. A problem is only a note, never a failure.</summary>
+    private StepOutcome WithDeviceName(StepOutcome outcome, string? computerName)
+    {
+        if (_deviceName == null || computerName == null) return outcome;
+        StepOutcome sent = _deviceName.Apply(computerName, _url, _key, _deviceType);
+        return outcome with { Note = sent.Message };
     }
 
     private int StepStop()

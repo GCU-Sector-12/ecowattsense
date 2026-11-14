@@ -108,7 +108,9 @@
 
                 <StackPanel x:Name="PageServer" Visibility="Collapsed">
                     <TextBlock x:Name="ServerHeading" Text="Server" Style="{StaticResource Heading}"/>
-                    <TextBlock Text="Server address" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBlock Text="Computer name" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="DeviceNameBox" Style="{StaticResource Field}" MaxLength="60"/>
+                    <TextBlock Text="Server address" Style="{StaticResource Label}"/>
                     <TextBox x:Name="UrlBox" Style="{StaticResource Field}" TextChanged="UrlBox_TextChanged"/>
                     <TextBlock Text="Server key" Style="{StaticResource Label}"/>
                     <Grid>
@@ -135,6 +137,7 @@
                 <StackPanel x:Name="PageCalibration" Visibility="Collapsed">
                     <TextBlock Text="Calibration" Style="{StaticResource Heading}"/>
                     <TextBlock x:Name="CalibrationText" Style="{StaticResource Body}"/>
+                    <TextBlock x:Name="InstallNoteText" Style="{StaticResource Body}" Foreground="#B3261E"/>
                     <StackPanel x:Name="CalibrationButtons" Orientation="Horizontal" Margin="0,10,0,0">
                         <Button x:Name="CalibrateButton" Content="Calibrate now" Style="{StaticResource NavButton}" Margin="0,0,10,0" Click="CalibrateButton_Click"/>
                         <Button x:Name="SkipButton" Content="Skip" Style="{StaticResource NavButton}" Margin="0" Click="SkipButton_Click"/>

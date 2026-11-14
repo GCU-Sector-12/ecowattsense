@@ -48,6 +48,12 @@ public sealed record SetupLayout(string ProgramDir, string DataDir)
     /// <summary>The stored (protected) server key; only its existence is looked at.</summary>
     public string KeyFile => Path.Combine(DataDir, "config", "key.bin");
 
+    /// <summary>The computer name the person typed in Setup; the Client folder is readable by users (SPEC 10).</summary>
+    public string DeviceNameFile => Path.Combine(DataDir, "Client", "device-name.txt");
+
+    /// <summary>The computer id the client made; Setup only reads it.</summary>
+    public string DeviceIdFile => Path.Combine(DataDir, "Client", "device-id.txt");
+
     /// <summary>The Setup log.</summary>
     public string LogFile => Path.Combine(DataDir, "logs", "install.log");
 }

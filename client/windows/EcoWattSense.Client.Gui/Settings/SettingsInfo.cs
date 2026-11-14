@@ -5,6 +5,7 @@
 // shows as "unknown". The key itself is never in status.json; only the bool "server_key_set" is.
 #nullable enable
 using System;
+using System.Linq;
 using System.Text.Json;
 
 namespace EcoWattSense.Client.Gui.Settings;
@@ -44,6 +45,24 @@ public static class SettingsReader
     {
         string? text = Viewer.StatusReader.TryReadText(path);
         return text is null ? SettingsInfo.Unknown : Parse(text);
+    }
+
+    /// <summary>The longest computer name accepted, in characters (api-contract 5.3).</summary>
+    public const int MaxNameLength = 60;
+
+    /// <summary>Reads the computer name Setup saved in device-name.txt.</summary>
+    /// <param name="path">The full path of device-name.txt.</param>
+    /// <returns>The name, or null when the file is missing, unreadable or holds no usable name.</returns>
+    public static string? ReadComputerName(string path) => ParseComputerName(Viewer.StatusReader.TryReadText(path));
+
+    /// <summary>Checks the text of device-name.txt. The file is untrusted: only the first line is used.</summary>
+    /// <param name="text">The file text, or null.</param>
+    /// <returns>The cleaned first line, or null when it is empty, longer than <see cref="MaxNameLength"/> or has control characters.</returns>
+    public static string? ParseComputerName(string? text)
+    {
+        string name = (text ?? "").Split('\n')[0].Trim();
+        bool usable = name.Length > 0 && name.Length <= MaxNameLength && !name.Any(char.IsControl);
+        return usable ? name : null;
     }
 
     /// <summary>Checks the JSON text.</summary>
@@ -177,6 +196,11 @@ public static class SettingsText
         => seconds is { } value
             ? (value / 60.0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " min"
             : Unknown;
+
+    /// <summary>Gives the computer name line.</summary>
+    /// <param name="name">The checked name from <see cref="SettingsReader.ReadComputerName"/>, or null.</param>
+    /// <returns>The name, or "Not set" when there is none.</returns>
+    public static string ComputerName(string? name) => string.IsNullOrEmpty(name) ? "Not set" : name;
 
     /// <summary>Gives the service version line.</summary>
     /// <param name="version">The version text, or null.</param>

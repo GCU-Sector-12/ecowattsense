@@ -76,6 +76,26 @@ finally {
 $leak = $reader::Parse('{ "server_key": "SECRET-123", "server_key_set": true }')
 Check ($text::Key($leak.KeySet) -eq 'Server key is set' -and $text::Key($leak.KeySet) -notmatch 'SECRET') 'the key never appears'
 
+# The computer name line: the first line of device-name.txt, "Not set" when there is no usable name.
+Check ($reader::ParseComputerName("Lab 1 PC 03`r`nignored") -eq 'Lab 1 PC 03') 'computer name: the first line, cleaned'
+Check ($null -eq $reader::ParseComputerName($nullString) -and $null -eq $reader::ParseComputerName('  ') -and $null -eq $reader::ParseComputerName('')) 'computer name: no text is null'
+Check ($null -eq $reader::ParseComputerName(('x' * 61)) -and $reader::ParseComputerName(('x' * 60)) -eq ('x' * 60)) 'computer name: 60 characters are the limit'
+Check ($null -eq $reader::ParseComputerName("a`u{1}b")) 'computer name: control characters are refused'
+Check ($text::ComputerName('Lab 1') -eq 'Lab 1' -and $text::ComputerName($nullString) -eq 'Not set' -and $text::ComputerName('') -eq 'Not set') 'computer name text'
+$nameDirectory = Join-Path ([IO.Path]::GetTempPath()) ('EcoWattSense-SettingsTest-' + [guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path $nameDirectory
+    $namePath = Join-Path $nameDirectory 'device-name.txt'
+    Check ($null -eq $reader::ReadComputerName($namePath)) 'computer name: missing file is null'
+    [IO.File]::WriteAllText($namePath, "Lab 1 PC 03`n")
+    Check ($reader::ReadComputerName($namePath) -eq 'Lab 1 PC 03') 'computer name: read from disk'
+}
+finally {
+    $resolvedName = [IO.Path]::GetFullPath($nameDirectory)
+    if (-not [IO.Path]::GetFileName($resolvedName).StartsWith('EcoWattSense-SettingsTest-')) { throw 'Unsafe cleanup path' }
+    if (Test-Path -LiteralPath $resolvedName) { Remove-Item -LiteralPath $resolvedName -Recurse -Force }
+}
+
 # Autostart argument lists: one item per argument, so a path with spaces needs no quotes.
 $task = [EcoWattSense.Client.Gui.Settings.AutostartTask]
 $enable = $task::EnableArguments('C:\Program Files\EcoWattSense\Install-Autostart.ps1', 'laptop', 'C:\Program Files\EcoWattSense\EcoWattSense.Client.Gui.exe')

@@ -65,6 +65,13 @@ public sealed class RealFileOps : IFileOps
     }
 
     /// <inheritdoc />
+    public int DeleteFile(string path)
+    {
+        try { File.Delete(path); return 0; }
+        catch (Exception exception) { return ErrorCodes.From(exception); }
+    }
+
+    /// <inheritdoc />
     public string? ReadText(string path)
     {
         if (!File.Exists(path)) return null;

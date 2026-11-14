@@ -22,10 +22,14 @@ public sealed class FakeHandler : HttpMessageHandler
     /// <summary>The key header of the last request, or null.</summary>
     public string? LastKey { get; private set; }
 
+    /// <summary>The body text of the last request, or null when it had none.</summary>
+    public string? LastBody { get; private set; }
+
     /// <summary>Records the request and answers.</summary>
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Last = request;
+        LastBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
         LastKey = request.Headers.TryGetValues("X-EWS-Key", out IEnumerable<string>? values) ? values.First() : null;
         if (Throw != null) return Task.FromException<HttpResponseMessage>(Throw);
         return Task.FromResult(new HttpResponseMessage(Status));

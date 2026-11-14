@@ -37,6 +37,7 @@ public static class Program
         UndoChecks.Run();
         MaintenanceChecks.Run();
         ConnectionChecks.Run();
+        DeviceNameChecks.Run();
         NavChecks.Run();
         Console.WriteLine($"{Harness.Total - Harness.Failed} passed, {Harness.Failed} failed, {Harness.Total} checks");
         return Harness.Failed;

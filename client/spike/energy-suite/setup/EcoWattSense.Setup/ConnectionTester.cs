@@ -20,7 +20,7 @@ public sealed record TestResult(string Word, string Text, int Code = 0);
 /// <summary>Sends the test request and maps every outcome to a TestResult.</summary>
 public sealed class ConnectionTester
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     private readonly HttpMessageHandler _handler;
     private readonly Func<string> _storedKey;
@@ -62,7 +62,7 @@ public sealed class ConnectionTester
     }
 
     /// <summary>Returns the address when it is https, or http to a loopback host; otherwise null.</summary>
-    private static Uri? ParseAddress(string address)
+    internal static Uri? ParseAddress(string address)
     {
         bool parsed = Uri.TryCreate(address, UriKind.Absolute, out Uri? uri);
         if (!parsed || uri == null) return null;
@@ -100,7 +100,7 @@ public sealed class ConnectionTester
     }
 
     /// <summary>Maps an HTTP status to a result.</summary>
-    private static TestResult FromStatus(HttpStatusCode status) => status switch
+    internal static TestResult FromStatus(HttpStatusCode status) => status switch
     {
         HttpStatusCode.OK => new TestResult("connected", "Connected."),
         HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => new TestResult("refused", "The server refused the key."),
@@ -108,7 +108,7 @@ public sealed class ConnectionTester
     };
 
     /// <summary>Maps a failed request to a result by its error kind (DNS, TLS, other).</summary>
-    private static TestResult FromError(HttpRequestException error) => error.HttpRequestError switch
+    internal static TestResult FromError(HttpRequestException error) => error.HttpRequestError switch
     {
         HttpRequestError.NameResolutionError => new TestResult("dns", "Address not found."),
         HttpRequestError.SecureConnectionError => new TestResult("certificate", "Certificate problem."),

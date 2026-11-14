@@ -63,6 +63,9 @@ public interface IFileOps
     /// <summary>Writes a text file, replacing it. Returns 0 or an error code.</summary>
     int WriteText(string path, string text);
 
+    /// <summary>Deletes a file; a missing file is fine. Returns 0 or an error code.</summary>
+    int DeleteFile(string path);
+
     /// <summary>Appends one line to a text file and creates the folder when missing. Returns 0 or an error code.</summary>
     int AppendLine(string path, string line);
 }

@@ -128,6 +128,14 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     }
 
     /// <inheritdoc />
+    public int DeleteFile(string path)
+    {
+        Calls.Add("deletefile " + path);
+        Files.Remove(path);
+        return 0;
+    }
+
+    /// <inheritdoc />
     public int AppendLine(string path, string line)
     {
         Files[path] = Files.GetValueOrDefault(path, "") + line + "\n";

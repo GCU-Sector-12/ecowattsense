@@ -61,8 +61,9 @@ public partial class SetupWindow : Window
         _packageDir = packageDir;
         _tempCopyDir = tempCopyDir;
         SetupLog log = new(services, layout);
-        _install = new InstallEngine(services, layout, log);
-        _maintenance = new MaintenanceEngine(services, layout, log);
+        DeviceNameSync deviceName = new(services, layout, ConnectionTester.CreateRealHandler(), () => StoredKeyReader.Read(layout.KeyFile), log);
+        _install = new InstallEngine(services, layout, log, deviceName);
+        _maintenance = new MaintenanceEngine(services, layout, log, deviceName);
         _tester = new ConnectionTester(ConnectionTester.CreateRealHandler(), () => StoredKeyReader.Read(layout.KeyFile), log);
         _nextActions = [NextScan, mode == SetupMode.Settings ? NextSaveSettings : NextServer, NextInstall, NextClose, NextUninstall];
         _pages = [PageScan, PageServer, PageInstall, PageCalibration, PageUninstall];
@@ -154,7 +155,7 @@ public partial class SetupWindow : Window
 
     private Task NextServer()
     {
-        if (!AddressIsValid()) return Task.CompletedTask;
+        if (!InputIsValid()) return Task.CompletedTask;
         InstallText.Text = DescribeInstall();
         Show(2);
         return Task.CompletedTask;
@@ -164,6 +165,15 @@ public partial class SetupWindow : Window
     {
         string upgrade = _services.Service.Exists() ? "An existing installation will be upgraded and its service restarted. " : "";
         return $"{upgrade}Setup will install EcoWattSense into {_layout.ProgramDir} and start the service. Press Install.";
+    }
+
+    /// <summary>Checks the computer name and the address; shows the first problem under the fields.</summary>
+    private bool InputIsValid()
+    {
+        bool nameGood = DeviceNameRules.IsValid(DeviceNameBox.Text);
+        ServerMessage.Foreground = ErrorBrush;
+        ServerMessage.Text = nameGood ? "" : "The computer name can have at most 60 characters and no control characters.";
+        return nameGood && AddressIsValid();
     }
 
     private bool AddressIsValid()
@@ -179,7 +189,7 @@ public partial class SetupWindow : Window
     {
         SetBusy(true);
         InstallText.Text = "Installing. This can take a minute.";
-        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), KeyBox.Password, SendBox.IsChecked == true);
+        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), KeyBox.Password, SendBox.IsChecked == true, DeviceNameBox.Text);
         StepOutcome outcome = await Task.Run(() => _install.Install(request));
         KeyBox.Clear();
         SetBusy(false);
@@ -190,6 +200,7 @@ public partial class SetupWindow : Window
     {
         _finished = !outcome.Ok;
         InstallText.Text = outcome.Ok ? "Installed." : outcome.Message;
+        InstallNoteText.Text = outcome.Note;
         if (!outcome.Ok) { Show(2); return; }
         _nav.Lock();
         ShowCalibration();
@@ -240,18 +251,19 @@ public partial class SetupWindow : Window
 
     private async Task NextSaveSettings()
     {
-        if (!AddressIsValid()) return;
+        if (!InputIsValid()) return;
         SetBusy(true);
         string device = DeviceBox.SelectedItem as string ?? "desktop";
         string url = UrlBox.Text.Trim();
         string key = KeyBox.Password;
         bool send = SendBox.IsChecked == true;
         bool autostart = AutostartBox.IsChecked == true;
-        StepOutcome outcome = await Task.Run(() => _maintenance.SaveSettings(url, key, send, device, autostart));
+        string computerName = DeviceNameBox.Text;
+        StepOutcome outcome = await Task.Run(() => _maintenance.SaveSettings(url, key, send, device, autostart, computerName));
         KeyBox.Clear();
         SetBusy(false);
         ServerMessage.Foreground = outcome.Ok ? GoodBrush : ErrorBrush;
-        ServerMessage.Text = outcome.Ok ? "Saved. The service was restarted." : outcome.Message;
+        ServerMessage.Text = outcome.Ok ? ("Saved. The service was restarted. " + outcome.Note).Trim() : outcome.Message;
         _finished = outcome.Ok;
         Show(1);
     }
@@ -287,6 +299,7 @@ public partial class SetupWindow : Window
     private void LoadServerValues()
     {
         string? ini = _services.Files.ReadText(_layout.IniFile);
+        DeviceNameBox.Text = DeviceNameRules.FromFile(_services.Files.ReadText(_layout.DeviceNameFile));
         UrlBox.Text = IniEditor.Get(ini, "server_url");
         _hadUrl = UrlBox.Text.Length > 0;
         SendBox.IsChecked = _hadUrl && IniEditor.Get(ini, "server_enabled") != "0";

@@ -10,12 +10,14 @@ namespace EcoWattSense.Setup;
 /// <param name="Url">Server address; empty keeps the stored one.</param>
 /// <param name="Key">Server key; empty keeps the stored one.</param>
 /// <param name="SendReports">True to set server_enabled=1.</param>
-public sealed record InstallRequest(string PackageDir, string Url, string Key, bool SendReports);
+/// <param name="DeviceName">The computer name typed on the Server page; null leaves the name alone, empty removes it.</param>
+public sealed record InstallRequest(string PackageDir, string Url, string Key, bool SendReports, string? DeviceName = null);
 
 /// <summary>The end of a run of steps.</summary>
 /// <param name="Ok">True when every step worked.</param>
 /// <param name="Message">One clear message for the person. Holds no key and no URL.</param>
-public sealed record StepOutcome(bool Ok, string Message);
+/// <param name="Note">An extra line shown after a good run, for example a computer name that could not be sent; empty when none.</param>
+public sealed record StepOutcome(bool Ok, string Message, string Note = "");
 
 /// <summary>One step: a name for the log, the work and the undo (null when there is nothing to undo).</summary>
 /// <param name="Name">Fixed step name for the log.</param>
@@ -137,6 +139,7 @@ public sealed class InstallEngine
     private readonly SetupLog _log;
     private readonly StepRunner _runner;
     private readonly ConfigWriter _config;
+    private readonly DeviceNameSync? _deviceName;
 
     private string _packageDir = "";
     private InstallRequest _request = new("", "", "", false);
@@ -145,8 +148,13 @@ public sealed class InstallEngine
     private bool _programDirExisted;
 
     /// <summary>Creates the engine.</summary>
-    public InstallEngine(SetupServices services, SetupLayout layout, SetupLog log)
+    /// <param name="services">The operations.</param>
+    /// <param name="layout">The folders.</param>
+    /// <param name="log">The install log.</param>
+    /// <param name="deviceName">Saves and sends the computer name; null skips the name.</param>
+    public InstallEngine(SetupServices services, SetupLayout layout, SetupLog log, DeviceNameSync? deviceName = null)
     {
+        _deviceName = deviceName;
         _services = services;
         _layout = layout;
         _log = log;
@@ -181,7 +189,17 @@ public sealed class InstallEngine
             new("start_service", StepStart, UndoStart),
             new("autostart_task", StepTask, UndoTask),
         ];
-        return _runner.Run(steps, true, "install");
+        StepOutcome outcome = _runner.Run(steps, true, "install");
+        return outcome.Ok ? WithDeviceName(outcome) : outcome;
+    }
+
+    /// <summary>After a good install: saves and sends the computer name. A problem is only a note, never a failure.</summary>
+    private StepOutcome WithDeviceName(StepOutcome outcome)
+    {
+        if (_deviceName == null || _request.DeviceName == null) return outcome;
+        string deviceType = Scan?.DeviceType ?? "desktop";
+        StepOutcome sent = _deviceName.Apply(_request.DeviceName, _request.Url, _request.Key, deviceType);
+        return outcome with { Note = sent.Message };
     }
 
     /// <summary>Step 9, "Calibrate now": runs the calibrator as the logged-on user and logs its exit code.</summary>

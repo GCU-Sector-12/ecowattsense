@@ -29,6 +29,9 @@ public static class ViewerSources
     /// <summary>The folder that holds the daily history files: &lt;data&gt;\history\ (SPEC 2.2).</summary>
     public static string HistoryFolder => Path.Combine(DataFolder, "history");
 
+    /// <summary>The full path of device-name.txt, the computer name Setup saved: &lt;data&gt;Client (SPEC 10).</summary>
+    public static string DeviceNameFile => Path.Combine(DataFolder, "Client", "device-name.txt");
+
     /// <summary>The full path of status.json.</summary>
     public static string StatusFile => Path.Combine(StatusFolder, "status.json");
 

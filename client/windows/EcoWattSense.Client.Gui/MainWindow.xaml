@@ -365,6 +365,8 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="This computer" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock Text="Computer name" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsComputerName" Text="Not set" Margin="0,0,0,14"/>
                             <TextBlock Text="Device type" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                             <TextBlock x:Name="SettingsDeviceType" Text="unknown" Margin="0,0,0,14"/>
                             <TextBlock Text="Report interval" Style="{StaticResource Label}" Margin="0,0,0,4"/>

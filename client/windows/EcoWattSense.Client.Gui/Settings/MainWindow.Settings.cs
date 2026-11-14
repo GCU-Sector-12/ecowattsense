@@ -67,6 +67,7 @@ public partial class MainWindow
         SettingsAddress.Text = SettingsText.Address(info.ServerUrl);
         SettingsKey.Text = SettingsText.Key(info.KeySet);
         SettingsSending.Text = SettingsText.Sending(info.ServerEnabled);
+        SettingsComputerName.Text = SettingsText.ComputerName(SettingsReader.ReadComputerName(ViewerSources.DeviceNameFile));
         SettingsDeviceType.Text = SettingsText.Device(info.DeviceType);
         SettingsInterval.Text = SettingsText.Minutes(info.IntervalSeconds);
         SettingsIdle.Text = SettingsText.Minutes(info.IdleSeconds);
