@@ -19,5 +19,5 @@ it('links the button straight to the installer file', () => {
   renderWithMantine(<AddComputerCard />)
   const link = screen.getByRole('link', { name: 'Download installer' })
   expect(link).toHaveAttribute('href', INSTALLER_DOWNLOAD_URL)
-  expect(INSTALLER_DOWNLOAD_URL).toMatch(/\/v0\.1\.1-energy-suite\/EcoWattSense-Web-Setup\.exe$/)
+  expect(INSTALLER_DOWNLOAD_URL).toMatch(/\/v0\.1\.2-energy-suite\/EcoWattSense-Web-Setup\.exe$/)
 })
