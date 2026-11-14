@@ -11,6 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>../../spike/energy-suite/assets/ecowattsense.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

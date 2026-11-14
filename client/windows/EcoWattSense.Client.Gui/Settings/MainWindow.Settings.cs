@@ -20,6 +20,7 @@ namespace EcoWattSense.Client.Gui;
 public partial class MainWindow
 {
     private const int ErrorCancelledByUser = 1223;
+    private const string AllUsersNote = "Set for every user by Setup. Use Change... to switch it.";
     private static readonly Brush SelectedNavBrush = FrozenBrush(0x28, 0x5E, 0x50);
 
     private SettingsInfo settingsInfo = SettingsInfo.Unknown;
@@ -146,17 +147,21 @@ public partial class MainWindow
         return script is not null && AutostartTask.Disable(script);
     }
 
-    /// <summary>Reads the task state off the window thread and sets the check box and its line.</summary>
+    /// <summary>Reads the task state off the window thread and sets the check box and its line.
+    /// A task made by Setup for every user is shown ticked and locked: only Setup (Change...) may switch it.</summary>
     /// <returns>A task that ends when the check box is set.</returns>
     private async Task RefreshAutostartAsync()
     {
-        bool? registered = await Task.Run(AutostartTask.IsRegistered);
+        AutostartKind kind = await Task.Run(AutostartTask.Read);
         bool scripts = ProgramLocator.FindHere(ProgramLocator.InstallAutostartName) is not null;
         bool deviceKnown = settingsInfo.DeviceType is not null;
-        bool canChange = registered is not null && scripts && (registered == true || deviceKnown);
-        AutostartCheck.IsChecked = registered == true;
+        bool registered = kind is AutostartKind.User or AutostartKind.AllUsers;
+        bool known = kind != AutostartKind.Unknown;
+        bool canChange = known && kind != AutostartKind.AllUsers && scripts && (registered || deviceKnown);
+        bool? registeredOrNull = known ? registered : null;
+        AutostartCheck.IsChecked = registered;
         AutostartCheck.IsEnabled = canChange;
-        AutostartNote.Text = AutostartNoteText(registered, scripts, deviceKnown);
+        AutostartNote.Text = kind == AutostartKind.AllUsers ? AllUsersNote : AutostartNoteText(registeredOrNull, scripts, deviceKnown);
     }
 
     /// <summary>Gives the line that says why the check box cannot be used.</summary>

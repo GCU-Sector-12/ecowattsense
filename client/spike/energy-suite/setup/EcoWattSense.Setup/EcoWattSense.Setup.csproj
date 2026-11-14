@@ -13,6 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EcoWattSense.Setup</RootNamespace>
     <AssemblyName>Setup</AssemblyName>
+    <ApplicationIcon>../../assets/ecowattsense.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

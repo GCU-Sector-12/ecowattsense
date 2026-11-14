@@ -38,7 +38,7 @@ Programs: `C:\Program Files\EcoWattSense\`.
 
 Data: `C:\ProgramData\EcoWattSense\` (below: `<data>`).
 
-| Folder | Holds | Service account | Users | Administrators, SYSTEM |
+| Folder | Holds | Service (`NT SERVICE\EcoWattSenseService`) | Users | Administrators, SYSTEM |
 |---|---|---|---|---|
 | `<data>\Client\` | `device-id.txt`, `device-type.txt`, `instance.lock` (exist today) | modify | as today | full |
 | `<data>\scan\` | `capabilities.json`, `capabilities.service.json`, `scan.log` | modify | read | full |
@@ -48,6 +48,8 @@ Data: `C:\ProgramData\EcoWattSense\` (below: `<data>`).
 | `<data>\queue\` | `reports.jsonl` | modify | none | full |
 | `<data>\config\` | `service.ini`, `key.bin` | read | none | full |
 | `<data>\logs\` | `install.log`, `service.log` | modify | read | full |
+
+The service rights use the service SID `NT SERVICE\EcoWattSenseService`, not `LOCAL SERVICE` (Darek's decision, 14 Nov 2026). Setup computes the SID from the service name (S-1-5-80 and a SHA-1 of the upper-case name), so the rights can be set before the service exists. `config\` holds only that SID (read), Administrators and SYSTEM; Users have no access to it.
 
 Users can write only `calibration\`. The service treats that file as untrusted (section 8).
 
@@ -219,6 +221,7 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 
 - Name `EcoWattSenseService`, display name "EcoWattSense Energy Service", automatic (delayed) start.
 - Account `NT AUTHORITY\LocalService`. If the scan in the service context shows a source denied that the user context can read, the account becomes LocalSystem; the main session reports that.
+- Service SID type: unrestricted. Setup sets it with `ChangeServiceConfig2` (`SERVICE_CONFIG_SERVICE_SID_INFO`), so `NT SERVICE\EcoWattSenseService` is added to the service token and the folder rights of section 2.2 apply to it. The logon account stays as above.
 - Recovery: restart after 60 seconds, three times.
 
 ### 5.2 Command line
@@ -378,6 +381,22 @@ The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. 
 - 24 h view: its own control. A line of `device_w` per minute for the last 24 hours from the history files, with a band for the state. Each state is shown with a word and a colour (Active, Idle, Unused). Gaps stay gaps.
 - The view refreshes on a file change event of `history\` and `status\`, and only while the window is visible. Drawing is done by WPF shapes; no frame-by-frame redraw.
 - Text fields, if any, are left-aligned with the label above or to the left.
+- Calibrate button: on the "Calibrated" card, under the date of the model. It starts `EnergyCalibrator.exe` as the same user, without elevation. It is enabled only when none of these four reasons applies; the first one that applies is shown as a line under the button:
+  1. a calibration is running: "Calibration is running."
+  2. the calibrator was not found: "Calibrator not found."
+  3. the computer is not on battery (or the power source is unknown): "Unplug the charger to calibrate."
+  4. the charge is below 30 % or unknown: "Battery below 30 %."
+  The state changes on power-mode events and on the end of the calibrator process; there is no timer.
+- Measurement pulse: the dot on the Service card is green while the service runs and grey otherwise. When a history refresh brings a new last row, the dot pulses once (opacity and scale, about one second). The "Last measurement" line shows the end time of that row. No pulse when Windows client-area animations are off or the window is hidden.
+- Donut "Energy by state (24 h)": under the 24 h chart. A ring split into Active, Idle and Unused by kWh, the total kWh in the centre, and a legend with each state, its kWh and its percent. Without data it shows an empty grey ring and "No data". It is built from the history rows when they change; no timer.
+- Settings page: a second item in the sidebar, "Settings", shown only in viewer mode. It is read-only and shows the values of `status.json` (section 5.7); a missing or wrong value shows as "unknown".
+  - Server card: Address ("Not set" when empty), Key ("Server key is set" or "Server key is not set"; the key itself is never shown), Sending (On or Off), and the button "Change...", which starts `Setup.exe /settings` elevated (UAC). The note "Setup.exe not found." is shown, and the button disabled, when Setup.exe is not found.
+  - This computer card: Device type, Report interval, Idle after, Unused after (in minutes).
+  - About card: Service version and the data folder.
+- Autostart box, on the "This computer" card of the Settings page: "Start the client with Windows". The task is "EcoWattSense Client" (section 10). The client reads it with `schtasks /query /tn "EcoWattSense Client" /xml`.
+  - Group principal (a `GroupId` in the XML: the task made by Setup for every user): the box is ticked and disabled, with the line "Set for every user by Setup. Use Change... to switch it."
+  - User principal (the per-user task of `Install-Autostart.ps1`) or no task: the box works as before. Ticking it runs `Install-Autostart.ps1` (needs the device type); unticking runs `Uninstall-Autostart.ps1`. No administrator rights are needed.
+  - If schtasks gives no clear answer, the box is disabled with "The autostart setting could not be read."
 
 ## 10. Setup
 
@@ -390,10 +409,14 @@ Steps, in this order. Each step writes one line to `<data>\logs\install.log` (st
 5. Create the data folders with the rights of section 2.2.
 6. Write the configuration through `ews-service.exe --configure` and the `device_type` from the scan.
 7. Register and start the service.
-8. Register the client autostart for every user: a Task Scheduler task at log-on with the same trigger design as `Install-Autostart.ps1`.
+8. Register the client autostart for every user: the Task Scheduler task "EcoWattSense Client", a log-on trigger with a one-minute delay and the principal group Users (interactive, not elevated), with the same design as `Install-Autostart.ps1`. It replaces the classic per-user task of that name: one task, for all users. No key is passed in its arguments.
 9. When the scan says `needed`: offer to run the calibrator now. The user may skip it. The log records the choice and the calibrator exit code.
 
-Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task, delete the programs. The data folder stays unless the user ticks "Remove data".
+Settings (`Setup.exe /settings`): one page, started elevated (the client's "Change..." button does this). It has the server address, the server key (masked, as in step 3), the box "Send reports to the server", the device type (laptop or desktop) and the box "Start the client with Windows for every user". "Save" writes the values to the configuration and restarts the service ("Saved. The service was restarted.").
+
+Uninstall (`Setup.exe /uninstall`): stop and delete the service, delete the task, delete the programs. The data folder stays unless the user ticks "Remove data". When it is started from `C:\Program Files\EcoWattSense\`, it first copies its folder to a temporary folder (`%TEMP%\EcoWattSetup-<guid>`, named in the code `EcoWattSenseSetup-<guid>`) and relaunches from the copy with `/uninstall /tempcopy`, because a program cannot delete the folder it runs from. The copy removes itself at the end.
+
+Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter dial with a leaf), set as the application icon of the client, the calibrator and Setup. The tray icon of the client is taken from its own exe. The file is made by `scripts\New-AppIcon.ps1`.
 
 ## 11. Rules for the native code
 

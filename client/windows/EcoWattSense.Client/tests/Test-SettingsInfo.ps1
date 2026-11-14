@@ -85,4 +85,14 @@ Check (($disable -join '|') -eq '-NoProfile|-ExecutionPolicy|Bypass|-File|C:\Pro
 Check ($task::TaskName -eq 'EcoWattSense Client') 'task name is the one of Install-Autostart.ps1'
 $installScript = Get-Content -Raw (Join-Path $PSScriptRoot '../../scripts/Install-Autostart.ps1')
 Check ($installScript -match "\`$TaskName = '$([regex]::Escape($task::TaskName))'") 'task name matches the default in Install-Autostart.ps1'
+# Who the autostart task runs for, read from the task XML (schtasks /query /xml). Task Scheduler writes a namespace.
+$kind = [EcoWattSense.Client.Gui.Settings.AutostartKind]
+$ns = 'xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task"'
+$groupXml = "<Task $ns><Principals><Principal id=`"Author`"><GroupId>S-1-5-32-545</GroupId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals></Task>"
+$userXml = "<Task $ns><Principals><Principal id=`"Author`"><UserId>S-1-5-21-1-2-3-1001</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals></Task>"
+Check ($task::Parse($groupXml) -eq $kind::AllUsers) 'task XML with a group principal is AllUsers'
+Check ($task::Parse($userXml) -eq $kind::User) 'task XML with a user principal is User'
+Check ($task::Parse($nullString) -eq $kind::None -and $task::Parse('  ') -eq $kind::None) 'no task XML is None'
+Check ($task::Parse('this is not xml') -eq $kind::Unknown) 'broken XML is Unknown'
+Check ($task::Parse("<Task $ns/>") -eq $kind::User) 'task XML with no Principal is User'
 Write-Output "Passed $checks settings info checks."
