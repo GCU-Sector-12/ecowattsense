@@ -1,0 +1,29 @@
+<!--
+  EnergyCalibrator.csproj: build file of the EnergyCalibrator WPF app (net10.0-windows).
+  Who uses it: dotnet build and dotnet publish -c Release -o out.
+  Only two packages are used, both from Microsoft: System.Management (WMI) and System.Diagnostics.PerformanceCounter.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>EnergyCalibrator</RootNamespace>
+    <AssemblyName>EnergyCalibrator</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DefaultItemExcludes>$(DefaultItemExcludes);out\**</DefaultItemExcludes>
+    <!-- NU1510: .NET 10 already ships System.Diagnostics.PerformanceCounter, so the package reference is redundant.
+         It is kept on purpose (the project brief names it); the warning about it is switched off. -->
+    <NoWarn>$(NoWarn);NU1510</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="10.0.0" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

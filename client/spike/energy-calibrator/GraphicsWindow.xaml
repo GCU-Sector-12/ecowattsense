@@ -1,0 +1,20 @@
+<!--
+  GraphicsWindow.xaml: borderless full-screen window that draws many animated shapes for the "Graphics" phase.
+  Who uses it: TestRunner opens it at the start of the graphics phase and closes it at the end. Esc asks the runner to stop the test.
+  All motion is a Storyboard of DoubleAnimations on RenderTransform, so the graphics chip composites it; nothing is redrawn from a timer.
+-->
+<Window x:Class="EnergyCalibrator.GraphicsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Graphics load"
+        WindowStyle="None" ResizeMode="NoResize" WindowState="Maximized"
+        Topmost="True" ShowInTaskbar="False" Background="#1B1F2A"
+        Loaded="OnLoaded" PreviewKeyDown="OnKeyDown">
+    <Grid>
+        <Canvas x:Name="Scene" ClipToBounds="True" />
+        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="24" Padding="14,10"
+                CornerRadius="8" Background="#CC000000">
+            <TextBlock x:Name="Notice" Foreground="White" FontSize="16" TextWrapping="Wrap" MaxWidth="560" />
+        </Border>
+    </Grid>
+</Window>
