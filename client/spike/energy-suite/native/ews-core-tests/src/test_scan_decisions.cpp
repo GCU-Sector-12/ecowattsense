@@ -13,12 +13,6 @@ EWS_TEST(LevelL1ThroughLiveSystemChannel) {
     CHECK(ews::DecideLevel(facts) == MeasurementLevel::L1);
 }
 
-EWS_TEST(LevelL1ThroughLivePowerMeter) {
-    LevelFacts facts;
-    facts.livePowerMeter = true;
-    CHECK(ews::DecideLevel(facts) == MeasurementLevel::L1);
-}
-
 EWS_TEST(LevelL2ThroughLiveCpuPackage) {
     LevelFacts facts;
     facts.liveCpuPackage = true;

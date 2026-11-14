@@ -7,7 +7,7 @@
 namespace ews {
 
 MeasurementLevel DecideLevel(const LevelFacts& facts) {
-    if (facts.liveSystemChannel || facts.livePowerMeter) {
+    if (facts.liveSystemChannel) {
         return MeasurementLevel::L1;
     }
     if (facts.liveCpuPackage) {
