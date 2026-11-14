@@ -42,6 +42,9 @@ public partial class SetupWindow : Window
     private bool _finished;
     private bool _hadUrl;
     private bool _keyStored;
+    private bool _busy;
+    private readonly WizardNav _nav = new();
+    private readonly ConnectionTester _tester;
 
     /// <summary>Creates the window.</summary>
     /// <param name="mode">Install, settings or uninstall.</param>
@@ -60,9 +63,11 @@ public partial class SetupWindow : Window
         SetupLog log = new(services, layout);
         _install = new InstallEngine(services, layout, log);
         _maintenance = new MaintenanceEngine(services, layout, log);
+        _tester = new ConnectionTester(ConnectionTester.CreateRealHandler(), () => StoredKeyReader.Read(layout.KeyFile), log);
         _nextActions = [NextScan, mode == SetupMode.Settings ? NextSaveSettings : NextServer, NextInstall, NextClose, NextUninstall];
         _pages = [PageScan, PageServer, PageInstall, PageCalibration, PageUninstall];
         _stepItems = [StepScanItem, StepServerItem, StepInstallItem, StepCalibrationItem];
+        foreach (Border item in _stepItems) item.MouseLeftButtonUp += StepItem_Click;
         LoadServerValues();
         Loaded += Window_Loaded;
     }
@@ -96,7 +101,8 @@ public partial class SetupWindow : Window
         for (int index = 0; index < _pages.Length; index++) _pages[index].Visibility = index == page ? Visibility.Visible : Visibility.Collapsed;
         MarkSidebar();
         NextButton.Content = _finished ? "Close" : _nextTexts[page];
-        BackButton.IsEnabled = _mode == SetupMode.Install && !_finished && (page == 1 || page == 2);
+        _nav.Show(page);
+        UpdateBack();
     }
 
     /// <summary>Highlights the current step. In the other modes the one visible item is always the current one.</summary>
@@ -124,7 +130,23 @@ public partial class SetupWindow : Window
         await _nextActions[_page]();
     }
 
-    private void BackButton_Click(object sender, RoutedEventArgs e) => Show(_page - 1);
+    private void BackButton_Click(object sender, RoutedEventArgs e) => ShowPrevious();
+
+    /// <summary>Shows the previous page. The page text of the Install page is made again when it is shown.</summary>
+    private void ShowPrevious() => Show(_nav.Back());
+
+    /// <summary>Back is on only in the install wizard, before the install has run, and not while something runs.</summary>
+    private void UpdateBack() => BackButton.IsEnabled = _mode == SetupMode.Install && !_finished && !_busy && _nav.CanGoBack;
+
+    /// <summary>A click on a step in the sidebar: shows that step when the wizard allows it.</summary>
+    private void StepItem_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        int target = Array.IndexOf(_stepItems, (Border)sender);
+        bool allowed = _mode == SetupMode.Install && !_finished && !_busy && _nav.CanGoTo(target);
+        if (!allowed) return;
+        InstallText.Text = DescribeInstall();
+        Show(target);
+    }
 
     private Task NextScan() { Show(1); return Task.CompletedTask; }
 
@@ -169,6 +191,7 @@ public partial class SetupWindow : Window
         _finished = !outcome.Ok;
         InstallText.Text = outcome.Ok ? "Installed." : outcome.Message;
         if (!outcome.Ok) { Show(2); return; }
+        _nav.Lock();
         ShowCalibration();
     }
 
@@ -187,9 +210,9 @@ public partial class SetupWindow : Window
     {
         SetBusy(true);
         CalibrationButtons.IsEnabled = false;
-        CalibrationText.Text = "The calibrator is running. Close its window when it has finished.";
+        CalibrationText.Text = CalibrationResult.Running;
         int code = await Task.Run(_install.Calibrate);
-        CalibrationText.Text = $"The calibrator has closed (exit code {code}).";
+        CalibrationText.Text = CalibrationResult.TextFor(code);
         SetBusy(false);
     }
 
@@ -199,6 +222,20 @@ public partial class SetupWindow : Window
         CalibrationButtons.IsEnabled = false;
         CalibrationText.Text = "Calibration skipped. You can run EnergyCalibrator.exe later from the program folder.";
         NextButton.IsEnabled = true;
+    }
+
+    /// <summary>Tests the address and key on a worker thread. Only this button is disabled; Next and Save stay usable.</summary>
+    private async void TestButton_Click(object sender, RoutedEventArgs e)
+    {
+        string url = UrlBox.Text;
+        string key = KeyBox.Password;
+        TestButton.IsEnabled = false;
+        TestResultText.Foreground = Brushes.Gray;
+        TestResultText.Text = "Testing...";
+        TestResult result = await Task.Run(() => _tester.RunAsync(url, key));
+        TestResultText.Foreground = result.Word == "connected" ? GoodBrush : ErrorBrush;
+        TestResultText.Text = result.Text;
+        TestButton.IsEnabled = true;
     }
 
     private async Task NextSaveSettings()
@@ -242,7 +279,8 @@ public partial class SetupWindow : Window
     private void SetBusy(bool busy)
     {
         NextButton.IsEnabled = !busy;
-        BackButton.IsEnabled = !busy && _mode == SetupMode.Install && !_finished && (_page == 1 || _page == 2);
+        _busy = busy;
+        UpdateBack();
     }
 
     /// <summary>Fills the Server page from service.ini and tells whether a key is stored.</summary>

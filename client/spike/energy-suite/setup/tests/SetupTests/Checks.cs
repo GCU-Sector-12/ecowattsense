@@ -151,6 +151,7 @@ public static class InstallChecks
         int code = engine.Calibrate();
         Check(code == 7 && Kit.LogText(world).Contains("calibration run_exit 7"), "calibration: the exit code is logged");
         Check(world.Calls.Contains(@"calibrator P:\Prog\EnergyCalibrator.exe"), "calibration: started from the program folder as the logged-on user");
+        CalibrationTextChecks.Run();
         engine.SkipCalibration();
         Check(Kit.LogText(world).Contains("calibration skipped 0"), "calibration: the choice to skip is logged");
     }
@@ -323,3 +324,25 @@ public static class MaintenanceChecks
 
 
 
+
+/// <summary>Checks of the calibration result lines and of the off-thread run.</summary>
+public static class CalibrationTextChecks
+{
+    /// <summary>Runs the group.</summary>
+    public static void Run()
+    {
+        Check(CalibrationResult.TextFor(0) == "Calibration finished." && CalibrationResult.TextFor(1) == "Calibration stopped.", "calibration text: 0 and 1");
+        Check(CalibrationResult.TextFor(2).StartsWith("Calibration needs the battery: unplug the charger.") && CalibrationResult.TextFor(3) == "Calibration was aborted.", "calibration text: 2 and 3");
+        Check(CalibrationResult.TextFor(4) == "The model file could not be written." && CalibrationResult.TextFor(9) == "Calibration ended with code 9.", "calibration text: 4 and other");
+        RunOffThread();
+    }
+
+    private static void RunOffThread()
+    {
+        FakeWorld world = new();
+        InstallEngine engine = new(world.Services, Kit.Layout, new SetupLog(world.Services, Kit.Layout));
+        engine.Prepare(Kit.Package);
+        int code = Task.Run(engine.Calibrate).GetAwaiter().GetResult();
+        Check(code == 7 && CalibrationResult.TextFor(code) == "Calibration ended with code 7.", "calibration: the run works from a worker thread and gives its text");
+    }
+}
