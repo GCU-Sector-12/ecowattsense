@@ -351,7 +351,7 @@ device_type=laptop
 
 - `measured_parts`: the EMI kinds the calibrator could read during the test. Empty when it read none (then the model serves L3 only).
 - `rest_w`: battery power minus the measured parts in the "screen off" phase.
-- `rest_w_per_cpu_pct`: growth of that rest between "screen off" and "CPU 100%", per processor percent. 0 when it cannot be calculated.
+- `rest_w_per_cpu_pct`: growth of the rest (battery power minus the measured parts) between the phase "Rest, brightness 50%" and the phase "CPU 100%", divided by the difference of their mean processor use in percentage points. Both phases have the same brightness, so the screen power cancels out; against "screen off" the slope would hold about 1.4 W of screen power. 0 when it cannot be calculated.
 - `base_w`, `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`: as today.
 - Before writing, the calibrator copies the current file to `model.previous.json`. It writes to a temporary file and renames it.
 - Calibrator exit codes for Setup: 0 model written, 1 stopped by the user, 2 start conditions not met (no battery, charger connected, charge below 30%), 3 test aborted, 4 file not writable.
