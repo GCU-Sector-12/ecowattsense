@@ -200,6 +200,27 @@ A file error is shown in the status line and never stops the test.
 The files hold the PC maker, model and processor name. They hold no computer name, no user name, no serial number and no device id.
 Numbers use a dot as the decimal mark.
 
+## The model file for the service (`<data>\calibration\model.json`, schema 2)
+
+When a test ends, `ServiceModel.cs` writes the model that the EcoWattSense service reads (SPEC section 8). `<data>` is
+`C:\ProgramData\EcoWattSense`; `--data-dir <folder>` replaces it (used by the tests). The `results\...` folder beside the program is written as before.
+
+* Fields: `schema` 2, `generated_utc` (UTC, whole seconds, Z), `machine`, `measured_parts`, `model` (`base_w`, `rest_w`, `rest_w_per_cpu_pct`,
+  `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`), `phase_power_w`, `cpu_share_by_phase`, `warnings`.
+* `measured_parts`: the Energy Meter kinds that gave a value in the test: `cpu_package` (the package channel), `dram`. Empty when none; then
+  `rest_w` and `rest_w_per_cpu_pct` are 0 and the service serves level L3 only.
+* `rest_w`: battery power minus the measured parts in the "Screen off" phase (`RestModel.cs`).
+* `rest_w_per_cpu_pct`: growth of that rest per percent of CPU use. It is taken between the "CPU 100%" phase and the "Rest, brightness 50%"
+  reference phase (same brightness), so the screen power does not leak into it. A fall is noise and gives 0. 0 also when it cannot be worked out.
+* Limits (the same as in the service, checked here first): watt values 0 to 500, per-percent values 0 to 5, file at most 64 KB. A value outside,
+  or unknown, writes nothing (exit code 3).
+* Before writing, the current file is copied to `model.previous.json`; the new text goes to `model.json.tmp` and is renamed to `model.json`.
+* Exit codes: 0 model written; 1 stopped by the user (or the window closed with the start conditions met); 2 start conditions not met
+  (no battery, charger connected, charge below 30%) when the window is closed without a test; 3 test aborted, or a value outside the limits;
+  4 the file cannot be written.
+* Tests: `pwsh -NoProfile -File tests\Test-Calibrator.ps1` builds and runs `tests\CalibratorTests` (exit code = failed checks). It uses
+  `tests\data\phases-20261112.csv`, the phases of the real run of 12 Nov 2026 (no serial number, user name or computer name in it).
+
 ## Things the program does that the test needs (not asked for in the first brief)
 
 * It asks Windows to keep the system and the display awake (SetThreadExecutionState) during the test. Without this, Windows would dim
@@ -228,5 +249,6 @@ pwsh -NoProfile -File Check-Nesting.ps1             # checks all .cs files in th
 * `SampleCollector.cs`, `BatteryIoctlReader.cs`, `WmiReaders.cs`, `LoadReaders.cs`, `NativeMethods.cs`: the readers.
 * `CpuLoad.cs`, `DisplayControl.cs`, `GraphicsWindow.xaml(.cs)`: the loads and the display control.
 * `PowerSettingsApi.cs`, `PowerSettingsSession.cs`: read, change and restore the processor power settings, the backup file and the start warning.
-* `Analysis.cs`: per-phase results and the model. `ResultWriter.cs`: the result files.
+* `Analysis.cs`: per-phase results and the model. `RestModel.cs`: rest power. `ResultWriter.cs`: the result files.
+* `ServiceModel.cs`: the schema 2 model file for the service, its limits, the exit codes and `--data-dir`. `tests\`: the console tests.
 * `MainWindow.xaml(.cs)`, `ViewModels.cs`: the window.

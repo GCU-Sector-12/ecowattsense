@@ -15,11 +15,16 @@
     <AssemblyName>EnergyCalibrator</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <DefaultItemExcludes>$(DefaultItemExcludes);out\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);out\**;tests\**</DefaultItemExcludes>
     <!-- NU1510: .NET 10 already ships System.Diagnostics.PerformanceCounter, so the package reference is redundant.
          It is kept on purpose (the project brief names it); the warning about it is switched off. -->
     <NoWarn>$(NoWarn);NU1510</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The console tests in tests\CalibratorTests use the internal analysis and model code. -->
+    <InternalsVisibleTo Include="CalibratorTests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="10.0.0" />
