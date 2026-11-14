@@ -29,6 +29,8 @@ public partial class MainWindow : Window
     private bool testRunning;
     private bool closeAfterTest;
     private bool confirming;
+    private bool runFinished;
+    private bool lastCanStart;
     private PowerSettingsSession? powerSession;
     private string startupNote = "";
 
@@ -116,6 +118,7 @@ public partial class MainWindow : Window
     {
         if (testRunning || confirming) { return; }
         (bool canStart, string message) = StartGate.Evaluate(latestSample);
+        lastCanStart = canStart;
         StartButton.IsEnabled = canStart;
         StatusText.Text = startupNote.Length == 0 ? message : $"{startupNote} {message}";
     }
@@ -287,8 +290,23 @@ public partial class MainWindow : Window
         PowerModel model = PowerModel.Build(results);
         ShowResults(results, model);
         string saved = SaveResults(outcome, results, model);
-        StatusText.Text = $"{outcome.ReasonText} {saved}";
+        string published = PublishModel(outcome, results, model);
+        StatusText.Text = $"{outcome.ReasonText} {saved} {published}";
         Tabs.SelectedIndex = 1;
+    }
+
+    /// <summary>Writes the model file for the service (or decides not to) and sets the exit code of the program.</summary>
+    /// <param name="outcome">What the run produced.</param>
+    /// <param name="results">One result per phase.</param>
+    /// <param name="model">The power model.</param>
+    /// <returns>A sentence that says what happened to the model file.</returns>
+    private string PublishModel(TestOutcome outcome, IReadOnlyList<PhaseResult> results, PowerModel model)
+    {
+        PowerRunRecord power = powerSession?.Record ?? new PowerRunRecord();
+        ModelPublication publication = ServiceModel.Publish(new RunReport(machine, outcome, results, model, power), App.DataDir, DateTime.UtcNow);
+        runFinished = true;
+        ExitCodes.Current = publication.ExitCode;
+        return publication.Message;
     }
 
     /// <summary>Fills the results table and the model lines.</summary>
@@ -324,6 +342,8 @@ public partial class MainWindow : Window
     /// <param name="ex">The error. Only its type and message are shown, on this screen only.</param>
     private void ReportFailure(Exception ex)
     {
+        runFinished = true;
+        ExitCodes.Current = ExitCodes.TestAborted;
         StatusText.Text = $"The test could not run: {ex.Message}";
         MessageBox.Show(StatusText.Text, "Energy Calibrator", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
@@ -383,5 +403,7 @@ public partial class MainWindow : Window
         }
         sampling.SampleReady -= OnSampleReady;
         sampling.Stop();
+        if (runFinished) { return; }
+        ExitCodes.Current = lastCanStart ? ExitCodes.StoppedByUser : ExitCodes.StartNotMet;
     }
 }

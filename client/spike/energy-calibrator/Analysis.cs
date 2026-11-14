@@ -311,6 +311,15 @@ internal sealed class PowerModel
     /// <summary>Extra power of the graphics load over the reference phase.</summary>
     public double? GraphicsWatts { get; init; }
 
+    /// <summary>The Energy Meter kinds read during the test, named as the service reads them ("cpu_package", "dram"). Empty when none.</summary>
+    public IReadOnlyList<string> MeasuredParts { get; init; } = [];
+
+    /// <summary>Rest power with the display off: battery power minus the measured parts. 0 when no part was measured; null when it cannot be worked out.</summary>
+    public double? RestWatts { get; init; }
+
+    /// <summary>Growth of the rest power for each percent of CPU use (CPU 100% phase against the reference phase). 0 when it cannot be worked out.</summary>
+    public double? RestWattsPerPercent { get; init; }
+
     /// <summary>Notes about the parts of the model that could not be worked out.</summary>
     public IReadOnlyList<string> Warnings => BuildWarnings();
 
@@ -323,8 +332,15 @@ internal sealed class PowerModel
         double? screenLow = Power(results, PhaseCatalogue.ScreenLow);
         double? screenHigh = Power(results, PhaseCatalogue.ScreenHigh);
         double? reference = Power(results, PhaseCatalogue.ScreenReference);
+        IReadOnlyList<string> parts = RestPower.MeasuredParts(results);
+        bool measured = parts.Count > 0;
+        double? cpuSpan = CpuSpan(results, PhaseCatalogue.CpuFull);
+        double? restGrowth = RestPower.PerCpuPercent(results[PhaseCatalogue.CpuFull], results[PhaseCatalogue.ScreenReference], cpuSpan, parts);
         return new PowerModel
         {
+            MeasuredParts = parts,
+            RestWatts = measured ? RestPower.Rest(results[PhaseCatalogue.ScreenOff], parts) : 0,
+            RestWattsPerPercent = measured ? restGrowth ?? 0 : 0,
             BaseWatts = screenOff,
             ScreenWattsPerPercent = Subtract(screenHigh, screenLow) / 100.0,
             ScreenWattsAt50 = Subtract(reference, screenOff),
@@ -345,7 +361,9 @@ internal sealed class PowerModel
             $"Screen at 50% brightness: {Fmt.WithUnit(ScreenWattsAt50, "0.00", "W")} (reference phase minus display off)",
             $"CPU: {Fmt.WithUnit(CpuWattsPerPercent, "0.0000", "W")} for each 1% of CPU use (from the CPU 100% phase)",
             $"CPU, from the CPU 50% phase: {Fmt.WithUnit(CpuWattsPerPercentFromHalf, "0.0000", "W")} for each 1% (close to the line above means the CPU power is linear)",
-            $"Graphics: {Fmt.WithUnit(GraphicsWatts, "0.00", "W")} more than the reference phase at the same brightness"
+            $"Graphics: {Fmt.WithUnit(GraphicsWatts, "0.00", "W")} more than the reference phase at the same brightness",
+            $"Rest (display off, battery power minus the measured parts [{string.Join(", ", MeasuredParts)}]): {Fmt.WithUnit(RestWatts, "0.00", "W")}",
+            $"Rest growth: {Fmt.WithUnit(RestWattsPerPercent, "0.0000", "W")} for each 1% of CPU use (CPU 100% phase against the reference phase)"
         ];
     }
 
@@ -399,6 +417,7 @@ internal sealed class PowerModel
         AddMissing(warnings, CpuWattsPerPercent, "CPU power per percent needs phases 3 and 5 to be complete, with CPU use at least 5 points higher in phase 5.");
         AddMissing(warnings, CpuWattsPerPercentFromHalf, "CPU power per percent from the 50% phase needs phases 3 and 4 to be complete, with CPU use at least 5 points higher in phase 4.");
         AddMissing(warnings, GraphicsWatts, "Graphics power needs phases 3 and 6 to be complete.");
+        AddMissing(warnings, RestWatts, "Rest power needs phase 7 (Screen off) to be complete with a battery reading and every measured part.");
         return warnings;
     }
 
