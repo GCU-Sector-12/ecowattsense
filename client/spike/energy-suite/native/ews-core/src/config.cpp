@@ -132,10 +132,11 @@ void ApplyEnabled(const Values& values, ServiceConfig& config) {
     config.badValues += good ? 0 : 1;
 }
 
-/// Reads `server_url`; a bad URL leaves the URL empty.
+/// Reads `server_url`; a bad URL leaves the URL empty and is counted. A missing key or a blank value
+/// (values are already trimmed) means "server not set": the URL stays empty and nothing is counted.
 void ApplyUrl(const Values& values, ServiceConfig& config) {
     const std::string* value = Find(values, "server_url");
-    if (value == nullptr) {
+    if (value == nullptr || value->empty()) {
         return;
     }
     bool good = IsValidServerUrl(*value);

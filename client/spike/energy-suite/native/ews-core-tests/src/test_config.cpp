@@ -128,6 +128,16 @@ EWS_TEST(ConfigBadValuesFallBackAndAreCounted) {
     CHECK(config.badValues == 4);
 }
 
+EWS_TEST(ConfigEmptyServerUrlMeansNoServer) {
+    ews::ServiceConfig blank = ews::ParseServiceConfig("server_enabled=0\nserver_url=\n");
+    CHECK(blank.badValues == 0);
+    CHECK(blank.serverUrl.empty());
+    ews::ServiceConfig spaces = ews::ParseServiceConfig("server_enabled=0\nserver_url=   \n");
+    CHECK(spaces.badValues == 0);
+    CHECK(spaces.serverUrl.empty());
+    CHECK(ews::ParseServiceConfig("server_url=ftp://x").badValues == 1);
+}
+
 EWS_TEST(ConfigIntervalRange) {
     CHECK(ews::ParseServiceConfig("interval_seconds=60").intervalSeconds == 60);
     CHECK(ews::ParseServiceConfig("interval_seconds=3600").intervalSeconds == 3600);
