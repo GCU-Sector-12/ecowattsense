@@ -156,4 +156,51 @@ std::string FormatUtcTime(std::int64_t unixSeconds) {
     return std::string(buffer);
 }
 
+namespace {
+
+/// @return True when the text character fits the pattern character ('d' is a digit, any other must be equal).
+bool FitsPatternChar(char pattern, char text) { return pattern == 'd' ? (text >= '0' && text <= '9') : text == pattern; }
+
+/// @return The number written by two digits at `index`.
+int TwoDigits(const std::string& text, int index) { return (text[index] - '0') * 10 + (text[index + 1] - '0'); }
+
+/// @return The number of days of a month in a year (proleptic Gregorian calendar).
+int DaysInMonth(int year, int month) {
+    static const int kDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    return month == 2 && leap ? 29 : kDays[month - 1];
+}
+
+/// @return Days since 1970-01-01 of a valid civil date (the inverse of CivilFromDays).
+std::int64_t DaysFromCivil(int year, int month, int day) {
+    std::int64_t y = year - (month <= 2 ? 1 : 0);
+    std::int64_t era = (y >= 0 ? y : y - 399) / 400;
+    std::int64_t yearOfEra = y - era * 400;
+    std::int64_t monthShifted = month > 2 ? month - 3 : month + 9;
+    std::int64_t dayOfYear = (153 * monthShifted + 2) / 5 + day - 1;
+    std::int64_t dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+    return era * 146097 + dayOfEra - 719468;
+}
+
+}  // namespace
+
+bool ParseUtcTime(const std::string& text, std::int64_t& unixSeconds) {
+    static const std::string kPattern = "dddd-dd-ddTdd:dd:ddZ";
+    if (text.size() != kPattern.size() || !std::equal(kPattern.begin(), kPattern.end(), text.begin(), FitsPatternChar)) {
+        return false;
+    }
+    int year = TwoDigits(text, 0) * 100 + TwoDigits(text, 2);
+    int month = TwoDigits(text, 5);
+    int day = TwoDigits(text, 8);
+    int hour = TwoDigits(text, 11);
+    int minute = TwoDigits(text, 14);
+    int second = TwoDigits(text, 17);
+    bool dateOk = year >= 1970 && month >= 1 && month <= 12 && day >= 1 && day <= DaysInMonth(year, month);
+    if (!dateOk || hour > 23 || minute > 59 || second > 59) {
+        return false;
+    }
+    unixSeconds = DaysFromCivil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second;
+    return true;
+}
+
 }  // namespace ews

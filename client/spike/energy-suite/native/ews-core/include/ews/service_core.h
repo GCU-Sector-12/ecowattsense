@@ -30,6 +30,7 @@
 #include "ews/service_log.h"
 #include "ews/service_snapshot.h"
 #include "ews/status_format.h"
+#include "ews/status_keep.h"
 #include "ews/utc_stamp.h"
 
 namespace ews {
@@ -173,6 +174,8 @@ public:
 private:
     // Start-up steps.
     StartResult Prepare();
+    /// Takes the last report time, the last send time and the last send result from the status.json of the earlier run.
+    void KeepOldStatus();
     void LoadSetup();
     void BeginRun();
     void LoadSending();

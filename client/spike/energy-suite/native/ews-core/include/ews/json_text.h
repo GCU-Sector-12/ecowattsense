@@ -25,4 +25,10 @@ std::string FormatFixed(double value, int decimals);
 /// @return The 20-character text.
 std::string FormatUtcTime(std::int64_t unixSeconds);
 
+/// Reads UTC text of the exact form 2026-11-14T10:05:00Z (the inverse of FormatUtcTime).
+/// @param text Untrusted text.
+/// @param unixSeconds Receives the Unix time when the text is a real date and time; untouched otherwise.
+/// @return True when the text has the exact form and names a real calendar date and clock time.
+bool ParseUtcTime(const std::string& text, std::int64_t& unixSeconds);
+
 }  // namespace ews

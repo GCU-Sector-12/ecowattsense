@@ -17,6 +17,7 @@
 #include "ews/history_format.h"
 #include "ews/scan_output.h"
 #include "ews/secret.h"
+#include "ews/status_keep.h"
 
 namespace ews {
 
@@ -93,6 +94,7 @@ StartResult ServiceCore::Start() {
     if (prepared != StartResult::Ok) {
         return prepared;
     }
+    KeepOldStatus();
     LoadSetup();
     BeginRun();
     return StartResult::Ok;
@@ -120,6 +122,13 @@ StartResult ServiceCore::Prepare() {
     }
     deviceId_ = identity.value.id;
     return StartResult::Ok;
+}
+
+void ServiceCore::KeepOldStatus() {
+    KeptStatus kept = ReadKeptStatus(settings_.dataDir, NowUnix());
+    lastReportUnix_ = kept.lastReportUnix;
+    lastSendUnix_ = kept.lastSendUnix;
+    lastSend_ = kept.lastSendResult.value_or(LastSend::Never);
 }
 
 void ServiceCore::LoadSetup() {
