@@ -18,8 +18,10 @@ namespace EcoWattSense.Client.Gui.Viewer;
 /// <param name="ModelGeneratedUtc">When the calibration model was made, or null.</param>
 /// <param name="LastReportUtc">When the last report was built, or null.</param>
 /// <param name="SendResult">One of the known send-result words, or null when missing or unknown.</param>
+/// <param name="Queued">The number of reports waiting to be sent ("queued"), or null when missing or not a whole number of 0 or more.</param>
+/// <param name="ServerSet">True when "server_url" is not empty and "server_key_set" is true.</param>
 public sealed record StatusInfo(bool Valid, string? Level, DateTimeOffset? ModelGeneratedUtc,
-    DateTimeOffset? LastReportUtc, string? SendResult)
+    DateTimeOffset? LastReportUtc, string? SendResult, int? Queued = null, bool ServerSet = false)
 {
     /// <summary>The value for a file that is missing or broken.</summary>
     public static readonly StatusInfo Missing = new(false, null, null, null, null);
@@ -98,7 +100,30 @@ public static class StatusReader
             Known(GetString(root, "level"), Levels),
             GetDate(root, "model_generated_utc"),
             GetDate(root, "last_report_utc"),
-            Known(GetString(root, "last_send_result"), SendResults));
+            Known(GetString(root, "last_send_result"), SendResults),
+            GetCount(root, "queued"),
+            IsServerSet(root));
+    }
+
+    /// <summary>Reads a count property.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <param name="name">The property name.</param>
+    /// <returns>The number, or null when the property is missing, not a number, not a whole number or negative.</returns>
+    private static int? GetCount(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out JsonElement value)) return null;
+        if (value.ValueKind != JsonValueKind.Number) return null;
+        return value.TryGetInt32(out int count) && count >= 0 ? count : null;
+    }
+
+    /// <summary>Tells whether the status file says a server is set.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <returns>True when "server_url" is a non-empty string and "server_key_set" is the JSON value true.</returns>
+    private static bool IsServerSet(JsonElement root)
+    {
+        string? url = GetString(root, "server_url");
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        return root.TryGetProperty("server_key_set", out JsonElement key) && key.ValueKind == JsonValueKind.True;
     }
 
     /// <summary>Reads a string property.</summary>

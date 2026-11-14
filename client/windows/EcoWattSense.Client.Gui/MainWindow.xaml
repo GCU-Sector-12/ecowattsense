@@ -291,6 +291,16 @@
                                            Style="{StaticResource Value}"
                                            FontSize="22"
                                            TextWrapping="Wrap"/>
+                                <TextBlock x:Name="SendNowNote"
+                                           FontSize="12"
+                                           Margin="0,6,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"/>
+                                <Button x:Name="SendNowButton"
+                                        Content="Send now"
+                                        Style="{StaticResource PageButton}"
+                                        IsEnabled="False"
+                                        Click="OnSendNowClick"/>
                             </StackPanel>
                         </Border>
 
