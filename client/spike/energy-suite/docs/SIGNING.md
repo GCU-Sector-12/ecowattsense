@@ -26,6 +26,19 @@ By hand: run `certlm.msc`, open "Trusted Root Certification Authorities", then C
 
 To take the trust away again: run the script with `-Remove`.
 
+## Trust the certificate with one command
+
+For team members without a clone of the repository. In a normal PowerShell (it asks for administrator rights itself, one UAC prompt):
+
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/GCU-Sector-12/ecowattsense/EWS-energy-suite/client/spike/energy-suite/scripts/Trust-EcoWattSense.ps1 -OutFile $env:TEMP\Trust-EcoWattSense.ps1; & $env:TEMP\Trust-EcoWattSense.ps1"
+
+The script downloads the public certificate, refuses it unless the thumbprint is exactly `F53EC709CE14C833AECF191E11DAB909446B6CBA`, then adds it to the
+machine stores "Trusted Root Certification Authorities" and "Trusted Publishers". Add `-WhatIf` to see the plan without changing anything.
+
+To take the trust away again, the same command with `-Remove` at the end of the script call:
+
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/GCU-Sector-12/ecowattsense/EWS-energy-suite/client/spike/energy-suite/scripts/Trust-EcoWattSense.ps1 -OutFile $env:TEMP\Trust-EcoWattSense.ps1; & $env:TEMP\Trust-EcoWattSense.ps1 -Remove"
+
 ## First install without warnings
 
 SmartScreen judges a file that comes from the internet by the cloud reputation of the file. A certificate that only your laptop trusts
