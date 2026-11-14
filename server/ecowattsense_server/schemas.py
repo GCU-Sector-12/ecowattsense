@@ -171,6 +171,34 @@ class DeviceIn(BaseModel):
         return value
 
 
+class AdminDeviceChange(BaseModel):
+    """The body of PATCH /api/admin/devices/{device_id} (contract 5.11).
+
+    A field that is left out is not changed. That is why the route reads model_fields_set.
+    Null is allowed for display_name and location_id (it clears them) but not for archived.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = Field(default=None, max_length=60)
+    location_id: StrictInt | None = None
+    archived: StrictBool = False
+
+    @model_validator(mode="after")
+    def require_a_field(self):
+        """Reject an empty body, because a call that changes nothing is a mistake.
+
+        Returns:
+            The model, when at least one field was sent.
+
+        Raises:
+            ValueError: No field was sent.
+        """
+        if not self.model_fields_set:
+            raise ValueError("send at least one of display_name, location_id and archived")
+        return self
+
+
 class DeviceOut(BaseModel):
     device_id: UUID
     device_name: str | None
