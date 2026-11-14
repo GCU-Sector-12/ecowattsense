@@ -215,6 +215,11 @@
                 <StackPanel x:Name="ViewerPanel" Visibility="Collapsed">
                     <UniformGrid Columns="2">
                         <Border Style="{StaticResource Card}" Background="#E5F5E8">
+                            <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Service" Style="{StaticResource Label}"/>
                                 <StackPanel Orientation="Horizontal">
@@ -236,7 +241,12 @@
                                            FontSize="12"
                                            Foreground="#52685D"
                                            Margin="0,10,0,0"/>
+                                <!-- Legend of the donut (Active / Idle / Unused with percent); the code fills it. -->
+                                <Border x:Name="DonutLegendHost" Margin="0,10,0,0"/>
                             </StackPanel>
+                            <!-- The donut (SPEC 9) sits on the right of the Service card; the code fills it. -->
+                            <Border x:Name="DonutHost" Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            </Grid>
                         </Border>
 
                         <Border Style="{StaticResource Card}">
@@ -327,11 +337,6 @@
                             CornerRadius="16"
                             Margin="0,0,14,14"/>
 
-                    <!-- The donut control goes into this border, below the 24 hour chart. -->
-                    <Border x:Name="DonutHost"
-                            Background="White"
-                            CornerRadius="16"
-                            Margin="0,0,14,14"/>
                 </StackPanel>
 
                 <!-- Settings page (viewer mode): read-only values from status.json. -->

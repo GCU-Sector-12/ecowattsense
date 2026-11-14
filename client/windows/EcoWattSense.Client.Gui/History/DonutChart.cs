@@ -1,7 +1,8 @@
-// DonutChart.cs: the "Energy by state (24 h)" donut of the client window (SPEC 9).
-// Who uses it: MainWindow puts one into the Border named DonutHost and calls SetRows after each history change.
-// It draws a ring of WPF Path arcs split by state (Active, Idle, Unused), the total kWh in the centre and a legend with
-// each state, its kWh and its percent. The arcs come from DonutGeometry. The shapes are built once per data change
+// DonutChart.cs: the "Energy by state (24 h)" donut on the Service card of the client window (SPEC 9).
+// Who uses it: MainWindow puts the control into the Border named DonutHost and the Legend property into the Border
+// named DonutLegendHost, then calls SetRows after each history change.
+// The control draws a ring of WPF Path arcs split by state (Active, Idle, Unused) with the total kWh in the centre.
+// The Legend is a separate element (one line per state with its percent) because it sits on the left of the card. The arcs come from DonutGeometry. The shapes are built once per data change
 // (no timer, no frame-by-frame drawing); WPF renders them on the GPU. Without data it shows an empty grey ring and "No data".
 #nullable enable
 using System;
@@ -24,8 +25,8 @@ namespace EcoWattSense.Client.Gui.History
     /// <summary>A ring chart of the energy per state. Call SetRows to show new data.</summary>
     public sealed class DonutChart : UserControl
     {
-        private const double RingSize = 170;
-        private const double RingThickness = 22;
+        private const double RingSize = 110;
+        private const double RingThickness = 14;
         private const double FullCircleDegrees = 359.99;
 
         private static readonly Brush TextBrush = Make("#728095");
@@ -35,9 +36,12 @@ namespace EcoWattSense.Client.Gui.History
         private static readonly Brush UnusedBrush = Make(StateColours.Unused);
 
         private readonly Canvas ring = new() { Width = RingSize, Height = RingSize };
-        private readonly TextBlock total = new() { FontSize = 22, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
-        private readonly TextBlock caption = new() { FontSize = 11, Foreground = TextBrush, HorizontalAlignment = HorizontalAlignment.Center };
-        private readonly StackPanel legend = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(28, 0, 0, 0) };
+        private readonly TextBlock total = new() { FontSize = 17, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
+        private readonly TextBlock caption = new() { FontSize = 10, Foreground = TextBrush, HorizontalAlignment = HorizontalAlignment.Center };
+        private readonly StackPanel legend = new();
+
+        /// <summary>The legend (Active, Idle, Unused with percent). The window places it under the service text.</summary>
+        public StackPanel Legend => legend;
 
         /// <summary>Creates the control with an empty ring.</summary>
         public DonutChart()
@@ -58,7 +62,7 @@ namespace EcoWattSense.Client.Gui.History
             DrawLegend(layout);
         }
 
-        /// <summary>Builds the fixed parts: the title, the ring with the centre text, and the legend column.</summary>
+        /// <summary>Builds the fixed parts: the ring with the centre text.</summary>
         /// <returns>The root element.</returns>
         private UIElement BuildLayout()
         {
@@ -68,14 +72,7 @@ namespace EcoWattSense.Client.Gui.History
             var ringHost = new Grid { Width = RingSize, Height = RingSize };
             ringHost.Children.Add(ring);
             ringHost.Children.Add(centre);
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            row.Children.Add(ringHost);
-            row.Children.Add(legend);
-            var title = new TextBlock { Text = "Energy by state (24 h)", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
-            var root = new StackPanel { Margin = new Thickness(20) };
-            root.Children.Add(title);
-            root.Children.Add(row);
-            return root;
+            return ringHost;
         }
 
         /// <summary>Clears the ring and draws one arc for each slice with energy, or the empty ring.</summary>
@@ -132,19 +129,17 @@ namespace EcoWattSense.Client.Gui.History
             foreach (DonutSlice slice in layout.Slices) legend.Children.Add(LegendRow(slice, layout.HasData));
         }
 
-        /// <summary>Makes one legend row: a colour square, the state word, its kWh and its percent.</summary>
+        /// <summary>Makes one legend row: a colour square, the state word and its percent.</summary>
         /// <param name="slice">The slice of the state.</param>
-        /// <param name="hasData">False when the values are shown as dashes.</param>
+        /// <param name="hasData">False when the value is shown as a dash.</param>
         /// <returns>The row.</returns>
         private static UIElement LegendRow(DonutSlice slice, bool hasData)
         {
-            string kwh = hasData ? slice.Kwh.ToString("F2", CultureInfo.InvariantCulture) + " kWh" : "-";
             string percent = hasData ? slice.Percent.ToString("F1", CultureInfo.InvariantCulture) + " %" : "-";
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
-            row.Children.Add(new Rectangle { Width = 12, Height = 12, Fill = BrushOf(slice.State), Margin = new Thickness(0, 0, 8, 0) });
-            row.Children.Add(Text(StateWord(slice.State), 64, TextAlignment.Left));
-            row.Children.Add(Text(kwh, 84, TextAlignment.Left));
-            row.Children.Add(Text(percent, 60, TextAlignment.Left));
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+            row.Children.Add(new Rectangle { Width = 10, Height = 10, Fill = BrushOf(slice.State), Margin = new Thickness(0, 0, 8, 0) });
+            row.Children.Add(Text(StateWord(slice.State), 56, TextAlignment.Left));
+            row.Children.Add(Text(percent, 56, TextAlignment.Left));
             return row;
         }
 
@@ -154,7 +149,7 @@ namespace EcoWattSense.Client.Gui.History
         /// <param name="align">The alignment inside the width.</param>
         /// <returns>The text block.</returns>
         private static TextBlock Text(string text, double width, TextAlignment align)
-            => new() { Text = text, Width = width, TextAlignment = align, FontSize = 13 };
+            => new() { Text = text, Width = width, TextAlignment = align, FontSize = 12, Foreground = TextBrush };
 
         private static string StateWord(int state) => state == 2 ? "Active" : state == 1 ? "Idle" : "Unused";
 
