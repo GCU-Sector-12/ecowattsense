@@ -79,7 +79,8 @@ finally {
     if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-$leftCert = @(Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'EcoWattSense' }).Count
+# Count only the throw-away certificate of this test: the team's real signing certificate may live in the same store.
+$leftCert = @(Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq $thumbprint }).Count
 $leftDir = Test-Path -LiteralPath $work
 Write-Host "Passed: $passed  Failed: $failed  Certificates left: $leftCert  Temp folder left: $leftDir"
 if ($failed -eq 0 -and $leftCert -eq 0 -and -not $leftDir) { exit 0 }
