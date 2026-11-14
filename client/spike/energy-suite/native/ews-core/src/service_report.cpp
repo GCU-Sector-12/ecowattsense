@@ -272,6 +272,13 @@ void ServiceCore::WriteStatus() {
     Reading<int> queued = CountReports(settings_.dataDir);
     lastQueued_ = queued.ok() ? static_cast<std::uint32_t>(queued.value) : lastQueued_;
     fields.queued = lastQueued_;
+    fields.serverUrl = config_.serverUrl;
+    fields.serverKeySet = keySet_;
+    fields.serverEnabled = config_.serverEnabled;
+    fields.deviceType = config_.deviceType;
+    fields.intervalSeconds = config_.intervalSeconds;
+    fields.idleThresholdSeconds = config_.idleThresholdSeconds;
+    fields.unusedThresholdSeconds = config_.unusedThresholdSeconds;
     Reading<bool> folder = EnsureSubfolder(settings_.dataDir, L"status");
     std::wstring statusDir = (std::filesystem::path(settings_.dataDir) / L"status").wstring();
     bool written = folder.ok() && WriteFileAtomically(statusDir, L"status.json", BuildStatusJson(fields)).ok();

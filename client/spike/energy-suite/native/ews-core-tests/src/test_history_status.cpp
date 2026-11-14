@@ -68,10 +68,20 @@ EWS_TEST(StatusJsonAllValues) {
     s.lastSendUnix = ews_test::kTestTime + 1;
     s.lastSendResult = LastSend::Ok;
     s.queued = 0;
+    s.serverUrl = "https://example.org:8443";
+    s.serverKeySet = true;
+    s.serverEnabled = true;
+    s.deviceType = "laptop";
+    s.intervalSeconds = 300;
+    s.idleThresholdSeconds = 600;
+    s.unusedThresholdSeconds = 3600;
     CHECK(BuildStatusJson(s) ==
           "{\"schema\":1,\"service_version\":\"0.1.0\",\"level\":\"L2\",\"model_generated_utc\":\"2026-11-12T17:08:31Z\","
           "\"last_report_utc\":\"2026-11-14T10:05:00Z\",\"last_send_utc\":\"2026-11-14T10:05:01Z\","
-          "\"last_send_result\":\"ok\",\"queued\":0}\n");
+          "\"last_send_result\":\"ok\",\"queued\":0,"
+          "\"server_url\":\"https://example.org:8443\",\"server_key_set\":true,\"server_enabled\":true,"
+          "\"device_type\":\"laptop\",\"interval_seconds\":300,\"idle_threshold_seconds\":600,"
+          "\"unused_threshold_seconds\":3600}\n");
 }
 
 EWS_TEST(StatusJsonUnknownValuesAreLeftOut) {
@@ -79,5 +89,15 @@ EWS_TEST(StatusJsonUnknownValuesAreLeftOut) {
     s.serviceVersion = "0.1.0";
     s.lastSendResult = LastSend::Never;
     s.queued = 3;
-    CHECK(BuildStatusJson(s) == "{\"schema\":1,\"service_version\":\"0.1.0\",\"last_send_result\":\"never\",\"queued\":3}\n");
+    CHECK(BuildStatusJson(s) ==
+          "{\"schema\":1,\"service_version\":\"0.1.0\",\"last_send_result\":\"never\",\"queued\":3,"
+          "\"server_url\":\"\",\"server_key_set\":false,\"server_enabled\":false,\"device_type\":\"\","
+          "\"interval_seconds\":0,\"idle_threshold_seconds\":0,\"unused_threshold_seconds\":0}\n");
+}
+
+EWS_TEST(StatusJsonEscapesTheUrl) {
+    StatusFields s;
+    s.serviceVersion = "0.1.0";
+    s.serverUrl = "a\"b\\c\nd";
+    CHECK(BuildStatusJson(s).find("\"server_url\":\"a\\\"b\\\\c\\u000ad\"") != std::string::npos);
 }

@@ -152,14 +152,15 @@ void ServiceCore::BeginRun() {
 
 void ServiceCore::LoadSending() {
     sender_.reset();
-    if (!config_.SendingOn()) {
-        return;
-    }
+    // The key is read even when sending is off, so status.json can tell the Settings tab whether a key is stored.
     Reading<std::string> key = LoadServerKey(settings_.dataDir);
-    if (!key.ok()) {
+    keySet_ = key.ok();
+    if (!keySet_) {
         return;
     }
-    sender_ = deps_.senders.Create(config_.serverUrl, key.value);
+    if (config_.SendingOn()) {
+        sender_ = deps_.senders.Create(config_.serverUrl, key.value);
+    }
     SecureZeroMemory(key.value.data(), key.value.size());
 }
 

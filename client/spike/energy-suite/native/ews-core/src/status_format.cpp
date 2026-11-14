@@ -45,7 +45,14 @@ std::string BuildStatusJson(const StatusFields& fields) {
     AppendOptionalTime(out, "last_report_utc", fields.lastReportUnix);
     AppendOptionalTime(out, "last_send_utc", fields.lastSendUnix);
     out += std::string(",\"last_send_result\":\"") + SendResultWord(fields.lastSendResult) + "\"";
-    out += ",\"queued\":" + std::to_string(fields.queued) + "}\n";
+    out += ",\"queued\":" + std::to_string(fields.queued);
+    out += ",\"server_url\":" + JsonQuote(fields.serverUrl);
+    out += std::string(",\"server_key_set\":") + (fields.serverKeySet ? "true" : "false");
+    out += std::string(",\"server_enabled\":") + (fields.serverEnabled ? "true" : "false");
+    out += ",\"device_type\":" + JsonQuote(fields.deviceType);
+    out += ",\"interval_seconds\":" + std::to_string(fields.intervalSeconds);
+    out += ",\"idle_threshold_seconds\":" + std::to_string(fields.idleThresholdSeconds);
+    out += ",\"unused_threshold_seconds\":" + std::to_string(fields.unusedThresholdSeconds) + "}\n";
     return out;
 }
 

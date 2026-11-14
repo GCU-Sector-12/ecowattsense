@@ -293,10 +293,20 @@ device_type=laptop
 ```json
 { "schema": 1, "service_version": "0.1.0", "level": "L2", "model_generated_utc": "2026-11-12T17:08:31Z",
   "last_report_utc": "2026-11-14T10:05:00Z", "last_send_utc": "2026-11-14T10:05:01Z",
-  "last_send_result": "ok", "queued": 0 }
+  "last_send_result": "ok", "queued": 0,
+  "server_url": "https://example.org:8443", "server_key_set": true, "server_enabled": true,
+  "device_type": "laptop", "interval_seconds": 300, "idle_threshold_seconds": 600, "unused_threshold_seconds": 3600 }
 ```
 
 `last_send_result` is one of: `ok`, `disabled`, `unauthorised`, `rejected`, `server_error`, `network`, `never`. Written to a temporary file and renamed.
+
+The service also writes the settings it uses, because the client cannot read `config\` (closed to users). They are the values read at start (5.3: config is read only at start), and they are always present:
+
+- `server_url`: the URL in use, or `""` when there is none (missing or bad URL). JSON-escaped.
+- `server_key_set`: `true` when `key.bin` was read and decrypted at start, else `false` (no file or not decryptable). The service reads the key for this even when sending is off. The key itself, its length and any hash of it are never written.
+- `server_enabled`: `true` or `false` (`server_enabled` of `service.ini`).
+- `device_type`: the value in use.
+- `interval_seconds`, `idle_threshold_seconds`, `unused_threshold_seconds`: the values in use, whole numbers.
 
 ### 5.8 Log
 
