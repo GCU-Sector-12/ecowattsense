@@ -7,7 +7,6 @@ import { Group, NativeSelect, Stack, Switch, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import ComputerTable from '../components/ComputerTable.jsx'
-import AddComputerCard from '../components/AddComputerCard.jsx'
 import { getDevices } from '../data/index.js'
 
 const STATE_OPTIONS = [
@@ -70,7 +69,6 @@ export default function ComputersPage() {
       <Header title="Computers"
         subtitle={`Showing ${visibleDevices.length} of ${devices.filter((computer) => showArchived || !computer.archived).length} monitored computers.`}
         generatedAt={referenceTime} userName={sampleScreen.user_name} />
-      <AddComputerCard />
       <Group align="end" gap="md" wrap="wrap">
         <TextInput label="Search by computer name" placeholder="Search computers"
           aria-label="Search computers" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />

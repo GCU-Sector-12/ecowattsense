@@ -3,6 +3,7 @@
 import { ActionIcon, Group, NavLink, Stack, Text, Tooltip } from '@mantine/core'
 import { useRef } from 'react'
 import classes from './Sidebar.module.css'
+import InstallerBlock from './InstallerBlock.jsx'
 import { Home, Monitor, BarChart3, FileText, Settings, Leaf, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // Icon names from the navigation list in data/ui.js mapped to lucide icons.
@@ -111,6 +112,7 @@ export default function Sidebar({ items, activeKey, collapsed, onToggle, onResiz
       </Stack>
 
       <Stack gap="sm">
+        <InstallerBlock collapsed={collapsed} />
         {!collapsed && (
           <Group gap="sm" wrap="nowrap" px="xs" pb="xs">
             <Leaf size={40} color="var(--ews-leaf)" />

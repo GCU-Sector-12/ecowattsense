@@ -6,6 +6,12 @@ import App from '../App.jsx'
 import { clearSampleSession } from '../auth/sampleSession.js'
 import { renderWithMantine } from '../test/render.jsx'
 
+// The sidebar reads the release manifest through fetch; this file counts fetch calls, so the hook is replaced.
+vi.mock('../data/useLatestRelease.js', () => ({
+  useLatestRelease: () => ({ version: null, url: '#', localVersion: null }),
+  installState: () => 'install',
+}))
+
 /** Resets browser state before each login integration test. */
 function setUpLoginTest() {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
