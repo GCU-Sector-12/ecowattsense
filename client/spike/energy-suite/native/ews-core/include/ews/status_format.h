@@ -25,10 +25,19 @@ struct StatusFields {
     std::optional<std::int64_t> lastSendUnix;
     LastSend lastSendResult = LastSend::Never;
     std::uint32_t queued = 0;                     ///< Reports waiting in the queue.
+    std::string serverUrl;                        ///< The URL in use; empty when none (missing or bad).
+    bool serverKeySet = false;                    ///< True when key.bin was read and decrypted. The key itself is never written.
+    bool serverEnabled = false;                   ///< `server_enabled` of service.ini.
+    std::string deviceType;                       ///< `device_type` in use.
+    int intervalSeconds = 0;                      ///< `interval_seconds` in use.
+    int idleThresholdSeconds = 0;                 ///< `idle_threshold_seconds` in use.
+    int unusedThresholdSeconds = 0;               ///< `unused_threshold_seconds` in use.
 };
 
 /// Builds the text: one line, keys in the order schema, service_version, level, model_generated_utc,
-/// last_report_utc, last_send_utc, last_send_result, queued, ending with a line feed.
+/// last_report_utc, last_send_utc, last_send_result, queued, server_url, server_key_set, server_enabled,
+/// device_type, interval_seconds, idle_threshold_seconds, unused_threshold_seconds, ending with a line feed.
+/// The settings fields are always written, so the client can show them without reading config (closed to users).
 /// @param fields The values.
 /// @return The JSON text.
 std::string BuildStatusJson(const StatusFields& fields);

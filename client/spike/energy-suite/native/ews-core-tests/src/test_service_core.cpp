@@ -333,6 +333,45 @@ EWS_TEST(ServiceStatusAfterStartIsNever) {
     CHECK(Has(rig.Status(), "\"model_generated_utc\":\"2026-11-12T17:08:31Z\""));
 }
 
+EWS_TEST(ServiceStatusHoldsTheSettingsInUse) {
+    Rig rig("statussettings");
+    rig.WriteIni("server_enabled=1\nserver_url=https://example.org:8443\ninterval_seconds=600\n"
+                 "idle_threshold_seconds=120\nunused_threshold_seconds=900\ndevice_type=desktop\n");
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"server_url\":\"https://example.org:8443\",\"server_key_set\":true,\"server_enabled\":true,"
+                            "\"device_type\":\"desktop\",\"interval_seconds\":600,\"idle_threshold_seconds\":120,"
+                            "\"unused_threshold_seconds\":900}"));
+    CHECK(!Has(rig.Status(), "test-key"));
+}
+
+EWS_TEST(ServiceStatusWithSendingDisabledStillShowsUrlAndKey) {
+    Rig rig("statusoff");
+    rig.WriteIni("server_enabled=0\nserver_url=http://localhost:1\n");
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"server_url\":\"http://localhost:1\",\"server_key_set\":true,\"server_enabled\":false"));
+}
+
+EWS_TEST(ServiceStatusWithoutKeyFileSaysKeyNotSet) {
+    Rig rig("statusnokey");
+    std::filesystem::remove_all(rig.data.path() / "config" / "key.bin");
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"server_key_set\":false"));
+}
+
+EWS_TEST(ServiceStatusWithUndecryptableKeySaysKeyNotSet) {
+    Rig rig("statusbadkey");
+    ews_test::WriteText(rig.data.path() / "config" / "key.bin", "not a protected blob");
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"server_key_set\":false"));
+}
+
+EWS_TEST(ServiceStatusWithBadUrlHasEmptyUrl) {
+    Rig rig("statusbadurl");
+    rig.WriteIni("server_enabled=1\nserver_url=ftp://nope\n");
+    StartOk(rig);
+    CHECK(Has(rig.Status(), "\"server_url\":\"\""));
+}
+
 EWS_TEST(ServiceLevelWithoutAModelIsL4) {
     Rig rig("levelnomodel", false);
     StartOk(rig);

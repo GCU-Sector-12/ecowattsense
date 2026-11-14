@@ -227,6 +227,7 @@ private:
     ServiceConfig config_;
     std::string deviceId_;
     std::unique_ptr<ReportSender> sender_;
+    bool keySet_ = false;  ///< True when key.bin was read and decrypted at start (shown in status.json, never the key).
     std::vector<EmiChannel> channels_;
     std::optional<CalibrationModel> model_;
     std::optional<std::int64_t> modelFileTime_;
