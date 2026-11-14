@@ -32,7 +32,15 @@ enum class LogEvent {
     QueueWriteFailed,
     HistoryWriteFailed,
     HistoryCleaned,    ///< numbers: how many old files were deleted.
-    CountedError       ///< numbers: an error code chosen by the caller.
+    CountedError,      ///< numbers: an error code chosen by the caller.
+    StartFailed,       ///< numbers: a reason code (1 data folder missing, 2 lock error, 3 identity failed).
+    LockHeld,          ///< Another program holds Client\instance.lock; the service stops.
+    ModelInvalid,      ///< model.json exists but is not a valid model.
+    ReportSkipped,     ///< numbers: reports not built because the processor percent was unknown.
+    PipeDropped,       ///< numbers: pipe messages dropped since the last report (bad or from a session that is not active).
+    ScanWriteFailed,   ///< The scan result could not be written.
+    StatusWriteFailed, ///< status.json could not be written.
+    GapDetected        ///< A tick came much later than expected (long sleep); the interval was closed at the last read.
 };
 
 /// @param event An event.

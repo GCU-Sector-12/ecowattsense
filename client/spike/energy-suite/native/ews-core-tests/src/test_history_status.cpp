@@ -9,7 +9,7 @@
 using ews::BuildStatusJson;
 using ews::FormatHistoryRow;
 using ews::HistoryRow;
-using ews::SendResult;
+using ews::LastSend;
 using ews::StatusFields;
 
 EWS_TEST(HistoryHeaderIsExact) {
@@ -50,13 +50,13 @@ EWS_TEST(HistoryRowNonFiniteNumberIsEmpty) {
 }
 
 EWS_TEST(SendResultWords) {
-    CHECK(std::string(ews::SendResultWord(SendResult::Ok)) == "ok");
-    CHECK(std::string(ews::SendResultWord(SendResult::Disabled)) == "disabled");
-    CHECK(std::string(ews::SendResultWord(SendResult::Unauthorised)) == "unauthorised");
-    CHECK(std::string(ews::SendResultWord(SendResult::Rejected)) == "rejected");
-    CHECK(std::string(ews::SendResultWord(SendResult::ServerError)) == "server_error");
-    CHECK(std::string(ews::SendResultWord(SendResult::Network)) == "network");
-    CHECK(std::string(ews::SendResultWord(SendResult::Never)) == "never");
+    CHECK(std::string(ews::SendResultWord(LastSend::Ok)) == "ok");
+    CHECK(std::string(ews::SendResultWord(LastSend::Disabled)) == "disabled");
+    CHECK(std::string(ews::SendResultWord(LastSend::Unauthorised)) == "unauthorised");
+    CHECK(std::string(ews::SendResultWord(LastSend::Rejected)) == "rejected");
+    CHECK(std::string(ews::SendResultWord(LastSend::ServerError)) == "server_error");
+    CHECK(std::string(ews::SendResultWord(LastSend::Network)) == "network");
+    CHECK(std::string(ews::SendResultWord(LastSend::Never)) == "never");
 }
 
 EWS_TEST(StatusJsonAllValues) {
@@ -66,7 +66,7 @@ EWS_TEST(StatusJsonAllValues) {
     s.modelGeneratedUtc = "2026-11-12T17:08:31Z";
     s.lastReportUnix = ews_test::kTestTime;
     s.lastSendUnix = ews_test::kTestTime + 1;
-    s.lastSendResult = SendResult::Ok;
+    s.lastSendResult = LastSend::Ok;
     s.queued = 0;
     CHECK(BuildStatusJson(s) ==
           "{\"schema\":1,\"service_version\":\"0.1.0\",\"level\":\"L2\",\"model_generated_utc\":\"2026-11-12T17:08:31Z\","
@@ -77,7 +77,7 @@ EWS_TEST(StatusJsonAllValues) {
 EWS_TEST(StatusJsonUnknownValuesAreLeftOut) {
     StatusFields s;
     s.serviceVersion = "0.1.0";
-    s.lastSendResult = SendResult::Never;
+    s.lastSendResult = LastSend::Never;
     s.queued = 3;
     CHECK(BuildStatusJson(s) == "{\"schema\":1,\"service_version\":\"0.1.0\",\"last_send_result\":\"never\",\"queued\":3}\n");
 }

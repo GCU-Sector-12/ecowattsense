@@ -10,11 +10,11 @@
 namespace ews {
 
 /// The result of the last send attempt (the seven words of SPEC 5.7).
-enum class SendResult { Ok, Disabled, Unauthorised, Rejected, ServerError, Network, Never };
+enum class LastSend { Ok, Disabled, Unauthorised, Rejected, ServerError, Network, Never };
 
 /// @param result A send result.
 /// @return "ok", "disabled", "unauthorised", "rejected", "server_error", "network" or "never".
-const char* SendResultWord(SendResult result);
+const char* SendResultWord(LastSend result);
 
 /// The values of status.json.
 struct StatusFields {
@@ -23,7 +23,7 @@ struct StatusFields {
     std::optional<std::string> modelGeneratedUtc; ///< generated_utc of the model; empty when there is no valid model.
     std::optional<std::int64_t> lastReportUnix;
     std::optional<std::int64_t> lastSendUnix;
-    SendResult lastSendResult = SendResult::Never;
+    LastSend lastSendResult = LastSend::Never;
     std::uint32_t queued = 0;                     ///< Reports waiting in the queue.
 };
 

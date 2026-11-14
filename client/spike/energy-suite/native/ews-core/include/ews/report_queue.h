@@ -62,6 +62,11 @@ QueueAppendResult AppendReport(const std::wstring& dataDir, const std::string& l
 /// @return Ok with the batch, or the failure when the file cannot be read.
 Reading<QueueBatch> PeekReports(const std::wstring& dataDir, int maxLines);
 
+/// Counts the valid lines of the queue without changing the file. A missing file is an empty queue.
+/// @param dataDir The data folder.
+/// @return Ok with the number of valid lines (a file over 16 MB counts as 0), or the failure when the file cannot be read.
+Reading<int> CountReports(const std::wstring& dataDir);
+
 /// Removes the first `count` valid lines (and the skipped lines in front of them) by an atomic rewrite.
 /// @param dataDir The data folder.
 /// @param count How many lines to remove; the same lines PeekReports gave. More than there are empties the queue.

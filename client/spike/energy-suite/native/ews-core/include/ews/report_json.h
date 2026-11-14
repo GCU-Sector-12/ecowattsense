@@ -17,7 +17,7 @@ struct ReportFields {
     std::int64_t intervalSeconds = 0;              ///< At least 1.
     std::int64_t idleSeconds = 0;                  ///< At least 0.
     int state = 0;                                 ///< 2, 1 or 0.
-    std::optional<double> cpuPercent;              ///< 0 to 100.
+    std::optional<double> cpuPercent;              ///< 0 to 100. Required: an unknown value makes BuildReportJson fail.
     bool screenLocked = false;
     bool onBattery = false;
     std::string deviceType;                        ///< ^[a-z][a-z0-9_]*$, at most 40 characters.
@@ -30,7 +30,7 @@ struct ReportFields {
 /// cpu_percent (one decimal), screen_locked, on_battery, os ("windows"), device_type, energy_uj, battery_energy_uj,
 /// device_energy_uj. The text is one line with no line break and no spaces.
 /// @param fields The values.
-/// @return Ok with the text, or Error (ERROR_INVALID_DATA) when device_type is not ^[a-z][a-z0-9_]*$ or longer
+/// @return Ok with the text, or Error (ERROR_INVALID_DATA) when cpu_percent is unknown or not a finite number, device_type is not ^[a-z][a-z0-9_]*$ or longer
 ///         than 40 characters, interval_seconds is below 1, idle_seconds is negative or state is not 0, 1 or 2.
 Reading<std::string> BuildReportJson(const ReportFields& fields);
 

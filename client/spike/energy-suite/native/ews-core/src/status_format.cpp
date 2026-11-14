@@ -26,14 +26,14 @@ void AppendOptionalTime(std::string& out, const char* key, const std::optional<s
 
 }  // namespace
 
-const char* SendResultWord(SendResult result) {
+const char* SendResultWord(LastSend result) {
     switch (result) {
-        case SendResult::Ok: return "ok";
-        case SendResult::Disabled: return "disabled";
-        case SendResult::Unauthorised: return "unauthorised";
-        case SendResult::Rejected: return "rejected";
-        case SendResult::ServerError: return "server_error";
-        case SendResult::Network: return "network";
+        case LastSend::Ok: return "ok";
+        case LastSend::Disabled: return "disabled";
+        case LastSend::Unauthorised: return "unauthorised";
+        case LastSend::Rejected: return "rejected";
+        case LastSend::ServerError: return "server_error";
+        case LastSend::Network: return "network";
         default: return "never";
     }
 }
