@@ -210,3 +210,69 @@ EWS_TEST(IntervalNegativeMinuteEnergyIsUnknown) {
     IntervalResult r = acc.Close(kEnd, NoBattery());
     CHECK(!r.deviceEnergyUj.has_value());
 }
+
+namespace {
+
+/// @return A minute of 60 seconds that discharged 4 mWh (14 400 000 uJ).
+IntervalMinute DischargeMinute() {
+    IntervalMinute m = Minute(14.4e6);
+    m.batteryUj = -14.4e6;
+    return m;
+}
+
+/// @return A minute of 60 seconds whose battery change was impossible.
+IntervalMinute JumpMinute() {
+    IntervalMinute m = Minute(14.4e6);
+    m.batteryJump = true;
+    return m;
+}
+
+}  // namespace
+
+EWS_TEST(IntervalOnBatteryJumpInMinuteTwoIsReplacedByTheNextPossibleMinute) {
+    IntervalAccumulator acc(kStart, true, Battery(30000));
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(JumpMinute());
+    acc.AddMinute(DischargeMinute());
+    acc.ResolveBatteryJumps(-240000.0);  // the power of the third minute: -14 400 000 uJ in 60 s
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(DischargeMinute());
+    // The end charge is not used when a minute was replaced: the sum of the minutes counts.
+    IntervalResult r = acc.Close(kEnd, Battery(29980));
+    CHECK(r.batteryEnergyUj == -72000000);
+    CHECK(r.deviceEnergyUj == 72000000);
+    CHECK(r.energyUj == 0);
+}
+
+EWS_TEST(IntervalOnBatteryJumpInTheLastMinuteStaysUnknown) {
+    IntervalAccumulator acc(kStart, true, Battery(30000));
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(DischargeMinute());
+    acc.AddMinute(JumpMinute());
+    IntervalResult r = acc.Close(kEnd, Battery(29980));
+    CHECK(!r.batteryEnergyUj.has_value());
+    CHECK(!r.deviceEnergyUj.has_value());
+    CHECK(r.energyUj == 0);
+}
+
+EWS_TEST(IntervalOnMainsJumpInTheLastMinuteLeavesEnergyOut) {
+    IntervalAccumulator acc(kStart, false, Battery(30000));
+    AddFiveMinutes(acc);
+    acc.AddMinute(JumpMinute());
+    IntervalResult r = acc.Close(kEnd, Battery(30020));
+    CHECK(!r.batteryEnergyUj.has_value());
+    CHECK(!r.energyUj.has_value());
+}
+
+EWS_TEST(IntervalOnMainsReplacedJumpGivesKnownBatteryChange) {
+    IntervalAccumulator acc(kStart, false, Battery(30000));
+    IntervalMinute charge = Minute(100e6);
+    charge.batteryUj = 3.6e6;  // 1 mWh
+    acc.AddMinute(JumpMinute());
+    acc.AddMinute(charge);
+    acc.ResolveBatteryJumps(3.6e6 / 60.0);
+    IntervalResult r = acc.Close(kEnd, Battery(30002));
+    CHECK(r.batteryEnergyUj == 7200000);
+}

@@ -41,6 +41,7 @@ void IntervalAccumulator::AddMinute(const IntervalMinute& minute) {
         return;
     }
     anyMinute_ = true;
+    AddBatteryOf(minute);
     if (minute.cpuPercent.has_value() && std::isfinite(*minute.cpuPercent)) {
         cpuWeightedSum_ += *minute.cpuPercent * minute.seconds;
         cpuSeconds_ += minute.seconds;
@@ -50,6 +51,21 @@ void IntervalAccumulator::AddMinute(const IntervalMinute& minute) {
         return;
     }
     deviceSumUj_ += *minute.deviceUj;
+}
+
+void IntervalAccumulator::AddBatteryOf(const IntervalMinute& minute) {
+    if (minute.batteryJump) {
+        batteryJumpSeen_ = true;
+        heldJumpSeconds_ += minute.seconds;
+        return;
+    }
+    batteryUnknownMinute_ = batteryUnknownMinute_ || !minute.batteryUj.has_value();
+    batterySumUj_ += minute.batteryUj.value_or(0.0);
+}
+
+void IntervalAccumulator::ResolveBatteryJumps(double microjoulesPerSecond) {
+    batterySumUj_ += microjoulesPerSecond * heldJumpSeconds_;
+    heldJumpSeconds_ = 0;
 }
 
 std::optional<double> IntervalAccumulator::CpuPercent() const {
@@ -73,9 +89,21 @@ std::optional<std::int64_t> IntervalAccumulator::BatteryChangeUj(const BatteryRe
     if (!ChangeIsKnown(startBattery_, endBattery)) {
         return std::nullopt;
     }
+    if (batteryJumpSeen_) {
+        return SumOfMinutesUj();
+    }
     std::int64_t before = static_cast<std::int64_t>(*startBattery_.remainingMwh);
     std::int64_t after = static_cast<std::int64_t>(*endBattery.remainingMwh);
     return (after - before) * kMicrojoulesPerMwh;
+}
+
+std::optional<std::int64_t> IntervalAccumulator::SumOfMinutesUj() const {
+    // A minute still held, or a minute without a believed change, leaves the whole interval unknown.
+    bool known = heldJumpSeconds_ <= 0.0 && !batteryUnknownMinute_ && std::isfinite(batterySumUj_);
+    if (!known) {
+        return std::nullopt;
+    }
+    return static_cast<std::int64_t>(std::llround(batterySumUj_));
 }
 
 void IntervalAccumulator::FillOnBattery(IntervalResult& result, const std::optional<std::int64_t>& change) const {

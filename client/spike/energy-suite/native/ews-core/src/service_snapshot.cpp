@@ -3,6 +3,7 @@
 #include "ews/service_snapshot.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 
 namespace ews {
@@ -56,6 +57,17 @@ void AddBattery(BatteryReading& summary, bool& allKnown, const BatteryState& bat
     summary.remainingMwh = summary.remainingMwh.value_or(0) + (battery.remainingKnown ? battery.remaining : 0u);
 }
 
+/// @return True when a known battery change cannot be real: charge rose on battery, or the power is above the limit.
+bool IsImpossibleChange(double changeUj, bool onBattery, double seconds) {
+    if (onBattery && changeUj > 0.0) {
+        return true;
+    }
+    if (!(seconds > 0.0)) {
+        return true;
+    }
+    return std::fabs(changeUj) / seconds / 1.0e6 > kMaxBatteryWatts;
+}
+
 }  // namespace
 
 EmiGrowth ComputeEmiGrowth(const std::vector<EmiChannel>& channels, const Snapshot& previous, const Snapshot& current) {
@@ -93,6 +105,14 @@ std::optional<double> BatteryChangeUj(const BatteryReading& previous, const Batt
     }
     double change = static_cast<double>(*current.remainingMwh) - static_cast<double>(*previous.remainingMwh);
     return change * 3600000.0;
+}
+
+MinuteBattery JudgeBatteryChange(const BatteryReading& previous, const BatteryReading& current, bool onBattery, double seconds) {
+    MinuteBattery result;
+    std::optional<double> change = BatteryChangeUj(previous, current);
+    result.jump = change.has_value() && IsImpossibleChange(*change, onBattery, seconds);
+    result.changeUj = result.jump ? std::nullopt : change;
+    return result;
 }
 
 std::int64_t ToUnixSeconds(UtcTime time) {

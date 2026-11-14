@@ -34,6 +34,18 @@ std::optional<double> CpuBetween(const Snapshot& previous, const Snapshot& curre
     return percent.ok() ? std::optional<double>(percent.value) : std::nullopt;
 }
 
+/// @return The minute as the interval accumulator needs it, with its battery change (empty when impossible or unknown).
+IntervalMinute MakeIntervalMinute(double seconds, const std::optional<double>& cpuPercent, const MinuteEnergy& energy,
+                                  const MinuteBattery& battery) {
+    IntervalMinute minute;
+    minute.seconds = seconds;
+    minute.cpuPercent = cpuPercent;
+    minute.deviceUj = energy.deviceUj;
+    minute.batteryUj = battery.changeUj;
+    minute.batteryJump = battery.jump;
+    return minute;
+}
+
 /// @return Watts for an energy in uJ over some seconds, or nothing when the energy is unknown.
 std::optional<double> ToWatts(const std::optional<double>& microjoules, double seconds) {
     if (!microjoules.has_value() || seconds <= 0.0) {
@@ -191,13 +203,15 @@ void ServiceCore::ProcessMinute(const Snapshot& current) {
     input.brightnessPct = CurrentBrightness();
     input.model = model_.has_value() ? &*model_ : nullptr;
     MinuteEnergy energy = CalculateMinuteEnergy(input);
-    interval_->AddMinute(IntervalMinute{seconds, cpuPercent, energy.deviceUj});
-    AppendHistory(current, seconds, cpuPercent, energy, BatteryChangeUj(previous_.battery, current.battery));
+    MinuteBattery battery = JudgeBatteryChange(previous_.battery, current.battery, onBattery_, seconds);
+    batteryJumps_ += battery.jump ? 1 : 0;
+    interval_->AddMinute(MakeIntervalMinute(seconds, cpuPercent, energy, battery));
+    AppendHistory(current, seconds, cpuPercent, energy, battery);
     previous_ = current;
 }
 
 void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const std::optional<double>& cpuPercent,
-                                const MinuteEnergy& energy, const std::optional<double>& batteryChangeUj) {
+                                const MinuteEnergy& energy, const MinuteBattery& battery) {
     HistoryRow row;
     row.timestampUnix = ToUnixSeconds(current.time);
     row.seconds = std::llround(seconds);
@@ -208,9 +222,42 @@ void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const s
     row.cpuPct = cpuPercent;
     row.deviceW = ToWatts(energy.deviceUj, seconds);
     row.measuredW = energy.deviceUj.has_value() ? ToWatts(energy.measuredUj, seconds) : std::nullopt;
-    row.batteryW = ToWatts(batteryChangeUj, seconds);
+    row.batteryW = ToWatts(battery.changeUj, seconds);
     row.level = energy.level;
-    Reading<bool> written = AppendHistoryRow(settings_.dataDir, current.time, kHistoryHeader, FormatHistoryRow(row));
+    RecordRow(row, current.time, battery, seconds);
+}
+
+void ServiceCore::RecordRow(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds) {
+    // An impossible minute waits for the first possible minute after it (SPEC 4.3).
+    if (battery.jump) {
+        heldRows_.push_back(HeldRow{row, time, true});
+        return;
+    }
+    bool holding = !heldRows_.empty();
+    // A minute with an unknown change does not resolve anything; it queues behind the held rows to keep the order.
+    if (holding && !battery.changeUj.has_value()) {
+        heldRows_.push_back(HeldRow{row, time, false});
+        return;
+    }
+    if (holding) {
+        interval_->ResolveBatteryJumps(*battery.changeUj / seconds);
+    }
+    WriteHeldRows(row.batteryW);
+    WriteRow(row, time);
+}
+
+void ServiceCore::WriteHeldRows(const std::optional<double>& replacedWatts) {
+    for (HeldRow& held : heldRows_) {
+        bool replaced = held.replace && replacedWatts.has_value();
+        batteryReplaced_ += replaced ? 1 : 0;
+        held.row.batteryW = replaced ? replacedWatts : held.row.batteryW;
+        WriteRow(held.row, held.time);
+    }
+    heldRows_.clear();
+}
+
+void ServiceCore::WriteRow(const HistoryRow& row, UtcTime time) {
+    Reading<bool> written = AppendHistoryRow(settings_.dataDir, time, kHistoryHeader, FormatHistoryRow(row));
     // One line when the writing starts to fail, not one per minute.
     if (!written.ok() && !historyFailing_) {
         Log(LogEvent::HistoryWriteFailed, {static_cast<long long>(written.error)});

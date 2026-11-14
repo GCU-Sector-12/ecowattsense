@@ -388,3 +388,115 @@ EWS_TEST(ServiceBrightnessComesFromTheDisplayWhenTheScanSaysReadable) {
     // Brightness 100 for every minute: +0.52 W x 300 s = 156 J.
     CHECK(Has(rig.SentLine(0, 0), "\"device_energy_uj\":2952000000"));
 }
+
+namespace {
+
+/// Gives the fake battery one cell of the given charge in mWh.
+void SetCharge(Rig& rig, std::uint32_t mwh) {
+    ews::BatteryState state = ews_test::MakeMwhBattery(true);
+    state.remaining = mwh;
+    state.remainingKnown = true;
+    rig.battery.result = ews::Reading<std::vector<ews::BatteryState>>::Success({state});
+}
+
+/// @return How many times a part occurs in a text.
+int Occurrences(const std::string& text, const std::string& part) {
+    int count = 0;
+    std::size_t at = text.find(part);
+    while (at != std::string::npos) {
+        ++count;
+        at = text.find(part, at + 1);
+    }
+    return count;
+}
+
+}  // namespace
+
+EWS_TEST(ServiceBatteryJumpAfterUnplugGivesAnEmptyBatteryFieldAndOneLogLine) {
+    Rig rig("jump-unplug");
+    SetCharge(rig, 35819);
+    StartOk(rig);
+    rig.Ticks(1);
+    rig.clock.Advance(6);
+    rig.power.Set(true);
+    SetCharge(rig, 36491);
+    rig.core.PowerSourceChanged();
+    // Two history rows: the full minute and the short one of 6 seconds, whose battery field is empty.
+    CHECK(CountLines(rig.History()) == 3);
+    CHECK(Occurrences(rig.History(), ",,L2\n") == 1);
+    CHECK(Occurrences(rig.Log(), " battery_jump 1\n") == 1);
+}
+
+EWS_TEST(ServiceJumpInTheMiddleOfAnIntervalIsReplacedAndTheReportKeepsBatteryFields) {
+    Rig rig("jump-interval");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 29989);
+    rig.Ticks(1);
+    SetCharge(rig, 25989);  // 4000 mWh in 60 s is 240 W: impossible
+    rig.Ticks(1);
+    SetCharge(rig, 25978);
+    rig.Ticks(1);
+    SetCharge(rig, 25967);
+    rig.Ticks(1);
+    SetCharge(rig, 25956);
+    rig.Ticks(1);
+    CHECK(rig.senders.batches.size() == 1);
+    // Minute 2 takes the power of minute 3 (-11 mWh in 60 s = -0.66 W): five minutes of -11 mWh = -198 000 000 uJ.
+    std::string report = rig.SentLine(0, 0);
+    CHECK(Has(report, "\"energy_uj\":0"));
+    CHECK(Has(report, "\"battery_energy_uj\":-198000000"));
+    CHECK(Has(report, "\"device_energy_uj\":198000000"));
+    CHECK(CountLines(rig.History()) == 6);
+    CHECK(Occurrences(rig.History(), ",-0.660,L2\n") == 5);
+    CHECK(Occurrences(rig.Log(), " battery_jump 1\n") == 1);
+    CHECK(Occurrences(rig.Log(), " battery_replaced 1\n") == 1);
+}
+
+EWS_TEST(ServiceJumpInTheLastMinuteBeforeTheReportStaysUnknown) {
+    Rig rig("jump-last");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 29989);
+    rig.Ticks(1);
+    SetCharge(rig, 29978);
+    rig.Ticks(1);
+    SetCharge(rig, 29967);
+    rig.Ticks(1);
+    SetCharge(rig, 29956);
+    rig.Ticks(1);
+    SetCharge(rig, 25956);  // the fifth minute jumps
+    rig.Ticks(1);
+    std::string report = rig.SentLine(0, 0);
+    CHECK(Has(report, "\"energy_uj\":0"));
+    CHECK(!Has(report, "battery_energy_uj"));
+    CHECK(!Has(report, "device_energy_uj"));
+    CHECK(CountLines(rig.History()) == 6);
+    CHECK(Occurrences(rig.History(), ",,L2\n") == 1);
+    CHECK(Occurrences(rig.Log(), " battery_jump 1\n") == 1);
+    CHECK(Occurrences(rig.Log(), " battery_replaced") == 0);
+}
+
+EWS_TEST(ServiceJumpAfterAPowerChangeWritesTheShortRowLateWithTheReplacedValue) {
+    Rig rig("jump-late");
+    SetCharge(rig, 35819);
+    StartOk(rig);
+    rig.Ticks(1);
+    rig.clock.Advance(6);
+    rig.power.Set(true);
+    rig.core.PowerSourceChanged();  // ends the mains interval; the new interval is on battery
+    rig.clock.Advance(6);
+    SetCharge(rig, 36491);  // the gauge jumps up by 672 mWh in 6 s
+    rig.core.Tick();
+    SetCharge(rig, 36480);
+    rig.Ticks(1);  // -11 mWh in 60 s = -0.66 W
+    // Rows: header, full mains minute, 6 s mains row, the held 6 s row (late), the 60 s row.
+    CHECK(CountLines(rig.History()) == 5);
+    CHECK(Occurrences(rig.History(), ",-0.660,L2\n") == 2);
+    CHECK(Occurrences(rig.History(), ",,L2\n") == 0);
+    rig.core.Stop();  // closes the interval, which writes the counters to the log
+    CHECK(Occurrences(rig.Log(), " battery_jump 1\n") == 1);
+    CHECK(Occurrences(rig.Log(), " battery_replaced 1\n") == 1);
+}

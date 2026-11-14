@@ -21,6 +21,8 @@ struct IntervalMinute {
     double seconds = 0;                  ///< Length of the minute. A length of 0 or less is ignored.
     std::optional<double> cpuPercent;    ///< Processor load of the minute.
     std::optional<double> deviceUj;      ///< Energy of the minute; empty marks the whole interval's energy unknown.
+    std::optional<double> batteryUj;     ///< Battery change of the minute in uJ; empty when unknown or impossible.
+    bool batteryJump = false;            ///< The battery change of the minute was impossible (SPEC 4.3); resolve it later with ResolveBatteryJumps.
 };
 
 /// The result of closing an interval. An empty optional is an unknown value that the report leaves out.
@@ -48,6 +50,12 @@ public:
     /// @param minute The minute.
     void AddMinute(const IntervalMinute& minute);
 
+    /// A possible battery change was found after one or more impossible minutes (SPEC 4.3). Each held minute gets
+    /// this power times its own seconds as its battery change. Without a call, held minutes make the interval's
+    /// battery change unknown.
+    /// @param microjoulesPerSecond The battery power of the first possible minute, in uJ per second (negative when discharging).
+    void ResolveBatteryJumps(double microjoulesPerSecond);
+
     /// Closes the interval.
     /// @param endUnix End time, Unix seconds.
     /// @param endBattery The battery at the end.
@@ -58,6 +66,8 @@ private:
     std::optional<std::int64_t> BatteryChangeUj(const BatteryReading& endBattery) const;
     std::optional<std::int64_t> DeviceEnergyUj() const;
     std::optional<double> CpuPercent() const;
+    void AddBatteryOf(const IntervalMinute& minute);
+    std::optional<std::int64_t> SumOfMinutesUj() const;
     void FillOnBattery(IntervalResult& result, const std::optional<std::int64_t>& change) const;
     void FillOnMains(IntervalResult& result, const std::optional<std::int64_t>& change, bool batteryPresent) const;
 
@@ -69,6 +79,10 @@ private:
     double deviceSumUj_ = 0;
     bool anyMinute_ = false;
     bool unknownMinute_ = false;
+    bool batteryJumpSeen_ = false;       ///< Some minute had an impossible battery change: the battery change is the sum of the minutes.
+    bool batteryUnknownMinute_ = false;  ///< A minute without a believed battery change (only used when a jump was seen).
+    double heldJumpSeconds_ = 0;         ///< Seconds of impossible minutes still waiting for a possible one.
+    double batterySumUj_ = 0;            ///< Sum of the battery changes of the minutes, after replacement.
 };
 
 }  // namespace ews

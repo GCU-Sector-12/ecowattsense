@@ -23,9 +23,10 @@ const char* const kEventWords[] = {
     "queue_dropped",    "queue_skipped",      "queue_broken_file",   "queue_write_failed", "history_write_failed",
     "history_cleaned",  "counted_error",      "start_failed",        "lock_held",        "model_invalid",
     "report_skipped",   "pipe_dropped",       "scan_write_failed",   "status_write_failed", "gap_detected",
+    "battery_jump",     "battery_replaced",
 };
 
-static_assert(sizeof(kEventWords) / sizeof(kEventWords[0]) == static_cast<std::size_t>(LogEvent::GapDetected) + 1,
+static_assert(sizeof(kEventWords) / sizeof(kEventWords[0]) == static_cast<std::size_t>(LogEvent::BatteryReplaced) + 1,
               "every LogEvent needs a word");
 
 /// Renames the log to the previous log when it has reached the size limit. A failure (for example another

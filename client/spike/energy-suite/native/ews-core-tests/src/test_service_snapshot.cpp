@@ -90,3 +90,58 @@ EWS_TEST(SnapshotBatteryChange) {
     after.remainingMwh.reset();
     CHECK(!ews::BatteryChangeUj(before, after).has_value());
 }
+
+namespace {
+
+/// @return A one-cell mWh battery reading with the given charge.
+ews::BatteryReading Charge(std::uint32_t mwh) {
+    ews::BatteryReading reading;
+    reading.present = true;
+    reading.count = 1;
+    reading.unitMwh = true;
+    reading.remainingMwh = mwh;
+    return reading;
+}
+
+}  // namespace
+
+EWS_TEST(SnapshotJumpTheLiveBugOnBatteryIsUnknown) {
+    // 35819 to 36491 mWh in 6 seconds on battery, measured on the HP 250 G7 on 14 Nov 2026.
+    ews::MinuteBattery result = ews::JudgeBatteryChange(Charge(35819), Charge(36491), true, 6.0);
+    CHECK(!result.changeUj.has_value());
+    CHECK(result.jump);
+}
+
+EWS_TEST(SnapshotNormalDischargeOnBatteryIsKept) {
+    ews::MinuteBattery result = ews::JudgeBatteryChange(Charge(1000), Charge(989), true, 60.0);
+    CHECK(result.changeUj.has_value() && *result.changeUj == -39600000.0);
+    CHECK(!result.jump);
+}
+
+EWS_TEST(SnapshotFastRiseOnMainsIsUnknownButNormalChargingIsKept) {
+    ews::MinuteBattery fast = ews::JudgeBatteryChange(Charge(1000), Charge(1672), false, 6.0);
+    CHECK(!fast.changeUj.has_value() && fast.jump);
+    ews::MinuteBattery normal = ews::JudgeBatteryChange(Charge(1000), Charge(1300), false, 60.0);
+    CHECK(normal.changeUj.has_value() && *normal.changeUj == 1080000000.0);
+    CHECK(!normal.jump);
+}
+
+EWS_TEST(SnapshotFastDropOnBatteryIsUnknown) {
+    ews::MinuteBattery result = ews::JudgeBatteryChange(Charge(5000), Charge(1000), true, 60.0);
+    CHECK(!result.changeUj.has_value());
+    CHECK(result.jump);
+}
+
+EWS_TEST(SnapshotRiseOnBatteryIsAJumpEvenWhenSlow) {
+    ews::MinuteBattery result = ews::JudgeBatteryChange(Charge(1000), Charge(1001), true, 60.0);
+    CHECK(!result.changeUj.has_value());
+    CHECK(result.jump);
+}
+
+EWS_TEST(SnapshotUnknownChangeIsNotAJump) {
+    ews::BatteryReading unknown = Charge(1000);
+    unknown.remainingMwh.reset();
+    ews::MinuteBattery result = ews::JudgeBatteryChange(Charge(1000), unknown, true, 60.0);
+    CHECK(!result.changeUj.has_value());
+    CHECK(!result.jump);
+}

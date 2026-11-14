@@ -72,6 +72,8 @@ std::filesystem::path ModelPath(const std::wstring& dataDir) { return std::files
 }  // namespace
 
 void ServiceCore::FinishInterval(const Snapshot& at, bool trySend) {
+    // Rows still held have no possible minute after them in this interval: they are written as they are (unknown).
+    WriteHeldRows(std::nullopt);
     if (!interval_.has_value()) {
         return;
     }
@@ -139,11 +141,17 @@ void ServiceCore::LogQueueOutcome(const QueueAppendResult& queued) {
 }
 
 void ServiceCore::FlushCounters() {
-    if (droppedPipeMessages_ <= 0) {
+    FlushCounter(LogEvent::PipeDropped, droppedPipeMessages_);
+    FlushCounter(LogEvent::BatteryJump, batteryJumps_);
+    FlushCounter(LogEvent::BatteryReplaced, batteryReplaced_);
+}
+
+void ServiceCore::FlushCounter(LogEvent event, int& count) {
+    if (count <= 0) {
         return;
     }
-    Log(LogEvent::PipeDropped, {droppedPipeMessages_});
-    droppedPipeMessages_ = 0;
+    Log(event, {count});
+    count = 0;
 }
 
 void ServiceCore::NoteDisabled() {

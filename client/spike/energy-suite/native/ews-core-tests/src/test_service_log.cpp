@@ -52,6 +52,8 @@ EWS_TEST(LogEventWordsAreFixed) {
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::HistoryWriteFailed)) == "history_write_failed");
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::HistoryCleaned)) == "history_cleaned");
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::CountedError)) == "counted_error");
+    CHECK(std::string(ews::LogEventWord(ews::LogEvent::BatteryJump)) == "battery_jump");
+    CHECK(std::string(ews::LogEventWord(ews::LogEvent::BatteryReplaced)) == "battery_replaced");
 }
 
 EWS_TEST(LogLineFormat) {

@@ -19,6 +19,7 @@
 #include "ews/display.h"
 #include "ews/emi.h"
 #include "ews/energy.h"
+#include "ews/history_format.h"
 #include "ews/http_sender.h"
 #include "ews/instance_lock.h"
 #include "ews/interval.h"
@@ -186,7 +187,10 @@ private:
     std::optional<double> CurrentBrightness();
     std::optional<double> ReadDisplayBrightness();
     void AppendHistory(const Snapshot& current, double seconds, const std::optional<double>& cpuPercent,
-                       const MinuteEnergy& energy, const std::optional<double>& batteryChangeUj);
+                       const MinuteEnergy& energy, const MinuteBattery& battery);
+    void RecordRow(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds);
+    void WriteRow(const HistoryRow& row, UtcTime time);
+    void WriteHeldRows(const std::optional<double>& replacedWatts);
     void CleanHistoryOnNewDay(UtcTime now);
     bool IsGap(const Snapshot& current) const;
     void HandleGap(const Snapshot& current);
@@ -197,6 +201,7 @@ private:
     void QueueReport(const IntervalResult& result);
     void LogQueueOutcome(const QueueAppendResult& queued);
     void FlushCounters();
+    void FlushCounter(LogEvent event, int& count);
     void SendQueued();
     bool SendOneBatch();
     void HandleSendResult(const SendResult& result, int lines);
@@ -238,6 +243,16 @@ private:
     int ticksInInterval_ = 0;
     std::string lastDate_;
     bool historyFailing_ = false;
+
+    /// A history row held back because its battery change was impossible (SPEC 4.3), or that came after one.
+    struct HeldRow {
+        HistoryRow row;
+        UtcTime time{};
+        bool replace = false;  ///< True for the impossible minute itself: its battery power is replaced when a possible minute follows.
+    };
+    std::vector<HeldRow> heldRows_;
+    int batteryJumps_ = 0;     ///< Impossible battery changes since the last report.
+    int batteryReplaced_ = 0;  ///< Replacements since the last report.
 
     int sendFailures_ = 0;
     int waitIntervals_ = 0;

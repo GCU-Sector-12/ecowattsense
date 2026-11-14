@@ -40,7 +40,9 @@ enum class LogEvent {
     PipeDropped,       ///< numbers: pipe messages dropped since the last report (bad or from a session that is not active).
     ScanWriteFailed,   ///< The scan result could not be written.
     StatusWriteFailed, ///< status.json could not be written.
-    GapDetected        ///< A tick came much later than expected (long sleep); the interval was closed at the last read.
+    GapDetected,       ///< A tick came much later than expected (long sleep); the interval was closed at the last read.
+    BatteryJump,       ///< numbers: how many impossible battery changes were found since the last report.
+    BatteryReplaced    ///< numbers: how many impossible battery changes were replaced by a later possible one since the last report.
 };
 
 /// @param event An event.
