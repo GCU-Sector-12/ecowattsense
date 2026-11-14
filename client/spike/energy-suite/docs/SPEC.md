@@ -192,6 +192,7 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 
 - A failed read or a counter that went backwards: that value is unknown for the interval.
 - The service takes a first read of every counter at its start. Nothing is reported for the time before that read.
+- A battery change that is physically impossible is not believed: the charge rose while the computer runs on battery, or the battery power over the period is above 200 W in either direction. The battery change of that minute is unknown (an empty `battery_w` in the history) and the battery change of the whole interval is unknown. The next reading is the new start value. Each such case is counted in the log with the word `battery_jump`. Why: on the HP 250 G7 the battery gauge jumps up by about 670 mWh when the charger is unplugged (measured 14 Nov 2026), which showed as +419 W in a 6-second history row.
 - An unknown value needed for a field: the field is left out of the report. It is never sent as 0.
 - L4, or L2 and L3 without a valid model: `energy_uj` is left out on mains. On battery section 4.1 applies in full.
 
@@ -207,7 +208,7 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - L1 in the service uses an EMI `system` channel only. The ACPI power meter is not used for energy, because its unit is not confirmed on any computer (section 12, point 6); a computer whose only whole-computer source is that meter is calculated at the next level down.
 - Level of one minute: L1 when the `system` growth is known; else L2 when the model is valid and the growth of every kind in `measured_parts` is known; else L3 when the model is valid and the processor percent is known; else the minute is unknown.
 - An interval with one unknown minute has an unknown `device_energy_uj`, so `energy_uj` and `device_energy_uj` are left out for it.
-- Battery change of an interval = charge at its end minus charge at its start. It is known only when both reads are known, the unit is mWh and the number of batteries did not change.
+- Battery change of an interval = charge at its end minus charge at its start. It is known only when both reads are known, the unit is mWh, the number of batteries did not change and no minute of the interval had an impossible battery change (section 4.3).
 - On mains: a battery is present but its change is unknown: `energy_uj` is left out. No battery is present: `energy_uj` = `device_energy_uj`.
 - `cpu_percent` of an interval is the average over its minutes, weighted by their length.
 - All energy values are rounded to the nearest whole µJ at the end, not per minute.
