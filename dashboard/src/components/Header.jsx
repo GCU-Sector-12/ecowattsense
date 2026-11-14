@@ -1,9 +1,10 @@
-// Shared dashboard header with the signed-in user menu.
+// Shared responsive page header with the signed-in user menu.
 import { useState } from 'react'
 import { Alert, Avatar, Group, Menu, Text, Title, UnstyledButton } from '@mantine/core'
 import { ChevronDown, LogOut, User } from 'lucide-react'
 import { logout } from '../auth/logout.js'
 import { clearSampleSession, getSampleSession } from '../auth/sampleSession.js'
+import classes from './Header.module.css'
 
 /**
  * Formats an ISO date as a UTC date and time for the dashboard header.
@@ -83,17 +84,20 @@ function UserMenu({ userName }) {
 /**
  * Renders a page title, subtitle, timestamp and signed-in user menu.
  * @param {{title: string, subtitle: string, generatedAt: string, userName: string}} props - Header content.
- * @returns {JSX.Element} Dashboard header.
+ * @returns {JSX.Element} The responsive page header.
  */
 export default function Header({ title, subtitle, generatedAt, userName }) {
   return (
-    <Group justify="space-between" align="flex-start" wrap="nowrap">
+    <Group className={classes.header} justify="space-between" align="flex-start">
       <div>
         <Title order={1} fz="xl" fw={700} lh={1.3}>{title}</Title>
         <Text c="var(--ews-text-muted)" fz="sm">{subtitle}</Text>
       </div>
-      <Group gap="xl" wrap="nowrap">
-        <Text fz="sm" fw={500}>{formatDate(generatedAt)}</Text>
+
+      <Group gap={{ base: 'sm', sm: 'xl' }}>
+        <Text fz="sm" fw={500}>
+          {formatDate(generatedAt)}
+        </Text>
         <UserMenu userName={userName} />
       </Group>
     </Group>

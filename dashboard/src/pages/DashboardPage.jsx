@@ -61,7 +61,7 @@ export default function DashboardPage() {
       <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
-      <SimpleGrid cols={4} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         {cards.map(({ state, icon, caption }) => (
           <StatCard key={state} state={state} icon={icon}
             count={summary.counts[state]} total={summary.counts.total}
@@ -74,10 +74,10 @@ export default function DashboardPage() {
       <Text c="var(--ews-text-muted)" size="sm" aria-live="polite">
         {summary.counts.no_data} {summary.counts.no_data === 1 ? 'computer' : 'computers'} with no data
       </Text>
-      <Grid gutter="md">
-        <Grid.Col span={8}>{summary.series.length ? <EnergyChart points={summary.series} /> :
+      <Grid gap="md" breakpoints={{ desktop: "64em" }}>
+        <Grid.Col span={{ base: 12, desktop: 8 }}>{summary.series.length ? <EnergyChart points={summary.series} /> :
           <DataState empty label="Energy usage" />}</Grid.Col>
-        <Grid.Col span={4}>{summary.counts.total ? <StatusDonut summary={summary} /> :
+        <Grid.Col span={{ base: 12, desktop: 4 }}>{summary.counts.total ? <StatusDonut summary={summary} /> :
           <DataState empty label="Computer status" />}</Grid.Col>
       </Grid>
       {devices.length ? <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} /> :

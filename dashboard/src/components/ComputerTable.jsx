@@ -28,8 +28,8 @@ function ComputerRow({ computer, referenceTime }) {
           {timeAgo(computer.last_seen_at, referenceTime)}
         </Text>
       </Table.Td>
-      <Table.Td>{location}</Table.Td>
-      <Table.Td>{computer.os} / {computer.device_type}</Table.Td>
+      <Table.Td visibleFrom="sm">{location}</Table.Td>
+      <Table.Td visibleFrom="sm">{computer.os} / {computer.device_type}</Table.Td>
       <Table.Td>
         <Button component="a" href={`#computers/${computer.device_id}`}
           aria-label={`View ${name}`} variant="default" size="xs"
@@ -76,30 +76,32 @@ export default function ComputerTable({
         <Text fz="lg" fw={700}>{title}</Text>
         {showAllLink && <Anchor href="#computers" fz="sm">All computers</Anchor>}
       </Group>
-      <Table
-        verticalSpacing="sm"
-        horizontalSpacing="sm"
-        fz="sm"
-        styles={{ th: headerStyle, thead: { backgroundColor: 'var(--ews-page)' }, tr: { borderColor: 'var(--ews-border)' } }}
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th aria-sort={sortBy === 'name' ? sortDirection : 'none'}>{sortLabel('name', 'Computer Name')}</Table.Th>
-            <Table.Th aria-sort={sortBy === 'state_name' ? sortDirection : 'none'}>{sortLabel('state_name', 'Status')}</Table.Th>
-            <Table.Th>Last seen</Table.Th>
-            <Table.Th>Location</Table.Th>
-            <Table.Th>OS and type</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.length ? rows.map((computer) => (
-            <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
-          )) : (
-            <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center">No computers match these filters.</Text></Table.Td></Table.Tr>
-          )}
-        </Table.Tbody>
-      </Table>
+      <Table.ScrollContainer minWidth={520} type="native" role="region" aria-label={title} tabIndex={0}>
+        <Table
+          verticalSpacing="sm"
+          horizontalSpacing="sm"
+          fz="sm"
+          styles={{ th: headerStyle, thead: { backgroundColor: 'var(--ews-page)' }, tr: { borderColor: 'var(--ews-border)' } }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th aria-sort={sortBy === 'name' ? sortDirection : 'none'}>{sortLabel('name', 'Computer Name')}</Table.Th>
+              <Table.Th aria-sort={sortBy === 'state_name' ? sortDirection : 'none'}>{sortLabel('state_name', 'Status')}</Table.Th>
+              <Table.Th>Last seen</Table.Th>
+              <Table.Th visibleFrom="sm">Location</Table.Th>
+              <Table.Th visibleFrom="sm">OS and type</Table.Th>
+              <Table.Th>Actions</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.length ? rows.map((computer) => (
+              <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
+            )) : (
+              <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center">No computers match these filters.</Text></Table.Td></Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
     </Card>
   )
 }

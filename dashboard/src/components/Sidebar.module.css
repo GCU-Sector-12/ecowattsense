@@ -33,8 +33,53 @@
   transition-property: transform, top, height, width;
 }
 
+.page {
+  position: relative;
+}
+
+/* Extend the fixed navbar colour down the document on long pages. */
+.page::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--app-shell-navbar-offset, 0px);
+  background-color: var(--ews-green-900);
+  pointer-events: none;
+  transition: inline-size var(--app-shell-transition-duration) var(--app-shell-transition-timing-function);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page::before {
+    transition: none;
+  }
+}
+
+.drawerContent.drawerContent {
+  background-color: var(--ews-green-900);
+}
+
+.drawerHeader.drawerHeader {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  z-index: 1;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.drawerClose.drawerClose {
+  color: var(--ews-text-on-dark);
+}
+
+.drawerClose.drawerClose:hover {
+  background-color: var(--ews-green-700);
+}
+
 .sidebar {
   position: relative;
+  background-color: var(--ews-green-900);
 }
 
 .link.link[data-collapsed] {
