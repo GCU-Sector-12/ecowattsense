@@ -227,6 +227,7 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - `--console [--data-dir <folder>] [--tick-seconds <n>] [--run-seconds <n>]`: run the same loop in a console, for tests. `--tick-seconds` (1 to 60, default 60) sets the length of one tick; a report is built every `interval_seconds / 60` ticks. `--run-seconds` stops the program by itself after that time. Both options exist only in console mode.
 - `--data-dir <folder>` replaces `C:\ProgramData\EcoWattSense` in every mode.
 - `--configure`: read `url=<...>` and `key=<...>` lines from standard input and write `service.ini` and `key.bin`. The key is never a command-line argument.
+- Exit codes of `ews-service.exe`: 0 clean stop, or `--configure` done; 1 `--configure` failed, or the program was started without the service control manager and without `--console`; 3 bad command line (usage text on standard error); 4 start refused (data folder missing, `instance.lock` held or not usable, or device identity not readable or not writable); 5 the 60-second timer could not be made. Under the service control manager a code other than 0 is reported as a service-specific exit code (Windows exit code 1066). A pipe that cannot be created is not an exit code: the service runs on without it and logs `counted_error 10`.
 
 ### 5.3 Loop
 
@@ -237,6 +238,9 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - Events, no polling: power source change, suspend and resume, display on or off, session logon, logoff, lock and unlock (service control handler).
 - Stop: take one last read, close the interval, put its report into the queue without sending, release the lock, exit within 5 seconds.
 - If `instance.lock` is held by another program at start, the service writes one log line and stops.
+- Read only at start: `service.ini`, `key.bin` and the device identity (`device-id.txt`). A change to them needs a restart of the service. `model.json` is the only file that is read again, at each report tick, when its file time has changed.
+- Level without a valid model: when the scan gives L2 or L3 and `model.json` is missing or invalid, the level is L4. `status.json` shows `\"level\":\"L4\"` (without `model_generated_utc`) and the log has `level_change <old> 4`; an invalid file also logs `model_invalid` at each load, a missing file logs nothing more. In the history, a minute with no whole-computer reading (L1) and no valid model is unknown, so its `level` field is empty (it is never written as L4). A scan level of L1 needs no model and stays L1.
+- Gap: a tick that comes more than 3 tick lengths after the last one (sleep or hibernate that the service did not see as suspend, or a clock set forward) or with the clock gone back is a gap. The service logs `gap_detected`, writes held history rows with empty battery fields, closes the interval at the time of the last good tick (that report is queued and sent as usual), and starts a new interval at the late tick. The time of the gap gets no history row and no energy. A tick of the normal length is never a gap.
 - An interval whose processor percent is unknown gives no report (the server requires that field). It is counted in the log.
 
 ### 5.4 Report fields
@@ -280,7 +284,7 @@ unused_threshold_seconds=3600
 device_type=laptop
 ```
 
-`interval_seconds` is a multiple of 60 between 60 and 3600. A bad value falls back to the default and is counted in the log. Server-side settings (`GET /api/settings`) are not read by the service.
+`interval_seconds` is a multiple of 60 between 60 and 3600. A bad value falls back to the default and is counted in the log (`config_bad_values`). An empty `server_url=` (blank after trimming) means "server not set": it is not a bad value and is not counted. Without a URL nothing is sent: reports are queued, `last_send_result` is `disabled` and the log has `send_disabled 1` once. `server_enabled=0` gives the same words. A URL that is not valid (for example not HTTPS, and not HTTP to loopback) is a bad value and is counted. Server-side settings (`GET /api/settings`) are not read by the service.
 
 `key.bin` is the server key protected with DPAPI (machine scope). The folder rights of `config\` are the real protection.
 
@@ -300,8 +304,8 @@ device_type=laptop
 
 ## 6. Session pipe (client to service)
 
-- Name `\\.\pipe\EcoWattSense.Service.Session`. The service is the server. Inbound only, message mode, up to 4 instances.
-- Access: interactive users may write.
+- Name `\\.\pipe\EcoWattSense.Service.Session`. The service is the server. Inbound only, message mode, remote clients refused. The code asks for a maximum of 4 instances but creates and serves only one at a time: it takes one client, reads one message (5 second time limit), disconnects, and listens again. A second client at the same moment finds the pipe busy and tries again later. The first instance is created with the "first instance" flag, so the service does not start listening when another program already owns the name (a counted error, the service runs on without the pipe).
+- Access, as the security descriptor string `D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x120196;;;IU)`: three allow rules and nothing else. SYSTEM (`SY`) and Administrators (`BA`) have full access. Interactive users (`IU`, anybody logged on at a screen or over remote desktop) have mask `0x120196`: write data, append data, write extended attributes, write attributes, read attributes, read control and synchronise. That is enough for a client to open the pipe and write to it, and not to read what other clients send. Other accounts, services and network users have no access.
 - One message, ASCII, at most 128 bytes: `EWS1 idle=<seconds> bright=<0-100 or ->\n`
 - The client sends one message every 60 seconds and one on each unlock.
 - The service accepts a message only when the client's session is in the state "active" (the physical console or a remote desktop session; a user who works over remote desktop is not in the console session). A malformed or out-of-range message is dropped and counted.
@@ -317,7 +321,7 @@ device_type=laptop
 - First line: `v1,ts_utc,seconds,on_battery,state,idle_s,cpu_pct,device_w,measured_w,battery_w,level`
 - One row per minute, appended, opened with shared read. An unknown value is an empty field.
 - `device_w`: power of the whole computer. On battery it is the measured battery power, that is `battery_w` with the sign turned (Darek's decision, 14 Nov 2026); it is empty when the battery change of the minute is unknown. On mains it is the power of section 4.2 (measured or from the model). `measured_w`: the part read from hardware. `battery_w`: battery flow, negative when discharging.
-- On battery, a minute whose charge did not fall (the gauge did not move) is held back. When the first minute with a fall follows, that fall is split over the held minutes and that minute in proportion to their seconds, and the rows are written in order with the split value in `battery_w` and `device_w` (Darek's decision, 14 Nov 2026). A row held for an impossible change (section 4.3) that waits behind such minutes gets the same split power. Rows held longer than 15 minutes, or still held when the power source changes or the service stops, are written with empty battery fields. This applies to the history only; the reports keep the battery change of section 4.5.
+- On battery, a minute whose charge did not fall (the gauge did not move) is held back. When the first minute with a fall follows, that fall is split over the held minutes and that minute in proportion to their seconds, and the rows are written in order with the split value in `battery_w` and `device_w` (Darek's decision, 14 Nov 2026). A row held for an impossible change (section 4.3) that waits behind such minutes gets the same split power. Rows held longer than 15 minutes, or still held when the power source changes, the computer sleeps, a gap is found or the service stops, are written with empty battery fields. The 15 minutes are measured from the start of the held minute (its end time minus its seconds) to the time of the minute being recorded now; the test runs each time a new minute is recorded, from the oldest held row on. The limit does not depend on the report interval: still minutes stay held across the end of a report interval (the report is sent at once and keeps the raw change). Known edge case: the same limit also covers a held impossible minute (section 4.3). With `interval_seconds` above 900, such a minute that waits more than 15 minutes is written with empty battery fields in the history, even when a possible minute follows later in the same interval and the report then uses the replaced value. History and report can then differ for that minute. This applies to the history only; the reports keep the battery change of section 4.5.
 - Readers skip a row they cannot parse and count it.
 
 ## 8. Calibration model
