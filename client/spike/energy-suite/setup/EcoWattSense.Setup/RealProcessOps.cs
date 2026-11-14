@@ -166,11 +166,22 @@ public sealed class RealProcessOps : IProcessOps
     }
 
     /// <inheritdoc />
-    public int StartDetached(string exePath, string arguments)
+    public int StartDetached(string exePath, string arguments, string? workingDirectory = null)
     {
-        try { Process.Start(new ProcessStartInfo(exePath, arguments) { UseShellExecute = false, CreateNoWindow = true })?.Dispose(); return 0; }
+        ProcessStartInfo info = new(exePath, arguments) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = workingDirectory ?? "" };
+        try { Process.Start(info)?.Dispose(); return 0; }
         catch (Exception exception) { return ErrorCodes.From(exception); }
     }
+
+    /// <inheritdoc />
+    public int SetWorkingDirectory(string path)
+    {
+        try { Directory.SetCurrentDirectory(path); return 0; }
+        catch (Exception exception) { return ErrorCodes.From(exception); }
+    }
+
+    /// <inheritdoc />
+    public void Wait(int milliseconds) => Thread.Sleep(milliseconds);
 
     private static readonly string[] ClientProcessNames = ["EcoWattSense.Client.Gui", "EnergyCalibrator"];
 

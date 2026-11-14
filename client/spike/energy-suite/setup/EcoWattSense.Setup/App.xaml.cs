@@ -29,6 +29,25 @@ public sealed record SetupArguments(SetupMode Mode, bool IsTempCopy, string Serv
     }
 }
 
+/// <summary>Starts the uninstall from a temporary copy of the Setup folder.</summary>
+public static class UninstallRelaunch
+{
+    /// <summary>
+    /// Copies the folder to a new folder under tempRoot and starts the copy with /uninstall /tempcopy. The new process
+    /// gets the copy as its working directory: it would otherwise inherit the program folder and keep it locked.
+    /// </summary>
+    /// <param name="services">The operations.</param>
+    /// <param name="packageDir">The folder Setup runs from.</param>
+    /// <param name="tempRoot">The temporary folder that holds the copy.</param>
+    /// <returns>0 or an error code.</returns>
+    public static int Start(SetupServices services, string packageDir, string tempRoot)
+    {
+        string copy = Path.Combine(tempRoot, "EcoWattSenseSetup-" + Guid.NewGuid().ToString("N"));
+        int code = services.Files.CopyDirectory(packageDir, copy);
+        return code == 0 ? services.Processes.StartDetached(Path.Combine(copy, "Setup.exe"), "/uninstall /tempcopy", copy) : code;
+    }
+}
+
 /// <summary>The application.</summary>
 public partial class App : Application
 {
@@ -53,9 +72,7 @@ public partial class App : Application
     /// <summary>Copies the folder to %TEMP% and starts the copy with /uninstall /tempcopy, then ends this process.</summary>
     private void RelaunchFromTemp(SetupServices services, string packageDir)
     {
-        string copy = Path.Combine(Path.GetTempPath(), "EcoWattSenseSetup-" + Guid.NewGuid().ToString("N"));
-        int code = services.Files.CopyDirectory(packageDir, copy);
-        int started = code == 0 ? services.Processes.StartDetached(Path.Combine(copy, "Setup.exe"), "/uninstall /tempcopy") : code;
+        int started = UninstallRelaunch.Start(services, packageDir, Path.GetTempPath());
         if (started != 0) MessageBox.Show("Setup could not start the uninstall (error " + started + ").", "EcoWattSense Setup");
         Shutdown();
     }

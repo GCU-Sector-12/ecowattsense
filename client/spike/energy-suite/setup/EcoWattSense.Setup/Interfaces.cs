@@ -60,8 +60,11 @@ public interface IFileOps
     /// </summary>
     int CopyDirectory(string source, string target, IProgress<int>? copied = null);
 
-    /// <summary>Deletes a folder tree; a missing folder is fine. Returns 0 or an error code.</summary>
+    /// <summary>Deletes a folder tree; a missing folder is fine. Returns 0 or an error code (32 is a sharing violation).</summary>
     int DeleteDirectory(string path);
+
+    /// <summary>Marks an empty folder for deletion at the next restart (MoveFileEx, MOVEFILE_DELAY_UNTIL_REBOOT). Returns 0 or an error code.</summary>
+    int DeleteAtReboot(string path);
 
     /// <summary>Reads a text file, or returns null when it cannot be read.</summary>
     string? ReadText(string path);
@@ -137,7 +140,16 @@ public interface IProcessOps
     int StartAsLoggedOnUser(string exePath);
 
     /// <summary>Starts a program and does not wait. Returns 0 or an error code.</summary>
-    int StartDetached(string exePath, string arguments);
+    /// <param name="exePath">The program.</param>
+    /// <param name="arguments">The command line arguments.</param>
+    /// <param name="workingDirectory">The working directory of the new process; null keeps the one of this process.</param>
+    int StartDetached(string exePath, string arguments, string? workingDirectory = null);
+
+    /// <summary>Moves the current directory of this process, so it holds no folder that is about to be deleted. Returns 0 or an error code.</summary>
+    int SetWorkingDirectory(string path);
+
+    /// <summary>Waits the given milliseconds (used between retries).</summary>
+    void Wait(int milliseconds);
 
     /// <summary>
     /// Closes every running EcoWattSense.Client.Gui and EnergyCalibrator process of any user: asks the main window to close,

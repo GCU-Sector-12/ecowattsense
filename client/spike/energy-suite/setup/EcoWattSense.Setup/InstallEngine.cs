@@ -51,11 +51,19 @@ public sealed class StepRunner
         }
         if (failed == null) return new StepOutcome(true, "Done.");
         if (undoOnFailure) UndoAll(done);
-        string tail = undoOnFailure ? "The steps before it were undone." : "Nothing more was done.";
+        string tail = DoneText(done, undoOnFailure);
         string hint = Hints.GetValueOrDefault(failed.Name, "");
         StepOutcome outcome = new(false, $"The {what} stopped at the step \"{failed.Name}\" (error {code}). {hint} {tail} See install.log.");
         progress?.Report(new InstallProgress(failed.Name, StepState.Failed, outcome.Message));
         return outcome;
+    }
+
+    /// <summary>Names what was done before the failure in plain words, so the message never claims that nothing was done.</summary>
+    private static string DoneText(List<InstallStep> done, bool undone)
+    {
+        string words = done.Count == 0 ? "no step" : string.Join(", ", done.Select(step => InstallTitles.For(step.Name)));
+        string undoneText = undone && done.Count > 0 ? " These steps were undone." : "";
+        return $"Done before it: {words}.{undoneText}";
     }
 
     /// <summary>A short help text for the steps that fail most often.</summary>

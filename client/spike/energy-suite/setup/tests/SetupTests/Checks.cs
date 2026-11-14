@@ -230,6 +230,8 @@ public static class MaintenanceChecks
         UninstallKeepsData();
         UninstallRemovesData();
         UninstallFailure();
+        UninstallLockedFolder();
+        UninstallRelaunchDirectory();
         SettingsEmptyKey();
         SettingsWithKey();
         SettingsFailureRestartsService();
@@ -273,6 +275,33 @@ public static class MaintenanceChecks
         world.FailOn = "stop";
         StepOutcome outcome = Engine(world).Uninstall(false);
         Check(!outcome.Ok && outcome.Message.Contains("stop_service") && world.Directories.Contains(Kit.Layout.ProgramDir), "uninstall: a failed step stops it with a clear message");
+    }
+
+    private static void UninstallLockedFolder()
+    {
+        FakeWorld world = Installed();
+        world.LockedDeletes = 2;
+        MaintenanceEngine engine = Engine(world);
+        StepOutcome outcome = engine.Uninstall(false);
+        Check(world.Calls.FindIndex(call => call.StartsWith("cwd ")) < world.Calls.FindIndex(call => call.StartsWith("deletedir ")), "uninstall: the current directory is moved before the programs are deleted");
+        Check(outcome.Ok && !engine.ProgramFolderAtReboot && world.Calls.Count(call => call == "wait 1000") == 2, "uninstall: a locked folder is retried 1 s apart and then deleted");
+        FakeWorld stuck = Installed();
+        stuck.LockedDeletes = 99;
+        MaintenanceEngine stuckEngine = Engine(stuck);
+        StepOutcome last = stuckEngine.Uninstall(false);
+        Check(last.Ok && stuckEngine.ProgramFolderAtReboot && stuck.Calls.Contains("atreboot " + Kit.Layout.ProgramDir), "uninstall: a folder locked 4 times is removed at the next restart and the uninstall finishes");
+        Check(stuck.Calls.Count(call => call == "wait 1000") == 3 && Kit.LogWords(stuck).Contains("delete_programs at_reboot"), "uninstall: 3 retries and the at_reboot log line");
+        FakeWorld failing = Installed();
+        failing.FailOn = "close_client";
+        StepOutcome failed = Engine(failing).Uninstall(false);
+        Check(!failed.Ok && failed.Message.Contains("Done before it: Stopping the service, Deleting the service, Deleting the autostart task.") && !failed.Message.Contains("Nothing more was done"), "uninstall: the failure message lists the done steps");
+    }
+
+    private static void UninstallRelaunchDirectory()
+    {
+        FakeWorld world = new();
+        int code = UninstallRelaunch.Start(world.Services, Kit.Package, @"P:\Temp");
+        Check(code == 0 && world.DetachedDirectory != null && world.DetachedDirectory.StartsWith(@"P:\Temp\"), "uninstall relaunch: the temporary copy starts in the temporary folder");
     }
 
     private static void SettingsEmptyKey()

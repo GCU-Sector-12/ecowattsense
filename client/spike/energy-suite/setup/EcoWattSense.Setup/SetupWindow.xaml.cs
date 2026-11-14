@@ -411,10 +411,15 @@ public partial class SetupWindow : Window
         UninstallText.Text = "Removing EcoWattSense.";
         StepOutcome outcome = await Task.Run(() => _maintenance.Uninstall(removeData));
         SetBusy(false);
-        UninstallText.Text = outcome.Ok ? "EcoWattSense was removed." : outcome.Message;
+        UninstallText.Text = outcome.Ok ? "EcoWattSense was removed." + RebootLine() : outcome.Message;
         _finished = true;
         Show(4);
     }
+
+    /// <summary>The finish line about a program folder that is removed at the next restart, or empty.</summary>
+    private string RebootLine() => _maintenance.ProgramFolderAtReboot
+        ? Environment.NewLine + $"The empty folder {_layout.ProgramDir} is removed at the next restart."
+        : "";
 
     /// <summary>Removes the temporary copy Setup ran from during an uninstall, after the window is closed.</summary>
     protected override void OnClosed(EventArgs e)

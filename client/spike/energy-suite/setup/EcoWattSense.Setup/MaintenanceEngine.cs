@@ -101,7 +101,30 @@ public sealed class MaintenanceEngine
 
     private int StepDeleteTask() => _services.Tasks.Delete(SetupLayout.TaskName);
 
-    private int StepDeletePrograms() => _services.Files.DeleteDirectory(_layout.ProgramDir);
+    /// <summary>True when the empty program folder stays locked and is removed at the next restart.</summary>
+    public bool ProgramFolderAtReboot { get; private set; }
+
+    private const int SharingViolation = 32;
+
+    /// <summary>
+    /// Leaves the program folder first (a process whose current directory is inside a folder keeps it locked), deletes it,
+    /// retries a sharing violation 3 times 1 second apart, then marks the folder for deletion at the next restart.
+    /// </summary>
+    private int StepDeletePrograms()
+    {
+        _services.Processes.SetWorkingDirectory(Path.GetTempPath());
+        int code = _services.Files.DeleteDirectory(_layout.ProgramDir);
+        for (int retry = 0; retry < 3 && code == SharingViolation; retry++)
+        {
+            _services.Processes.Wait(1000);
+            code = _services.Files.DeleteDirectory(_layout.ProgramDir);
+        }
+        if (code != SharingViolation) return code;
+        int marked = _services.Files.DeleteAtReboot(_layout.ProgramDir);
+        ProgramFolderAtReboot = marked == 0;
+        if (marked == 0) _log.Line("delete_programs", "at_reboot", 0);
+        return marked == 0 ? 0 : code;
+    }
 
     private int StepRemoveData()
     {

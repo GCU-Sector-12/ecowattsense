@@ -56,6 +56,11 @@ public static class InstallTitles
         ["start_service"] = "Starting the service",
         ["autostart_task"] = "Client autostart",
         ["device_name"] = "Sending the computer name",
+        ["stop_service"] = "Stopping the service",
+        ["delete_service"] = "Deleting the service",
+        ["delete_task"] = "Deleting the autostart task",
+        ["delete_programs"] = "Deleting the programs",
+        ["remove_data"] = "Removing the data",
     };
 
     /// <summary>The plain title of a step; the name itself when the step has no title.</summary>

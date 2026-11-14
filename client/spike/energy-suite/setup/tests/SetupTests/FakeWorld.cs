@@ -123,10 +123,34 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     public int DeleteDirectory(string path)
     {
         Calls.Add("deletedir " + path);
+        if (LockedDeletes > 0) { LockedDeletes--; return 32; }
         Directories.RemoveWhere(folder => IsInside(folder, path));
         foreach (string file in Files.Keys.Where(name => IsInside(name, path)).ToList()) Files.Remove(file);
         return 0;
     }
+
+    /// <summary>How many DeleteDirectory calls still fail with error 32 (sharing violation).</summary>
+    public int LockedDeletes { get; set; }
+
+    /// <summary>Working directory given to the last StartDetached call.</summary>
+    public string? DetachedDirectory { get; private set; }
+
+    /// <inheritdoc />
+    public int DeleteAtReboot(string path)
+    {
+        Calls.Add("atreboot " + path);
+        return 0;
+    }
+
+    /// <inheritdoc />
+    public int SetWorkingDirectory(string path)
+    {
+        Calls.Add("cwd " + path);
+        return 0;
+    }
+
+    /// <inheritdoc />
+    public void Wait(int milliseconds) => Calls.Add("wait " + milliseconds);
 
     private static bool IsInside(string candidate, string folder) =>
         candidate == folder || candidate.StartsWith(folder + "\\", StringComparison.OrdinalIgnoreCase);
@@ -275,8 +299,9 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     }
 
     /// <inheritdoc />
-    public int StartDetached(string exePath, string arguments)
+    public int StartDetached(string exePath, string arguments, string? workingDirectory = null)
     {
+        DetachedDirectory = workingDirectory;
         Calls.Add("detached " + exePath);
         return 0;
     }
