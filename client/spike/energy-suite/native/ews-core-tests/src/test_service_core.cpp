@@ -5,7 +5,9 @@
 // 5 x (300 + 30 + 229.2) J = 2796 J of device energy.
 #include <chrono>
 #include <filesystem>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "service_rig.h"
 #include "test_common.h"
@@ -499,4 +501,91 @@ EWS_TEST(ServiceJumpAfterAPowerChangeWritesTheShortRowLateWithTheReplacedValue) 
     rig.core.Stop();  // closes the interval, which writes the counters to the log
     CHECK(Occurrences(rig.Log(), " battery_jump 1\n") == 1);
     CHECK(Occurrences(rig.Log(), " battery_replaced 1\n") == 1);
+}
+
+namespace {
+
+/// Splits a text at one character.
+/// @param text The text.
+/// @param separator The character to split at.
+/// @return The parts; a trailing empty part is kept.
+std::vector<std::string> SplitAt(const std::string& text, char separator) {
+    std::vector<std::string> parts;
+    std::string part;
+    std::istringstream stream(text);
+    while (std::getline(stream, part, separator)) {
+        parts.push_back(part);
+    }
+    return parts;
+}
+
+/// Reads one field of one history row (row 0 is the header line).
+/// @param history The whole history text.
+/// @param row The line number.
+/// @param column The column number (device_w is 7, battery_w is 9).
+/// @return The field text, or "<missing>" when the row or column does not exist.
+std::string HistoryField(const std::string& history, std::size_t row, std::size_t column) {
+    std::vector<std::string> lines = SplitAt(history, '\n');
+    if (row >= lines.size()) {
+        return "<missing>";
+    }
+    // A trailing empty field is lost by getline, so one comma is added to keep it.
+    std::vector<std::string> fields = SplitAt(lines[row] + ",", ',');
+    return column < fields.size() ? fields[column] : "<missing>";
+}
+
+}  // namespace
+
+EWS_TEST(ServiceDeviceWOnBatteryIsTheBatteryPowerWithTheSignTurned) {
+    Rig rig("devw-battery");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 29909);  // -91 mWh in 60 s = -5.460 W
+    rig.Ticks(1);
+    CHECK(HistoryField(rig.History(), 1, 9) == "-5.460");
+    CHECK(HistoryField(rig.History(), 1, 7) == "5.460");
+}
+
+EWS_TEST(ServiceDeviceWOnBatteryWithAnUnknownChangeIsEmpty) {
+    Rig rig("devw-unknown");
+    rig.power.Set(true);
+    StartOk(rig);
+    rig.Ticks(1);
+    CHECK(HistoryField(rig.History(), 1, 9) == "");
+    CHECK(HistoryField(rig.History(), 1, 7) == "");
+}
+
+EWS_TEST(ServiceDeviceWOfAReplacedMinuteIsTheReplacedPower) {
+    Rig rig("devw-replaced");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 29989);
+    rig.Ticks(1);
+    SetCharge(rig, 25989);  // impossible: held, then replaced by the next possible minute
+    rig.Ticks(1);
+    SetCharge(rig, 25978);
+    rig.Ticks(1);
+    CHECK(HistoryField(rig.History(), 2, 9) == "-0.660");
+    CHECK(HistoryField(rig.History(), 2, 7) == "0.660");
+    CHECK(HistoryField(rig.History(), 3, 7) == "0.660");
+}
+
+EWS_TEST(ServiceDeviceWOnMainsStaysThePowerOfTheMinute) {
+    Rig rig("devw-mains");
+    StartOk(rig);
+    rig.Ticks(1);
+    // 300 + 30 + 229.2 J in 60 s is not a battery value: the model and the counters give 9.320 W.
+    CHECK(HistoryField(rig.History(), 1, 7) == "9.320");
+}
+
+EWS_TEST(ServiceDeviceWOnBatteryWithAZeroChangeIsZero) {
+    Rig rig("devw-zero");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(1);  // the charge did not change
+    CHECK(HistoryField(rig.History(), 1, 9) == "0.000");
+    CHECK(HistoryField(rig.History(), 1, 7) == "0.000");
 }

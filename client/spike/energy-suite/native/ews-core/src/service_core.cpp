@@ -54,6 +54,17 @@ std::optional<double> ToWatts(const std::optional<double>& microjoules, double s
     return *microjoules / seconds / 1.0e6;
 }
 
+/// Sets `device_w` of a row on battery to the battery power with the sign turned (SPEC section 7).
+/// An unknown battery change gives an empty `device_w`, never the model value. A row on mains is not touched.
+/// Zero is subtracted from, not negated, so a change of 0 gives 0.000 and not -0.000.
+/// @param row The row to change; its `batteryW` must already hold the final value.
+void UseBatteryPowerOnBattery(HistoryRow& row) {
+    if (!row.onBattery) {
+        return;
+    }
+    row.deviceW = row.batteryW.has_value() ? std::optional<double>(0.0 - *row.batteryW) : std::nullopt;
+}
+
 }  // namespace
 
 ServiceCore::ServiceCore(const ServiceDeps& deps, ServiceSettings settings) : deps_(deps), settings_(std::move(settings)) {}
@@ -224,6 +235,7 @@ void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const s
     row.measuredW = energy.deviceUj.has_value() ? ToWatts(energy.measuredUj, seconds) : std::nullopt;
     row.batteryW = ToWatts(battery.changeUj, seconds);
     row.level = energy.level;
+    UseBatteryPowerOnBattery(row);
     RecordRow(row, current.time, battery, seconds);
 }
 
@@ -251,6 +263,7 @@ void ServiceCore::WriteHeldRows(const std::optional<double>& replacedWatts) {
         bool replaced = held.replace && replacedWatts.has_value();
         batteryReplaced_ += replaced ? 1 : 0;
         held.row.batteryW = replaced ? replacedWatts : held.row.batteryW;
+        UseBatteryPowerOnBattery(held.row);
         WriteRow(held.row, held.time);
     }
     heldRows_.clear();
