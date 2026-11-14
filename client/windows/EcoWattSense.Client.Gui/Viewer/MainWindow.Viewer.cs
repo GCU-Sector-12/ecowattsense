@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using EcoWattSense.Client.Gui.History;
+using EcoWattSense.Client.Gui.Settings;
 using EcoWattSense.Client.Gui.Viewer;
 
 namespace EcoWattSense.Client.Gui;
@@ -23,6 +24,7 @@ public partial class MainWindow
     private StatusFolderWatcher? historyWatcher;
     private RefreshCoalescer? historyRefresh;
     private HistoryChart? historyChart;
+    private DonutChart? donutChart;
 
     /// <summary>Switches the window to viewer mode.</summary>
     internal void StartViewer()
@@ -37,6 +39,8 @@ public partial class MainWindow
         pipeReporter = new ServicePipeReporter(new ServicePipeSender(), ViewerSources.ReadIdleSeconds, ViewerSources.ReadBrightness);
         pipeReporter.Start();
         StartHistory();
+        StartSettings();
+        StartCalibrate();
         IsVisibleChanged += OnViewerVisibleChanged;
         Closed += OnViewerClosed;
         RefreshViewer();
@@ -64,13 +68,17 @@ public partial class MainWindow
     {
         StatusInfo status = StatusReader.Read(ViewerSources.StatusFile);
         TimeZoneInfo zone = TimeZoneInfo.Local;
-        ServiceValue.Text = ViewerMode.Word(ScmServiceLookup.Query());
+        ServiceState serviceState = ScmServiceLookup.Query();
+        ServiceValue.Text = ViewerMode.Word(serviceState);
+        ShowServiceDot(serviceState);
         LevelValue.Text = ViewerText.LevelWord(status.Level);
         LevelLineValue.Text = ViewerText.LevelLine(status.Level);
         PowerSourceViewerValue.Text = ViewerText.PowerSource(ViewerSources.ReadOnBattery());
         LastReportValue.Text = ViewerText.LastReport(status, zone);
         CalibratedValue.Text = ViewerText.Calibrated(status, zone);
         DeviceIdValue.Text = ViewerText.ShortId(ViewerSources.ReadDeviceIdText());
+        ShowSettings(SettingsReader.Read(ViewerSources.StatusFile));
+        UpdateCalibrateButton();
     }
 
     /// <summary>Puts the 24 hour chart into HistoryHost, and wires the history file events to one coalesced refresh.</summary>
@@ -78,6 +86,8 @@ public partial class MainWindow
     {
         historyChart = new HistoryChart();
         HistoryHost.Child = historyChart;
+        donutChart = new DonutChart();
+        DonutHost.Child = donutChart;
         historyRefresh = new RefreshCoalescer(PostBackground, RefreshHistory);
         historyWatcher = new StatusFolderWatcher(ViewerSources.HistoryFolder, "*.csv");
         historyWatcher.Changed += historyRefresh.Request;
@@ -119,6 +129,8 @@ public partial class MainWindow
     private void ShowHistory(HistoryReadResult result, DateTime nowUtc)
     {
         historyChart?.SetRows(result.Rows, nowUtc);
+        donutChart?.SetRows(result.Rows, nowUtc);
+        ShowLastMeasurement(result.Rows);
         ShowHistorySummary(
             HistorySummary.PowerNow(result.Rows, nowUtc),
             HistorySummary.EnergyTodayKwh(result.Rows, nowUtc, TimeZoneInfo.Local));
@@ -144,6 +156,7 @@ public partial class MainWindow
     /// <param name="e">Not used.</param>
     private void OnViewerClosed(object? sender, EventArgs e)
     {
+        StopCalibrate();
         pipeReporter?.Dispose();
         statusWatcher?.Dispose();
         historyWatcher?.Dispose();
