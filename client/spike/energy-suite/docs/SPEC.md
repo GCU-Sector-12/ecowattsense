@@ -378,6 +378,7 @@ The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. 
   - Installed, running or stopped: viewer mode. The client does not sample, does not report and does not take `instance.lock`.
 - Viewer mode sends the pipe message of section 6.
 - Information panel: service state (word), measurement level with a one-line meaning, power now (last history row), energy today (kWh), power source, last report time and send result, date of the calibration model, short device id.
+- Power card: one card titled "Power". It shows the power now (last history row, "unknown" when none) in the large font, and under it two lines, "Today" (energy today, kWh) and "Source" (Mains, Battery or Unknown). The Last report card says "Waiting for the first report" until `status.json` has a report time.
 - 24 h view: its own control. A line of `device_w` per minute for the last 24 hours from the history files, with a band for the state. Each state is shown with a word and a colour (Active, Idle, Unused). Gaps stay gaps.
 - The view refreshes on a file change event of `history\` and `status\`, and only while the window is visible. Drawing is done by WPF shapes; no frame-by-frame redraw.
 - Text fields, if any, are left-aligned with the label above or to the left.

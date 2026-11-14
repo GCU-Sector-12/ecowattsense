@@ -49,7 +49,7 @@ try {
 
     # Texts without data.
     $missing = [EcoWattSense.Client.Gui.Viewer.StatusInfo]::Missing
-    if ($text::LastReport($missing, $utc) -ne 'No report yet') { throw 'No-report text wrong' }
+    if ($text::LastReport($missing, $utc) -ne 'Waiting for the first report') { throw 'No-report text wrong' }
     if ($text::Calibrated($missing, $utc) -ne 'Not calibrated') { throw 'Not-calibrated text wrong' }
     $checks += 2
 

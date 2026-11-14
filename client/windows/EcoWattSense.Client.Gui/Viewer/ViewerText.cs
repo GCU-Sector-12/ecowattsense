@@ -35,10 +35,10 @@ public static class ViewerText
     /// <summary>Gives the Last report card text.</summary>
     /// <param name="status">The checked status.json content.</param>
     /// <param name="zone">The time zone for the shown time (local time in the app).</param>
-    /// <returns>For example "14 Nov 10:05 (ok)"; "No report yet" without a report time; the result word is "unknown" when missing.</returns>
+    /// <returns>For example "14 Nov 10:05 (ok)"; "Waiting for the first report" without a report time; the result word is "unknown" when missing.</returns>
     public static string LastReport(StatusInfo status, TimeZoneInfo zone)
     {
-        if (status.LastReportUtc is not { } reported) return "No report yet";
+        if (status.LastReportUtc is not { } reported) return "Waiting for the first report";
         DateTimeOffset local = TimeZoneInfo.ConvertTime(reported, zone);
         return $"{local.ToString("d MMM HH:mm", CultureInfo.InvariantCulture)} ({status.SendResult ?? "unknown"})";
     }
