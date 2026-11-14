@@ -19,12 +19,13 @@ const ICONS = {
  * @param {object} props - item (key, label, icon name), active flag and collapsed flag.
  * @returns {JSX.Element} Rendered content.
  */
-function SidebarLink({ item, active, collapsed }) {
+function SidebarLink({ item, active, collapsed, onNavigate }) {
   const Icon = ICONS[item.icon]
   return (
     <Tooltip label={item.label} position="right" disabled={!collapsed} events={{ hover: true, focus: true, touch: false }}>
       <NavLink
         href={`#${item.key}`}
+        onClick={onNavigate}
         aria-label={collapsed ? item.label : undefined}
         label={collapsed ? undefined : item.label}
         leftSection={<Icon size={22} aria-hidden="true" />}
@@ -42,10 +43,10 @@ function SidebarLink({ item, active, collapsed }) {
  * Renders the dashboard menu, the collapse button and the resize handle.
  * The width and the collapsed mode live in App.jsx; this component only reports events.
  * @param {object} props - items (navigation list), activeKey, collapsed, onToggle(),
- *   onResize(width, finished) and onResizingChange(resizing).
+ *   onResize(width, finished), onResizingChange(resizing), and onNavigate() for the mobile drawer.
  * @returns {JSX.Element} Rendered content.
  */
-export default function Sidebar({ items, activeKey, collapsed, onToggle, onResize, onResizingChange }) {
+export default function Sidebar({ items, activeKey, collapsed = false, onToggle, onResize, onResizingChange, onNavigate }) {
   const drag = useRef(null)
 
   /**
@@ -89,7 +90,14 @@ export default function Sidebar({ items, activeKey, collapsed, onToggle, onResiz
   return (
     <Stack className={classes.sidebar} h="100%" p={collapsed ? 'xs' : 'md'} justify="space-between">
       <Stack gap="xl">
-        <Group gap="sm" wrap="nowrap" pt="xs" px={collapsed ? 0 : 'xs'} justify={collapsed ? 'center' : undefined}>
+        <Group
+          gap="sm"
+          wrap="nowrap"
+          pt="xs"
+          ps={collapsed ? 0 : 'xs'}
+          pe={onNavigate ? 32 : collapsed ? 0 : 'xs'}
+          justify={collapsed ? 'center' : undefined}
+        >
           <Leaf size={40} color="var(--ews-leaf)" />
           {!collapsed && (
             <div>
@@ -105,7 +113,7 @@ export default function Sidebar({ items, activeKey, collapsed, onToggle, onResiz
 
         <Stack gap="xs">
           {items.map((item) => (
-            <SidebarLink key={item.key} item={item} active={item.key === activeKey} collapsed={collapsed} />
+            <SidebarLink key={item.key} item={item} active={item.key === activeKey} collapsed={collapsed} onNavigate={onNavigate} />
           ))}
         </Stack>
       </Stack>
@@ -120,18 +128,20 @@ export default function Sidebar({ items, activeKey, collapsed, onToggle, onResiz
             </Text>
           </Group>
         )}
-        <ActionIcon
-          className={classes.toggle}
-          variant="subtle"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!collapsed}
-          onClick={onToggle}
-        >
-          <ToggleIcon size={22} aria-hidden="true" />
-        </ActionIcon>
+        {onToggle && (
+          <ActionIcon
+            className={classes.toggle}
+            variant="subtle"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            onClick={onToggle}
+          >
+            <ToggleIcon size={22} aria-hidden="true" />
+          </ActionIcon>
+        )}
       </Stack>
 
-      {!collapsed && (
+      {!collapsed && onResize && (
         <div
           className={classes.resizeHandle}
           aria-hidden="true"

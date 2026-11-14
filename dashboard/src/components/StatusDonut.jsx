@@ -48,7 +48,7 @@ export default function StatusDonut({ summary }) {
       <Text fz="lg" fw={700} mb="md">
         Computer Status
       </Text>
-      <Group justify="space-between" align="center" wrap="nowrap" gap="sm" mt="xs">
+      <Group justify="center" align="center" gap="sm" mt="xs">
         <Box pos="relative" role="img" aria-label={`${counts.total} computers in total`}>
           <DonutChart
             data={data}
@@ -72,7 +72,7 @@ export default function StatusDonut({ summary }) {
         </Box>
 
         <Stack component="ul" aria-label="Computer status breakdown" gap="sm"
-          m={0} p={0} style={{ flex: 1, listStyle: 'none' }}>
+          m={0} p={0} style={{ flex: '1 1 120px', listStyle: 'none' }}>
           {STATES.map((state, index) => (
             <LegendRow key={state} state={state} count={counts[state]} percent={percentages[index]} />
           ))}

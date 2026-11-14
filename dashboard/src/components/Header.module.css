@@ -1,0 +1,6 @@
+/* Stacks the dashboard title and controls on phones. Used by Header.jsx. */
+@media (width < 768px) {
+  .header {
+    flex-direction: column;
+  }
+}
