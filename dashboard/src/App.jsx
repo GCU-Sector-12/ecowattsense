@@ -103,6 +103,19 @@ function resizedSidebar(current, width, finished) {
 }
 
 /**
+ * Picks the route to open after login. It never gives #login.
+ * React StrictMode runs the guard twice on the dev server; the second run already sees
+ * #login in the address, so it keeps the route saved by the first run (EWS_WEB-51).
+ * @returns {string} The current hash, the route saved before, or #dashboard.
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+ */
+function returnRouteToSave() {
+  const hash = window.location.hash
+  if (hash && hash !== '#login') return hash
+  return sessionStorage.getItem('ews-return-route') || '#dashboard'
+}
+
+/**
  * Applies the sample-session route guard and marks the decision as ready.
  * Unauthenticated users are sent to Login; authenticated users return to their saved route.
  * @param {{username: string}|null} session - Current sample session.
@@ -111,9 +124,9 @@ function resizedSidebar(current, width, finished) {
  * @returns {void}
  * @throws {DOMException} If sessionStorage is unavailable or access is denied.
  */
-function applyRouteGuard(session, page, setGuardReady) {
+export function applyRouteGuard(session, page, setGuardReady) {
   if (!session && page !== 'login') {
-    sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
+    sessionStorage.setItem('ews-return-route', returnRouteToSave())
     window.location.hash = '#login'
     setGuardReady(true)
     return
