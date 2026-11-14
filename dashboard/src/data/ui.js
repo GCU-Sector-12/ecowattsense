@@ -41,4 +41,4 @@ export const stateColors = {
 
 // Download address of the Windows installer shown on the Computers page.
 export const INSTALLER_DOWNLOAD_URL =
-  'https://github.com/GCU-Sector-12/ecowattsense/releases/download/v0.1.1-energy-suite/EcoWattSense-Web-Setup.exe'
+  'https://github.com/GCU-Sector-12/ecowattsense/releases/download/v0.1.2-energy-suite/EcoWattSense-Web-Setup.exe'
