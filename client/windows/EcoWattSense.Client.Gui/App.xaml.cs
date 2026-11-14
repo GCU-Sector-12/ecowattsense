@@ -3,6 +3,7 @@
 using System.Configuration;
 using System.Data;
 using System.Windows;
+using EcoWattSense.Client.Gui.Viewer;
 
 namespace EcoWattSense.Client.Gui;
 
@@ -20,6 +21,8 @@ public partial class App : Application
         var window = new MainWindow();
         MainWindow = window;
         if (!startHidden) window.Show();
-        window.StartMonitoring(hostArgs, startHidden);
+        // SPEC 9: with the service installed the client only shows data; it does not sample or report.
+        if (ViewerMode.IsViewer(ScmServiceLookup.Query)) window.StartViewer();
+        else window.StartMonitoring(hostArgs, startHidden);
     }
 }

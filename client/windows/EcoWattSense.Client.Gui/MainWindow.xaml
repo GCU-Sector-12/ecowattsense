@@ -89,6 +89,7 @@
                            FontSize="14"
                            Margin="0,8,0,24"/>
 
+                <StackPanel x:Name="LivePanel">
                 <UniformGrid Columns="2" Rows="2">
                     <Border Style="{StaticResource Card}"
                             Background="#E5F5E8">
@@ -179,6 +180,96 @@
                            Text="Waiting for monitoring data"
                            Foreground="#728095"
                            FontSize="12"/>
+                </StackPanel>
+
+                <!-- Viewer mode (SPEC 9): shown instead of LivePanel when the service is installed. -->
+                <StackPanel x:Name="ViewerPanel" Visibility="Collapsed">
+                    <UniformGrid Columns="2">
+                        <Border Style="{StaticResource Card}" Background="#E5F5E8">
+                            <StackPanel>
+                                <TextBlock Text="Service" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="ServiceValue" Text="Unknown" Style="{StaticResource Value}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Level" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="LevelValue" Text="Unknown" Style="{StaticResource Value}"/>
+                                <TextBlock x:Name="LevelLineValue"
+                                           Text="No level reported yet"
+                                           FontSize="12"
+                                           Foreground="#52685D"
+                                           TextWrapping="Wrap"
+                                           Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Power now" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="PowerNowValue" Text="Unknown" Style="{StaticResource Value}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Today" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="TodayValue" Text="Unknown" Style="{StaticResource Value}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Power source" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="PowerSourceViewerValue" Text="Unknown" Style="{StaticResource Value}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Background="#FFF5DC">
+                            <StackPanel>
+                                <TextBlock Text="Last report" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="LastReportValue"
+                                           Text="No report yet"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Calibrated" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="CalibratedValue"
+                                           Text="Not calibrated"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Device id" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="DeviceIdValue"
+                                           Text="Unknown"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <TextBlock Text="Last 24 hours"
+                               FontSize="19"
+                               FontWeight="SemiBold"
+                               Margin="0,10,0,12"/>
+
+                    <!-- The chart control of the history agent goes into this border. -->
+                    <Border x:Name="HistoryHost"
+                            Height="220"
+                            Background="White"
+                            CornerRadius="16"
+                            Margin="0,0,14,14"/>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>
