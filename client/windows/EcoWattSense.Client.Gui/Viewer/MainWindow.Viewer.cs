@@ -1,13 +1,17 @@
 // MainWindow.Viewer.cs: the viewer-mode half of MainWindow (SPEC section 9).
-// Who uses it: App.xaml.cs calls StartViewer when the EcoWattSense service is installed; the history agent calls
-// ShowHistorySummary and puts its chart control into the Border named HistoryHost.
+// Who uses it: App.xaml.cs calls StartViewer when the EcoWattSense service is installed.
+// It also shows the 24 hour chart in the Border named HistoryHost and fills the history cards, and refreshes them
+// when a history file changes (one coalesced refresh per burst of file events).
 // What it does: swaps the classic cards for the viewer cards, starts the pipe reporter, and refreshes the cards from
 // status.json on a file event while the window is visible (plus once at start and on each show). It never samples,
 // never reports and never takes instance.lock.
 // It lives in its own file so MainWindow.xaml.cs keeps its shape.
 #nullable enable
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using EcoWattSense.Client.Gui.History;
 using EcoWattSense.Client.Gui.Viewer;
 
 namespace EcoWattSense.Client.Gui;
@@ -16,6 +20,9 @@ public partial class MainWindow
 {
     private ServicePipeReporter? pipeReporter;
     private StatusFolderWatcher? statusWatcher;
+    private StatusFolderWatcher? historyWatcher;
+    private RefreshCoalescer? historyRefresh;
+    private HistoryChart? historyChart;
 
     /// <summary>Switches the window to viewer mode.</summary>
     internal void StartViewer()
@@ -29,10 +36,12 @@ public partial class MainWindow
         statusWatcher.Changed += OnStatusChanged;
         pipeReporter = new ServicePipeReporter(new ServicePipeSender(), ViewerSources.ReadIdleSeconds, ViewerSources.ReadBrightness);
         pipeReporter.Start();
+        StartHistory();
         IsVisibleChanged += OnViewerVisibleChanged;
         Closed += OnViewerClosed;
         RefreshViewer();
         statusWatcher.SetActive(IsVisible);
+        historyWatcher?.SetActive(IsVisible);
     }
 
     /// <summary>Fills the Power now and Today cards from the history, which another part of the app reads.</summary>
@@ -64,6 +73,56 @@ public partial class MainWindow
         DeviceIdValue.Text = ViewerText.ShortId(ViewerSources.ReadDeviceIdText());
     }
 
+    /// <summary>Puts the 24 hour chart into HistoryHost, and wires the history file events to one coalesced refresh.</summary>
+    private void StartHistory()
+    {
+        historyChart = new HistoryChart();
+        HistoryHost.Child = historyChart;
+        historyRefresh = new RefreshCoalescer(PostBackground, RefreshHistory);
+        historyWatcher = new StatusFolderWatcher(ViewerSources.HistoryFolder, "*.csv");
+        historyWatcher.Changed += historyRefresh.Request;
+        RefreshHistory();
+    }
+
+    /// <summary>Queues an action on the window thread at background priority. The coalescer uses it to wait for the window thread.</summary>
+    /// <param name="action">The action to run later.</param>
+    private void PostBackground(Action action)
+        => Dispatcher.BeginInvoke(action, DispatcherPriority.Background);
+
+    /// <summary>Starts a history read off the window thread, so a slow disk never freezes the window.</summary>
+    private void RefreshHistory() => _ = Task.Run(ReadHistory);
+
+    /// <summary>Reads the last 24 hours and hands the rows to the window thread.</summary>
+    /// <remarks>Runs on a pool thread. A missing folder gives no rows. A file problem the reader does not absorb gives no rows too.</remarks>
+    private void ReadHistory()
+    {
+        DateTime nowUtc = DateTime.UtcNow;
+        HistoryReadResult result = ReadHistoryOrEmpty(nowUtc);
+        Dispatcher.BeginInvoke(new Action<HistoryReadResult, DateTime>(ShowHistory), DispatcherPriority.Normal, result, nowUtc);
+    }
+
+    /// <summary>Reads the history and turns a file system failure into an empty result.</summary>
+    /// <param name="nowUtc">The current time, Kind Utc.</param>
+    /// <returns>The rows, or an empty result when the read failed.</returns>
+    private static HistoryReadResult ReadHistoryOrEmpty(DateTime nowUtc)
+    {
+        try { return HistoryReader.Read(ViewerSources.HistoryFolder, nowUtc); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new HistoryReadResult();
+        }
+    }
+
+    /// <summary>Draws the chart and fills the two history cards. Runs on the window thread.</summary>
+    /// <param name="result">The rows of the last 24 hours.</param>
+    /// <param name="nowUtc">The time the rows were read at.</param>
+    private void ShowHistory(HistoryReadResult result, DateTime nowUtc)
+    {
+        historyChart?.SetRows(result.Rows, nowUtc);
+        ShowHistorySummary(
+            HistorySummary.PowerNow(result.Rows, nowUtc),
+            HistorySummary.EnergyTodayKwh(result.Rows, nowUtc, TimeZoneInfo.Local));
+    }
     /// <summary>Queues a refresh on the window thread when the status file changes.</summary>
     private void OnStatusChanged()
         => Dispatcher.BeginInvoke(new Action(RefreshViewer), DispatcherPriority.Background);
@@ -75,7 +134,9 @@ public partial class MainWindow
     {
         bool visible = IsVisible;
         statusWatcher?.SetActive(visible);
+        historyWatcher?.SetActive(visible);
         if (visible) RefreshViewer();
+        if (visible) RefreshHistory();
     }
 
     /// <summary>Stops the pipe reporter and the file watcher when the window closes.</summary>
@@ -85,5 +146,6 @@ public partial class MainWindow
     {
         pipeReporter?.Dispose();
         statusWatcher?.Dispose();
+        historyWatcher?.Dispose();
     }
 }

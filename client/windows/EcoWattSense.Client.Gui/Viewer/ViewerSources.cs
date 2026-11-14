@@ -19,9 +19,14 @@ public static class ViewerSources
     private static readonly WindowsActivityMonitor Activity = new();
     private static readonly WindowsPowerMonitor Power = new();
 
+    private static string DataFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EcoWattSense");
+
     /// <summary>The folder that holds status.json: &lt;data&gt;\status\ (SPEC 2.2).</summary>
-    public static string StatusFolder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EcoWattSense", "status");
+    public static string StatusFolder => Path.Combine(DataFolder, "status");
+
+    /// <summary>The folder that holds the daily history files: &lt;data&gt;\history\ (SPEC 2.2).</summary>
+    public static string HistoryFolder => Path.Combine(DataFolder, "history");
 
     /// <summary>The full path of status.json.</summary>
     public static string StatusFile => Path.Combine(StatusFolder, "status.json");
