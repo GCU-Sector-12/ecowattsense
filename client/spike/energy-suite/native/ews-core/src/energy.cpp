@@ -90,6 +90,7 @@ const char* MeasureLevelWord(MeasureLevel level) {
         case MeasureLevel::L1: return "L1";
         case MeasureLevel::L2: return "L2";
         case MeasureLevel::L3: return "L3";
+        case MeasureLevel::L4: return "L4";
         default: return "";
     }
 }
@@ -109,6 +110,21 @@ MinuteEnergy CalculateMinuteEnergy(const MinuteInput& input) {
         return level2;
     }
     return TryLevel3(input, *input.model);
+}
+
+MinuteEnergy HistoryMinuteEnergy(const MinuteInput& input, const MinuteEnergy& calculated) {
+    if (input.model != nullptr || calculated.level != MeasureLevel::Unknown) {
+        return calculated;
+    }
+    bool packageKnown = IsGrowth(input.packageGrowthUj);
+    bool dramKnown = IsGrowth(input.dramGrowthUj);
+    if (!packageKnown && !dramKnown) {
+        return calculated;
+    }
+    MinuteEnergy minute;
+    minute.level = MeasureLevel::L4;
+    minute.measuredUj = GrowthIfWanted(packageKnown, input.packageGrowthUj) + GrowthIfWanted(dramKnown, input.dramGrowthUj);
+    return minute;
 }
 
 }  // namespace ews

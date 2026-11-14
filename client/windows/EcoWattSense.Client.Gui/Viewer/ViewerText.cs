@@ -86,6 +86,22 @@ public static class ViewerText
             ? value.ToString("F2", CultureInfo.InvariantCulture) + " kWh"
             : UnknownWord;
 
+    /// <summary>Gives the Today text, with a note when part of the energy is the processor and memory only.</summary>
+    /// <param name="kwh">The energy in kilowatt hours, or null when unknown.</param>
+    /// <param name="measuredOnly">True when any row of today had only the measured part.</param>
+    /// <returns>For example "0.42 kWh (processor and memory only)"; the note is left out for an unknown value.</returns>
+    public static string Kilowatthours(double? kwh, bool measuredOnly)
+    {
+        string text = Kilowatthours(kwh);
+        return measuredOnly && text != UnknownWord ? text + " (processor and memory only)" : text;
+    }
+
+    /// <summary>Gives the line under the Power value.</summary>
+    /// <param name="measuredOnly">True when the power shown is the measured part only.</param>
+    /// <returns>The calibration hint, or an empty text when the power is the whole computer or unknown.</returns>
+    public static string PowerNote(bool measuredOnly)
+        => measuredOnly ? "Processor and memory only. Calibrate to see the whole computer." : "";
+
     /// <summary>Gives the Power source text.</summary>
     /// <param name="onBattery">True on battery, false on mains, null when Windows does not say.</param>
     /// <returns>"Battery", "Mains" or "Unknown".</returns>

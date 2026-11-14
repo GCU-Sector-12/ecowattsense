@@ -66,4 +66,16 @@ $plus530 = [TimeZoneInfo]::CreateCustomTimeZone('test+5:30', [TimeSpan]::new(5, 
 $l = Build @() $plus530
 $labels = ($l.HourTicks | ForEach-Object { $_.Label }) -join ' '
 Check ($labels -eq '18:00 21:00 00:00 03:00 06:00 09:00 12:00 15:00') "UTC+5:30 labels: $labels"
+# Measured part only: a dashed piece for rows with an empty device W and a measured W; the axis includes it.
+function MRow($n, $device, $measured) {
+    [EcoWattSense.Client.Gui.History.HistoryRow]::new((Slot $n), 60, $false, 2, $null, $null, $device, $measured, $null, $null)
+}
+$l = Build @((MRow 10 5.0 $null), (MRow 11 $null 3.0), (MRow 12 $null 4.0), (MRow 13 6.0 2.0), (MRow 14 $null $null))
+Check ($l.Segments.Count -eq 2) 'device pieces'
+Check ($l.MeasuredSegments.Count -eq 1 -and $l.MeasuredSegments[0].Count -eq 2 -and $l.MeasuredSegments[0][1].Y -eq 4.0) 'measured piece only where device W is empty'
+$l = Build @((MRow 11 $null 30.0))
+Check ($l.AxisMax -eq 50) 'axis covers measured values'
+$l = Build @((Row 10 5.0))
+Check ($l.MeasuredSegments.Count -eq 0) 'no measured piece without such rows'
+
 Write-Output "Passed $checks history chart checks."

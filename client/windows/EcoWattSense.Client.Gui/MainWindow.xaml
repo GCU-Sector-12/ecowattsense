@@ -267,6 +267,7 @@
                             <StackPanel>
                                 <TextBlock Text="Power" Style="{StaticResource Label}"/>
                                 <TextBlock x:Name="PowerNowValue" Text="Unknown" Style="{StaticResource Value}"/>
+                                <TextBlock x:Name="PowerNowNote" Visibility="Collapsed" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,0"/>
                                 <Grid Margin="0,10,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" MinWidth="60"/>

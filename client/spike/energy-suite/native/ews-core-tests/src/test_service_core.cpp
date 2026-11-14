@@ -946,3 +946,13 @@ EWS_TEST(ServiceJunkNextToTheSendCommandIsDroppedAndCounted) {
     rig.Ticks(5);
     CHECK(Has(rig.Log(), " pipe_dropped 2"));
 }
+
+EWS_TEST(ServiceNoModelStillWritesTheMeasuredPartAndLevelL4InTheHistory) {
+    Rig rig("measuredonly", false);
+    StartOk(rig);
+    rig.Ticks(5);
+    // 5 W package + 0.5 W memory: device_w is empty, measured_w is 5.500, the level is L4.
+    CHECK(Has(rig.History(), ",20.0,,5.500,,L4\n"));
+    // The report is as before: no energy without a model.
+    CHECK(!Has(rig.SentLine(0, 0), "energy_uj"));
+}
