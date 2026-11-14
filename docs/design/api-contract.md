@@ -38,7 +38,7 @@ There are two mechanisms.
 
 **Client key.** The client sends the header `X-EWS-Key: <key>`. The value is the setting `EWS_CLIENT_KEY` in the server `.env` file. One key is used by all clients. A wrong or missing key gives 401. The client key is used by `GET /api/settings`, `PUT /api/devices/{device_id}`, `POST /api/reports` and `POST /api/ping`.
 
-**Admin session.** `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. Every GET for the dashboard needs the cookie. A missing or expired cookie gives 401. The session is used by `/api/devices`, `/api/devices/{device_id}/history`, `/api/summary` and `/api/logout`.
+**Admin session.** `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. Every GET for the dashboard and every admin change needs the cookie. A missing or expired cookie gives 401. The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}` and `/api/logout`.
 
 Names of settings in the `.env` file:
 
@@ -64,6 +64,7 @@ The other server settings keep their current names for now. Whether they also ge
 | GET | `/api/devices` | admin | cookie | List the computers with their state now |
 | GET | `/api/devices/{device_id}/history` | admin | cookie | Reports and totals of one computer |
 | GET | `/api/summary` | admin | cookie | Counts, energy, cost and CO2 for one day |
+| PATCH | `/api/admin/devices/{device_id}` | admin | cookie | Change the name, the room or the archived flag of a computer |
 
 ## 5. Endpoints
 
@@ -156,7 +157,8 @@ Response 200:
 Rules:
 
 - The call sets the name, `os` and `device_type`.
-- A report never changes the name. The last call wins.
+- A report never changes the name.
+- The name from this call is stored only while `display_name` is empty (null). A name set by the admin (section 5.11) is never overwritten by the client. The answer holds the name that is stored now.
 - A computer is also made known by its first report. It then has no name until it registers.
 - A new computer registered before its first report gets `first_seen_at` and `last_seen_at` of the moment of registration.
 
@@ -428,7 +430,7 @@ Response 200:
 | `devices[].first_seen_at` | string, date-time UTC | The time of the first report |
 | `devices[].archived` | boolean | True when the admin archived the computer |
 
-`display_name` is the name from `PUT /api/devices/{device_id}` (field `device_name`) or set by the admin. The last write wins.
+`display_name` is the name from `PUT /api/devices/{device_id}` (field `device_name`) or set by the admin (section 5.11). The client name is stored only while `display_name` is empty. A name set by the admin is never overwritten by the client.
 
 `display_name`, `location_id`, `location_name` and `building` are null until an admin sets them.
 
@@ -574,6 +576,49 @@ Example response:
 }
 ```
 
+### 5.11 PATCH /api/admin/devices/{device_id}
+
+- Caller: the admin, from the dashboard.
+- Auth: the cookie `ews_session`.
+- One call changes the name, the room or the archived flag of one computer. Only the fields in the body change. The call can be repeated safely: the same body gives the same result.
+
+Path and request body (a JSON object):
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `device_id` | string, uuid | yes | The computer (in the path) |
+| `display_name` | string or null | no | At most 60 characters. Null clears the name |
+| `location_id` | integer or null | no | An id in `locations`. Null means no room |
+| `archived` | boolean | no | True hides the computer from `GET /api/devices`. False shows it again |
+
+At least one field is required. A field that is not in this table is an error.
+
+Response 200: the changed computer, in the exact shape of one element of `devices[]` in `GET /api/devices` (section 5.8).
+
+Rules:
+
+- The name set here is never overwritten by `PUT /api/devices/{device_id}` (section 5.3). A client sets its name only while `display_name` is null.
+- An archived computer still gets its reports. Archiving only hides it from the default list.
+
+Status codes:
+
+- 200: The computer is changed. The body is the computer as it is now
+- 401: There is no valid cookie
+- 404: There is no computer with this `device_id`
+- 422: A field has the wrong type, a field is unknown, the body is empty, the name is longer than 60 characters, or `location_id` is not an id in `locations`
+
+Example request: `PATCH /api/admin/devices/6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12`
+
+```json
+{"display_name": "Lab 1 PC 03", "location_id": 1, "archived": false}
+```
+
+Example response:
+
+```json
+{"device_id": "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12", "display_name": "Lab 1 PC 03", "location_id": 1, "location_name": "Lab 1", "building": "George Moore", "os": "windows", "device_type": "laptop", "state": 2, "state_name": "active", "last_seen_at": "2026-10-19T14:05:00Z", "first_seen_at": "2026-10-12T09:00:00Z", "archived": false}
+```
+
 ## 6. Values
 
 **States.** The code is stored in the database and sent in reports. The name is used in replies and on screen.
@@ -636,7 +681,8 @@ What changes elsewhere to match this document:
 - The prefix of the other server settings (`ECOWATTSENSE_` today, `EWS_` proposed).
 - `device_name` in the client call versus `display_name` in the database and the admin endpoints. One word should win.
 - Clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false (a transition rule, to confirm).
-- Endpoints for the admin to change settings, energy rates, tariffs, locations, to rename or archive a computer and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version.
+- Endpoints for the admin to change settings, energy rates, tariffs, locations and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version. Renaming or archiving a computer is now in section 5.11.
+- The client name is stored only while `display_name` is empty (sections 5.3 and 5.11). So a client cannot change its own name later, and the server cannot tell a name from the client from a name from the admin. A column that says who set the name would fix this. It needs a change of the `devices` table and a migration of the existing staging database.
 - A `commands` table and `registered_at` in `devices` are needed for the ping and the registration. They are not in the brief or the ERD yet.
 - The lifetime of the session cookie. Admin users in the `users` table with password hashes, instead of one user in `.env`.
 - A version in the path (`/api/v1`) before the first client ships.

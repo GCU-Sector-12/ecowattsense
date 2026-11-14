@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from . import models  # noqa: F401  (the import makes create_all see the tables)
-from .api import auth, contract, devices, health, history, ping, reports, settings, summary
+from .api import admin_devices, auth, contract, devices, health, history, ping, reports, settings, summary
 from .db import init_db
 
 
@@ -29,6 +29,7 @@ app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(ping.router)
 app.include_router(devices.router)
+app.include_router(admin_devices.router)
 app.include_router(summary.router)
 app.include_router(history.router)
 app.include_router(reports.router)
