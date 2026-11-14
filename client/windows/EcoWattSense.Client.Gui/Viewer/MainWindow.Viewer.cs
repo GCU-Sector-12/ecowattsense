@@ -88,6 +88,7 @@ public partial class MainWindow
         HistoryHost.Child = historyChart;
         donutChart = new DonutChart();
         DonutHost.Child = donutChart;
+        DonutLegendHost.Child = donutChart.Legend;
         historyRefresh = new RefreshCoalescer(PostBackground, RefreshHistory);
         historyWatcher = new StatusFolderWatcher(ViewerSources.HistoryFolder, "*.csv");
         historyWatcher.Changed += historyRefresh.Request;
