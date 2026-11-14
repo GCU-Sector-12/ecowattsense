@@ -460,3 +460,14 @@ Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter
 4. EMI on AMD and on other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
 6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on the HP 250 G7). Until a computer with a live meter is found, the service does not use it for energy.
+
+## 13. Web installer
+
+`EcoWattSense-Web-Setup.exe` (project `native/ews-websetup`, same output folder as `ews-service.exe`, `asInvoker`) downloads the package and starts `Setup.exe`. Code is in `ews-websetup`; the pure parts (manifest check, address and redirect check, size check, SHA256 compare, result words) are in `ews-core` (`web_setup.h`) with tests that use no network.
+
+1. A TaskDialog "EcoWattSense setup" shows a progress bar and one status line. The work runs on a worker thread. Cancel stops it (exit code 1).
+2. The manifest comes from the fixed address `https://raw.githubusercontent.com/GCU-Sector-12/ecowattsense/EWS-energy-suite/client/spike/energy-suite/release/latest.json` (WinHTTP, https only, certificate checked, 10 s timeouts, at most 64 KB, no redirect). Format: `{"version","zip_url","sha256","size"}` and the optional `"server_url"`. Every field is checked: `version` has digits and dots only; `zip_url` starts with `https://github.com/GCU-Sector-12/ecowattsense/releases/download/`; `sha256` is 64 hex digits; `size` is 1 byte to 300 MB. `server_url` must start with `https://`, be at most 200 characters, and hold no space, quote or control character; a missing or bad value is left out, not an error. When valid, `Setup.exe` is started with `/server=<url>`.
+3. The zip goes to a new folder `%TEMP%\EcoWattSense-Setup-<random>` with progress. A redirect is followed only to https and only to `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com` (at most 5 hops). The downloaded size must equal `size`.
+4. The SHA256 is computed with BCrypt. A mismatch deletes the file and stops with "The download is damaged. Try again.".
+5. `%SystemRoot%\System32\tar.exe -xf <zip> -C <folder>` unpacks it (exit code 0 required). `<folder>\EcoWattSense\Setup.exe` is started with ShellExecuteEx (it asks for UAC itself) and the installer closes. A cancelled UAC prompt shows "Setup was not started." and keeps the files.
+6. A failure shows one clear line, with no address and no raw error text. The exit code names the step: 0 started, 1 cancelled, 2 manifest download, 3 manifest invalid, 4 temporary folder, 5 package download, 6 size differs, 7 SHA256 differs, 8 SHA256 not computed, 9 tar failed, 10 `Setup.exe` missing, 11 `Setup.exe` not started, 12 worker thread failed.

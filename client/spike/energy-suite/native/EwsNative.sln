@@ -20,6 +20,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ews-service", "ews-service\
 		{5A1B2C3D-0001-4E5F-8A9B-1C2D3E4F5A01} = {5A1B2C3D-0001-4E5F-8A9B-1C2D3E4F5A01}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ews-websetup", "ews-websetup\ews-websetup.vcxproj", "{5A1B2C3D-0005-4E5F-8A9B-1C2D3E4F5A05}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5A1B2C3D-0001-4E5F-8A9B-1C2D3E4F5A01} = {5A1B2C3D-0001-4E5F-8A9B-1C2D3E4F5A01}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -42,6 +47,10 @@ Global
 		{5A1B2C3D-0004-4E5F-8A9B-1C2D3E4F5A04}.Debug|x64.Build.0 = Debug|x64
 		{5A1B2C3D-0004-4E5F-8A9B-1C2D3E4F5A04}.Release|x64.ActiveCfg = Release|x64
 		{5A1B2C3D-0004-4E5F-8A9B-1C2D3E4F5A04}.Release|x64.Build.0 = Release|x64
+		{5A1B2C3D-0005-4E5F-8A9B-1C2D3E4F5A05}.Debug|x64.ActiveCfg = Debug|x64
+		{5A1B2C3D-0005-4E5F-8A9B-1C2D3E4F5A05}.Debug|x64.Build.0 = Debug|x64
+		{5A1B2C3D-0005-4E5F-8A9B-1C2D3E4F5A05}.Release|x64.ActiveCfg = Release|x64
+		{5A1B2C3D-0005-4E5F-8A9B-1C2D3E4F5A05}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
