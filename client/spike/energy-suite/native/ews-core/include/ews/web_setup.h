@@ -80,12 +80,13 @@ enum class WebSetupResult {
     Extract,           ///< tar.exe failed.
     SetupMissing,      ///< EcoWattSense\Setup.exe is not in the package.
     NotStarted,        ///< Setup.exe was not started (for example UAC was cancelled).
-    Internal           ///< The worker thread could not be started.
+    Internal,          ///< The worker thread could not be started.
+    SignatureRefused   ///< Setup.exe has no valid EcoWattSense signature; it was not started and the folder was deleted.
 };
 
 /// @param result A result.
 /// @return The process exit code: 0 Ok, 1 Cancelled, 2 ManifestDownload, 3 ManifestInvalid, 4 WorkFolder,
-///         5 PackageDownload, 6 SizeMismatch, 7 HashMismatch, 8 HashFailed, 9 Extract, 10 SetupMissing, 11 NotStarted, 12 Internal.
+///         5 PackageDownload, 6 SizeMismatch, 7 HashMismatch, 8 HashFailed, 9 Extract, 10 SetupMissing, 11 NotStarted, 12 Internal, 13 SignatureRefused.
 int WebSetupExitCode(WebSetupResult result);
 
 /// @param result A result.
