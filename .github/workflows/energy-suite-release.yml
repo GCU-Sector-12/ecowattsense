@@ -1,0 +1,124 @@
+# Energy suite release: builds, signs and drafts a GitHub release of the Windows energy suite.
+#
+# What it makes:
+#   The ZIP, EcoWattSense-Web-Setup.exe, both .sha256 files and latest.json, built by
+#   client/spike/energy-suite/scripts/Build-Package.ps1 with code signing (-Sign).
+#   The result is a DRAFT pre-release. A person checks it and publishes it by hand.
+#
+# When it runs:
+#   When a tag like v0.1.2-energy-suite is pushed. Anyone with write access can push the tag:
+#     git tag v0.1.2-energy-suite && git push origin v0.1.2-energy-suite
+#   The version is read from the tag (0.1.2); nothing has to be bumped in the code.
+#
+# Secrets it needs (repository settings, Secrets and variables, Actions):
+#   ENERGY_SUITE_SIGNING_PFX       the code signing certificate (.pfx file), base64 encoded
+#   ENERGY_SUITE_SIGNING_PASSWORD  the password of that .pfx file
+#   When one is missing the job fails at once with a message. Secret values are never printed.
+#   The .pfx file lives only in the runner temp folder and is deleted at the end of the job.
+name: Energy suite release
+
+on:
+  push:
+    tags:
+      - 'v*-energy-suite'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check that the signing secrets exist
+        env:
+          PFX_B64: ${{ secrets.ENERGY_SUITE_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.ENERGY_SUITE_SIGNING_PASSWORD }}
+        run: |
+          $missing = @()
+          if (-not $env:PFX_B64) { $missing += 'ENERGY_SUITE_SIGNING_PFX' }
+          if (-not $env:PFX_PASSWORD) { $missing += 'ENERGY_SUITE_SIGNING_PASSWORD' }
+          if ($missing.Count -gt 0) {
+            Write-Host "::error::Missing repository secrets: $($missing -join ', '). Add them in Settings, Secrets and variables, Actions."
+            exit 1
+          }
+
+      - name: Read the version from the tag
+        id: version
+        run: |
+          if ($env:TAG -notmatch '^v(\d+(\.\d+)*)-energy-suite$') {
+            Write-Host "::error::Tag '$env:TAG' is not v<digits and dots>-energy-suite."
+            exit 1
+          }
+          "value=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Write the signing certificate
+        env:
+          PFX_B64: ${{ secrets.ENERGY_SUITE_SIGNING_PFX }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'energy-suite-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          "PFX_PATH=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build and sign the package
+        env:
+          ENERGY_SUITE_SIGNING_PASSWORD: ${{ secrets.ENERGY_SUITE_SIGNING_PASSWORD }}
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          pwsh -NoProfile -File client/spike/energy-suite/scripts/Build-Package.ps1 -Version $env:SUITE_VERSION -ReleaseTag $env:TAG -Sign -PfxPath $env:PFX_PATH
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Delete the signing certificate
+        if: always()
+        run: |
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'energy-suite-signing.pfx') -Force -ErrorAction SilentlyContinue
+
+      - name: Write the notes and the job summary
+        id: notes
+        env:
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'out\package'
+          $zip = "EcoWattSense-$env:SUITE_VERSION-win-x64.zip"
+          $zipHash = (Get-FileHash -LiteralPath (Join-Path $out $zip) -Algorithm SHA256).Hash.ToLowerInvariant()
+          $webHash = (Get-FileHash -LiteralPath (Join-Path $out 'EcoWattSense-Web-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $lines = @(
+            'Draft made by the release workflow. Check, then publish; after publishing commit latest.json to client/spike/energy-suite/release/.',
+            '',
+            'SHA256:',
+            '',
+            "- $zip : $zipHash",
+            "- EcoWattSense-Web-Setup.exe : $webHash"
+          )
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -LiteralPath $notesPath -Value $lines -Encoding utf8
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value (@("### Energy suite $env:SUITE_VERSION", '') + $lines)
+          "path=$notesPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create the draft pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+          NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'out\package'
+          $names = @(
+            "EcoWattSense-$env:SUITE_VERSION-win-x64.zip",
+            "EcoWattSense-$env:SUITE_VERSION-win-x64.zip.sha256",
+            'EcoWattSense-Web-Setup.exe',
+            'EcoWattSense-Web-Setup.exe.sha256',
+            'latest.json'
+          )
+          $files = $names | ForEach-Object { Join-Path $out $_ }
+          gh release create $env:TAG --draft --prerelease --title "EcoWattSense Windows energy suite $env:SUITE_VERSION (spike)" --notes-file $env:NOTES_PATH @files
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
