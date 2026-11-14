@@ -34,7 +34,7 @@ public partial class MainWindow : Window
         trayIcon = new Forms.NotifyIcon
         {
             Text = "EcoWattSense",
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Application,
             ContextMenuStrip = trayMenu
         };
         Closing += (_, e) =>

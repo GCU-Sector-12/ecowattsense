@@ -1,0 +1,28 @@
+<!--
+  CalibratorTests.csproj: build file of the console test program of the EnergyCalibrator.
+  Who uses it: tests\Test-Calibrator.ps1 builds and runs it. The exit code of the program is the number of failed checks.
+  It uses the internal analysis and model code of the calibrator (InternalsVisibleTo in EnergyCalibrator.csproj).
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CalibratorTests</RootNamespace>
+    <AssemblyName>CalibratorTests</AssemblyName>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <NoWarn>$(NoWarn);NU1510</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\EnergyCalibrator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The data of the real run of 12 Nov 2026 is copied next to the program. -->
+    <None Include="..\data\*.csv" Link="data\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

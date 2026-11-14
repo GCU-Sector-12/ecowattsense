@@ -27,6 +27,29 @@
             <Setter Property="FontSize" Value="30"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
+
+        <!-- Sidebar item: a button that looks like the old "This computer" tile. The code sets Background for the selected item. -->
+        <Style x:Key="NavItem" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10" Padding="16">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PageButton" TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="0,12,0,0"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -55,16 +78,20 @@
                                Margin="0,6,0,0"/>
                 </StackPanel>
 
-                <Border Grid.Row="1"
-                        Background="#285E50"
-                        CornerRadius="10"
-                        Padding="16"
-                        Margin="0,36,0,0">
-                    <TextBlock Text="This computer"
-                               Foreground="White"
-                               FontSize="16"
-                               FontWeight="SemiBold"/>
-                </Border>
+                <StackPanel Grid.Row="1" Margin="0,36,0,0">
+                    <Button x:Name="ComputerNav"
+                            Content="This computer"
+                            Style="{StaticResource NavItem}"
+                            Background="#285E50"
+                            Click="OnComputerNavClick"/>
+                    <!-- Viewer mode only (shown by StartViewer). -->
+                    <Button x:Name="SettingsNav"
+                            Content="Settings"
+                            Style="{StaticResource NavItem}"
+                            Margin="0,8,0,0"
+                            Visibility="Collapsed"
+                            Click="OnSettingsNavClick"/>
+                </StackPanel>
 
                 <StackPanel Grid.Row="3">
                     <TextBlock Text="Save Energy,"
@@ -80,15 +107,18 @@
         <ScrollViewer Grid.Column="1"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="30,28,16,24">
-                <TextBlock Text="This computer"
+                <TextBlock x:Name="PageTitle"
+                           Text="This computer"
                            FontSize="28"
                            FontWeight="Bold"/>
 
-                <TextBlock Text="Your computer's activity and monitoring status."
+                <TextBlock x:Name="PageSubtitle"
+                           Text="Your computer's activity and monitoring status."
                            Foreground="#728095"
                            FontSize="14"
                            Margin="0,8,0,24"/>
 
+                <StackPanel x:Name="LivePanel">
                 <UniformGrid Columns="2" Rows="2">
                     <Border Style="{StaticResource Card}"
                             Background="#E5F5E8">
@@ -179,6 +209,226 @@
                            Text="Waiting for monitoring data"
                            Foreground="#728095"
                            FontSize="12"/>
+                </StackPanel>
+
+                <!-- Viewer mode (SPEC 9): shown instead of LivePanel when the service is installed. -->
+                <StackPanel x:Name="ViewerPanel" Visibility="Collapsed">
+                    <UniformGrid Columns="2">
+                        <Border Style="{StaticResource Card}" Background="#E5F5E8">
+                            <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Service" Style="{StaticResource Label}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- Green when the service runs, grey otherwise. It pulses once on a new history row (opacity and scale, render thread). -->
+                                    <Ellipse x:Name="ServiceDot"
+                                             Width="14" Height="14"
+                                             Fill="#B8C0CC"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,10,0"
+                                             RenderTransformOrigin="0.5,0.5">
+                                        <Ellipse.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+                                    <TextBlock x:Name="ServiceValue" Text="Unknown" Style="{StaticResource Value}"/>
+                                </StackPanel>
+                                <TextBlock x:Name="LastMeasurementValue"
+                                           Text="Last measurement unknown"
+                                           FontSize="12"
+                                           Foreground="#52685D"
+                                           Margin="0,10,0,0"/>
+                                <!-- Legend of the donut (Active / Idle / Unused with percent); the code fills it. -->
+                                <Border x:Name="DonutLegendHost" Margin="0,10,0,0"/>
+                            </StackPanel>
+                            <!-- The donut (SPEC 9) sits on the right of the Service card; the code fills it. -->
+                            <Border x:Name="DonutHost" Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Level" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="LevelValue" Text="Unknown" Style="{StaticResource Value}"/>
+                                <TextBlock x:Name="LevelLineValue"
+                                           Text="No level reported yet"
+                                           FontSize="12"
+                                           Foreground="#52685D"
+                                           TextWrapping="Wrap"
+                                           Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- One Power card: the power now in the big font, then the energy of today and the power source. -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Power" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="PowerNowValue" Text="Unknown" Style="{StaticResource Value}"/>
+                                <TextBlock x:Name="PowerNowNote" Visibility="Collapsed" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,0"/>
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" MinWidth="60"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="Today" Style="{StaticResource Label}" Margin="0,0,12,4"/>
+                                    <TextBlock x:Name="TodayValue" Grid.Column="1" Text="Unknown" FontSize="14" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Source" Grid.Row="1" Style="{StaticResource Label}" Margin="0,0,12,0"/>
+                                    <TextBlock x:Name="PowerSourceViewerValue" Grid.Row="1" Grid.Column="1" Text="Unknown" FontSize="14"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Background="#FFF5DC">
+                            <StackPanel>
+                                <TextBlock Text="Last report" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="LastReportValue"
+                                           Text="Waiting for the first report"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock x:Name="SendNowNote"
+                                           FontSize="12"
+                                           Margin="0,6,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed"/>
+                                <Button x:Name="SendNowButton"
+                                        Content="Send now"
+                                        Style="{StaticResource PageButton}"
+                                        IsEnabled="False"
+                                        Click="OnSendNowClick"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Calibrated" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="CalibratedValue"
+                                           Text="Not calibrated"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"/>
+                                <Button x:Name="CalibrateButton"
+                                        Content="Calibrate"
+                                        Style="{StaticResource PageButton}"
+                                        IsEnabled="False"
+                                        Click="OnCalibrateClick"/>
+                                <TextBlock x:Name="CalibrateNote"
+                                           FontSize="12"
+                                           Foreground="#52685D"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Device id" Style="{StaticResource Label}"/>
+                                <TextBlock x:Name="DeviceIdValue"
+                                           Text="Unknown"
+                                           Style="{StaticResource Value}"
+                                           FontSize="22"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <TextBlock Text="Last 24 hours"
+                               FontSize="19"
+                               FontWeight="SemiBold"
+                               Margin="0,10,0,12"/>
+
+                    <!-- The chart control of the history agent goes into this border. -->
+                    <Border x:Name="HistoryHost"
+                            Height="220"
+                            Background="White"
+                            CornerRadius="16"
+                            Margin="0,0,14,14"/>
+
+                </StackPanel>
+
+                <!-- Settings page (viewer mode): read-only values from status.json. -->
+                <StackPanel x:Name="SettingsPanel" Visibility="Collapsed">
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Server" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock Text="Address" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsAddress" Text="unknown" TextWrapping="Wrap" Margin="0,0,0,14"/>
+                            <TextBlock Text="Key" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsKey" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Sending" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsSending" Text="unknown"/>
+                            <Button x:Name="ChangeServerButton"
+                                    Content="Change..."
+                                    Style="{StaticResource PageButton}"
+                                    Click="OnChangeServerClick"/>
+                            <TextBlock x:Name="ChangeServerNote"
+                                       FontSize="12"
+                                       Foreground="#52685D"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="This computer" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock Text="Computer name" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsComputerName" Text="Not set" Margin="0,0,0,14"/>
+                            <TextBlock Text="Device type" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsDeviceType" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Report interval" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsInterval" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Idle after" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsIdle" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Unused after" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsUnused" Text="unknown" Margin="0,0,0,14"/>
+                            <CheckBox x:Name="AutostartCheck"
+                                      Content="Start the client with Windows"
+                                      IsEnabled="False"
+                                      Click="OnAutostartClick"/>
+                            <TextBlock x:Name="AutostartNote"
+                                       FontSize="12"
+                                       Foreground="#52685D"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="About" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock Text="Client version" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsClientVersion" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Service version" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsVersion" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock Text="Data folder" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsDataFolder" Text="unknown" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+<Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Updates" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock x:Name="UpdateVersionText" Text="This version" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="UpdateStatusText" Text="Checking for updates..." TextWrapping="Wrap"/>
+                            <Button x:Name="UpdateButton"
+                                    Content="Update"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource PageButton}"
+                                    Click="OnUpdateClick"/>
+                            <TextBlock x:Name="UpdateNote"
+                                       FontSize="12"
+                                       Foreground="#52685D"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">                        <StackPanel>                            <TextBlock Text="Uninstall" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>                            <TextBlock Text="Removes the programs and the service. Your data stays unless you choose to remove it." TextWrapping="Wrap"/>                            <Button x:Name="UninstallAppButton"                                    Content="Uninstall EcoWattSense..."                                    Style="{StaticResource PageButton}"                                    Click="OnUninstallClick"/>                            <TextBlock x:Name="UninstallNote"                                       FontSize="12"                                       Foreground="#52685D"                                       TextWrapping="Wrap"                                       Margin="0,8,0,0"/>                        </StackPanel>                    </Border>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>
