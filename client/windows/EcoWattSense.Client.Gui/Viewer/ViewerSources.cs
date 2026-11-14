@@ -19,7 +19,8 @@ public static class ViewerSources
     private static readonly WindowsActivityMonitor Activity = new();
     private static readonly WindowsPowerMonitor Power = new();
 
-    private static string DataFolder => Path.Combine(
+    /// <summary>The data folder of the service: &lt;ProgramData&gt;\EcoWattSense (SPEC 2.2).</summary>
+    public static string DataFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EcoWattSense");
 
     /// <summary>The folder that holds status.json: &lt;data&gt;\status\ (SPEC 2.2).</summary>
@@ -52,6 +53,23 @@ public static class ViewerSources
             return null;
         }
     }
+
+    /// <summary>Reads the battery charge.</summary>
+    /// <returns>The charge in percent (0 to 100), or null when Windows does not say or reports a value out of range.</returns>
+    public static int? ReadChargePercent()
+    {
+        try { return ToChargePercent(System.Windows.Forms.SystemInformation.PowerStatus.BatteryLifePercent); }
+        catch (Exception exception) when (exception is InvalidOperationException or PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Converts the charge fraction of Windows to a percent.</summary>
+    /// <param name="fraction">The fraction from 0.0 to 1.0.</param>
+    /// <returns>The rounded percent, or null when the fraction is outside 0 to 1 (Windows uses another value for "unknown").</returns>
+    private static int? ToChargePercent(float fraction)
+        => fraction is >= 0f and <= 1f ? (int)Math.Round(fraction * 100) : null;
 
     /// <summary>Reads the text of device-id.txt.</summary>
     /// <returns>The file text, or null when the file is missing or cannot be read.</returns>

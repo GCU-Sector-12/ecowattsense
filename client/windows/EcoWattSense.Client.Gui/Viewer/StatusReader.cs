@@ -49,7 +49,7 @@ public static class StatusReader
     /// <param name="path">The full path of status.json.</param>
     /// <returns>The text, or null when the file is missing, too big or cannot be opened. The service renames a new file over the old
     /// one, so a failed read is normal for a moment and the next change event reads again.</returns>
-    private static string? TryReadText(string path)
+    internal static string? TryReadText(string path)
     {
         try { return ReadLimited(path); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
