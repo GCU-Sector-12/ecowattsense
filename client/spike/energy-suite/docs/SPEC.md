@@ -316,7 +316,7 @@ device_type=laptop
 - `<data>\history\<yyyy-MM-dd>.csv`, UTC date. Files older than 2 days are deleted at the change of day.
 - First line: `v1,ts_utc,seconds,on_battery,state,idle_s,cpu_pct,device_w,measured_w,battery_w,level`
 - One row per minute, appended, opened with shared read. An unknown value is an empty field.
-- `device_w`: power of the whole computer (measured or from the model). `measured_w`: the part read from hardware. `battery_w`: battery flow, negative when discharging.
+- `device_w`: power of the whole computer. On battery it is the measured battery power, that is `battery_w` with the sign turned (Darek's decision, 14 Nov 2026); it is empty when the battery change of the minute is unknown. On mains it is the power of section 4.2 (measured or from the model). `measured_w`: the part read from hardware. `battery_w`: battery flow, negative when discharging.
 - Readers skip a row they cannot parse and count it.
 
 ## 8. Calibration model
