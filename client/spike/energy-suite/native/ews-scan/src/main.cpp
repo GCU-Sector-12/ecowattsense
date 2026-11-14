@@ -18,6 +18,7 @@
 #include "ews/handles.h"
 #include "ews/intel_dtt.h"
 #include "ews/pawnio.h"
+#include "ews/version.h"
 #include "ews/machine_info.h"
 #include "ews/power_meter.h"
 #include "ews/scan.h"
@@ -69,6 +70,7 @@ void PrintSourceLine(const char* id, const ews::SourceCommon& c) {
 
 /// Prints one short line per source, then level, calibration and device type.
 void PrintSummary(const ews::ScanResult& result) {
+    std::printf("ews-scan %s\n", ews::kSuiteVersion);
     PrintSourceLine("emi", result.emi.common);
     PrintSourceLine("battery", result.battery.common);
     PrintSourceLine("acpi_power_meter", result.powerMeter.common);

@@ -41,6 +41,8 @@ public static class Program
         ClientCloseChecks.Run();
         NavChecks.Run();
         ProgressChecks.Run();
+        UpgradeChecks.Run();
+        ServerArgChecks.Run();
         Console.WriteLine($"{Harness.Total - Harness.Failed} passed, {Harness.Failed} failed, {Harness.Total} checks");
         return Harness.Failed;
     }

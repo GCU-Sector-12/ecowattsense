@@ -89,6 +89,7 @@
                 <StackPanel Grid.Row="3">
                     <TextBlock Text="Save Energy," Foreground="White" FontWeight="SemiBold"/>
                     <TextBlock Text="A Greener Tomorrow" Foreground="#C1D8CF" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="VersionText" Foreground="#C1D8CF" FontSize="12" Margin="0,14,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -130,7 +131,7 @@
                 </StackPanel>
 
                 <StackPanel x:Name="PageInstall" Visibility="Collapsed">
-                    <TextBlock Text="Install" Style="{StaticResource Heading}"/>
+                    <TextBlock x:Name="InstallHeading" Text="Install" Style="{StaticResource Heading}"/>
                     <TextBlock x:Name="InstallText" Style="{StaticResource Body}"/>
                     <StackPanel x:Name="StepList" Margin="0,6,0,10"/>
                     <ProgressBar x:Name="InstallBar" Height="10" Minimum="0" Visibility="Collapsed"/>

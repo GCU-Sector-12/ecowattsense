@@ -35,6 +35,16 @@ public static class InstallTitles
         "register_service", "start_service", "autostart_task", "device_name",
     ];
 
+    /// <summary>The step names of the upgrade in running order (no configuration, no computer name).</summary>
+    public static readonly string[] UpgradeOrder =
+    [
+        "close_client", "stop_old_service", "copy_programs", "data_folders", "start_service", "autostart_task",
+    ];
+
+    /// <summary>The step list of a mode.</summary>
+    /// <param name="upgrade">True for the upgrade list.</param>
+    public static string[] OrderFor(bool upgrade) => upgrade ? UpgradeOrder : Order;
+
     private static readonly Dictionary<string, string> Titles = new()
     {
         ["stop_old_service"] = "Stopping the old service",
