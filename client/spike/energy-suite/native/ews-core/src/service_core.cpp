@@ -25,6 +25,11 @@ namespace {
 /// A tick that comes after more than this many tick lengths (or with the clock gone back) is a gap.
 constexpr int kGapTickFactor = 3;
 
+/// A held history row is written with empty battery fields once its minute began more than this many seconds ago
+/// (15 minutes). Why: a gauge that stays still for a quarter of an hour is not a coarse step but a missing
+/// measurement; spreading a later fall over so long a time would hide real changes in load, and rows must not wait for ever.
+constexpr std::int64_t kMaxHeldSeconds = 15 * 60;
+
 /// @return The processor load between two snapshots, or nothing when either read failed or the counters are not usable.
 std::optional<double> CpuBetween(const Snapshot& previous, const Snapshot& current) {
     if (!previous.cpu.has_value() || !current.cpu.has_value()) {
@@ -63,6 +68,20 @@ void UseBatteryPowerOnBattery(HistoryRow& row) {
         return;
     }
     row.deviceW = row.batteryW.has_value() ? std::optional<double>(0.0 - *row.batteryW) : std::nullopt;
+}
+
+/// @param row A held history row.
+/// @param nowUnix The time of the minute being recorded, in Unix seconds.
+/// @return True when the minute of the row began more than kMaxHeldSeconds before now.
+bool HeldTooLong(const HistoryRow& row, std::int64_t nowUnix) {
+    return nowUnix - (row.timestampUnix - row.seconds) > kMaxHeldSeconds;
+}
+
+/// @param row The history row of a minute.
+/// @param battery The battery change of that minute after the check of SPEC 4.3.
+/// @return True when the computer ran on battery and the gauge did not move (change exactly 0), SPEC 7.
+bool IsStillMinute(const HistoryRow& row, const MinuteBattery& battery) {
+    return row.onBattery && battery.changeUj.has_value() && *battery.changeUj == 0.0;
 }
 
 }  // namespace
@@ -175,6 +194,8 @@ void ServiceCore::BeginInterval(const Snapshot& at) {
 Snapshot ServiceCore::CloseEarly(bool trySend) {
     Snapshot now = TakeSnapshot();
     ProcessMinute(now);
+    // The power source changes, the computer sleeps or the service stops: nothing more can share a fall.
+    WriteHeldRows(std::nullopt);
     FinishInterval(now, trySend);
     return now;
 }
@@ -240,35 +261,91 @@ void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const s
 }
 
 void ServiceCore::RecordRow(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds) {
+    ExpireHeldRows(row.timestampUnix);
     // An impossible minute waits for the first possible minute after it (SPEC 4.3).
     if (battery.jump) {
-        heldRows_.push_back(HeldRow{row, time, true});
+        HoldRow(row, time, seconds, true, false);
         return;
     }
-    bool holding = !heldRows_.empty();
+    // A minute where the gauge did not move waits for the next fall and shares it (SPEC 7).
+    if (IsStillMinute(row, battery)) {
+        HoldRow(row, time, seconds, false, true);
+        return;
+    }
+    if (heldRows_.empty()) {
+        WriteRow(row, time);
+        return;
+    }
     // A minute with an unknown change does not resolve anything; it queues behind the held rows to keep the order.
-    if (holding && !battery.changeUj.has_value()) {
-        heldRows_.push_back(HeldRow{row, time, false});
+    if (!battery.changeUj.has_value()) {
+        HoldRow(row, time, seconds, false, false);
         return;
     }
-    if (holding) {
-        interval_->ResolveBatteryJumps(*battery.changeUj / seconds);
-    }
-    WriteHeldRows(row.batteryW);
-    WriteRow(row, time);
+    ResolveHeldRows(row, time, battery, seconds);
 }
 
-void ServiceCore::WriteHeldRows(const std::optional<double>& replacedWatts) {
+void ServiceCore::HoldRow(const HistoryRow& row, UtcTime time, double seconds, bool replace, bool still) {
+    heldRows_.push_back(HeldRow{row, time, seconds, replace, still});
+}
+
+ServiceCore::HeldTotals ServiceCore::SummariseHeld() const {
+    HeldTotals totals;
+    for (const HeldRow& held : heldRows_) {
+        totals.stillSeconds += held.still ? held.seconds : 0.0;
+        totals.stillRows += held.still ? 1 : 0;
+        totals.jumpRows += held.replace ? 1 : 0;
+    }
+    return totals;
+}
+
+void ServiceCore::ResolveHeldRows(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds) {
+    // The fall is shared by the still minutes and this minute, in proportion to their seconds, so every one of them
+    // shows the same power. A held impossible minute gets that power too (its own seconds times it).
+    HeldTotals totals = SummariseHeld();
+    double shareSeconds = totals.stillSeconds + seconds;
+    std::optional<double> shareWatts = ToWatts(battery.changeUj, shareSeconds);
+    interval_->ResolveBatteryJumps(*battery.changeUj / shareSeconds);
+    if (totals.stillRows > 0) {
+        Log(LogEvent::BatterySplit, {totals.stillRows});
+    }
+    WriteHeldRows(shareWatts);
+    HistoryRow resolved = row;
+    resolved.batteryW = shareWatts;
+    UseBatteryPowerOnBattery(resolved);
+    WriteRow(resolved, time);
+}
+
+void ServiceCore::ExpireHeldRows(std::int64_t nowUnix) {
+    while (!heldRows_.empty() && HeldTooLong(heldRows_.front().row, nowUnix)) {
+        WriteHeldRow(heldRows_.front(), std::nullopt);
+        heldRows_.erase(heldRows_.begin());
+    }
+}
+
+void ServiceCore::WriteHeldRow(HeldRow& held, const std::optional<double>& splitWatts) {
+    bool replaced = held.replace && splitWatts.has_value();
+    batteryReplaced_ += replaced ? 1 : 0;
+    // An empty value stays empty: the battery change of the row is unknown.
+    bool takesShare = held.replace || held.still;
+    held.row.batteryW = takesShare ? splitWatts : held.row.batteryW;
+    UseBatteryPowerOnBattery(held.row);
+    WriteRow(held.row, held.time);
+}
+
+void ServiceCore::WriteHeldRows(const std::optional<double>& splitWatts) {
     for (HeldRow& held : heldRows_) {
-        bool replaced = held.replace && replacedWatts.has_value();
-        batteryReplaced_ += replaced ? 1 : 0;
-        held.row.batteryW = replaced ? replacedWatts : held.row.batteryW;
-        UseBatteryPowerOnBattery(held.row);
-        WriteRow(held.row, held.time);
+        WriteHeldRow(held, splitWatts);
     }
     heldRows_.clear();
 }
 
+void ServiceCore::ReleaseHeldRowsAtIntervalEnd() {
+    // Still minutes may wait across the end of an interval: the report keeps the raw change, only the history is shared.
+    // An impossible minute cannot wait, because no possible minute of its interval can follow now (SPEC 4.3).
+    if (SummariseHeld().jumpRows > 0) {
+        WriteHeldRows(std::nullopt);
+    }
+}
 void ServiceCore::WriteRow(const HistoryRow& row, UtcTime time) {
     Reading<bool> written = AppendHistoryRow(settings_.dataDir, time, kHistoryHeader, FormatHistoryRow(row));
     // One line when the writing starts to fail, not one per minute.
@@ -297,6 +374,7 @@ bool ServiceCore::IsGap(const Snapshot& current) const {
 
 void ServiceCore::HandleGap(const Snapshot& current) {
     Log(LogEvent::GapDetected);
+    WriteHeldRows(std::nullopt);
     FinishInterval(previous_, true);
     BeginInterval(current);
 }

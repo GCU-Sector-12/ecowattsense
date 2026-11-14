@@ -72,8 +72,7 @@ std::filesystem::path ModelPath(const std::wstring& dataDir) { return std::files
 }  // namespace
 
 void ServiceCore::FinishInterval(const Snapshot& at, bool trySend) {
-    // Rows still held have no possible minute after them in this interval: they are written as they are (unknown).
-    WriteHeldRows(std::nullopt);
+    ReleaseHeldRowsAtIntervalEnd();
     if (!interval_.has_value()) {
         return;
     }

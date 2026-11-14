@@ -42,7 +42,8 @@ enum class LogEvent {
     StatusWriteFailed, ///< status.json could not be written.
     GapDetected,       ///< A tick came much later than expected (long sleep); the interval was closed at the last read.
     BatteryJump,       ///< numbers: how many impossible battery changes were found since the last report.
-    BatteryReplaced    ///< numbers: how many impossible battery changes were replaced by a later possible one since the last report.
+    BatteryReplaced,   ///< numbers: how many impossible battery changes were replaced by a later possible one since the last report.
+    BatterySplit       ///< numbers: how many held minutes shared one battery fall in a history split (SPEC 7).
 };
 
 /// @param event An event.

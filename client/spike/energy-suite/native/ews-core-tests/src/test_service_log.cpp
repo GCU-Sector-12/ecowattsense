@@ -54,6 +54,7 @@ EWS_TEST(LogEventWordsAreFixed) {
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::CountedError)) == "counted_error");
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::BatteryJump)) == "battery_jump");
     CHECK(std::string(ews::LogEventWord(ews::LogEvent::BatteryReplaced)) == "battery_replaced");
+    CHECK(std::string(ews::LogEventWord(ews::LogEvent::BatterySplit)) == "battery_split");
 }
 
 EWS_TEST(LogLineFormat) {

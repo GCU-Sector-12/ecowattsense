@@ -190,7 +190,13 @@ private:
                        const MinuteEnergy& energy, const MinuteBattery& battery);
     void RecordRow(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds);
     void WriteRow(const HistoryRow& row, UtcTime time);
-    void WriteHeldRows(const std::optional<double>& replacedWatts);
+    struct HeldRow;
+    void HoldRow(const HistoryRow& row, UtcTime time, double seconds, bool replace, bool still);
+    void ResolveHeldRows(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds);
+    void ExpireHeldRows(std::int64_t nowUnix);
+    void WriteHeldRow(HeldRow& held, const std::optional<double>& splitWatts);
+    void WriteHeldRows(const std::optional<double>& splitWatts);
+    void ReleaseHeldRowsAtIntervalEnd();
     void CleanHistoryOnNewDay(UtcTime now);
     bool IsGap(const Snapshot& current) const;
     void HandleGap(const Snapshot& current);
@@ -244,13 +250,23 @@ private:
     std::string lastDate_;
     bool historyFailing_ = false;
 
-    /// A history row held back because its battery change was impossible (SPEC 4.3), or that came after one.
+    /// A history row held back: its battery change was impossible (SPEC 4.3), or the gauge did not move on battery
+    /// (SPEC 7), or it came after such a row.
     struct HeldRow {
         HistoryRow row;
         UtcTime time{};
+        double seconds = 0.0;  ///< The exact length of the minute; the split of a fall is in proportion to it.
         bool replace = false;  ///< True for the impossible minute itself: its battery power is replaced when a possible minute follows.
+        bool still = false;    ///< True for a minute on battery whose charge did not fall: it shares the next fall.
     };
     std::vector<HeldRow> heldRows_;
+    /// What the held rows add up to, for the split of a fall.
+    struct HeldTotals {
+        double stillSeconds = 0.0;
+        int stillRows = 0;
+        int jumpRows = 0;  ///< Held impossible minutes (SPEC 4.3).
+    };
+    HeldTotals SummariseHeld() const;
     int batteryJumps_ = 0;     ///< Impossible battery changes since the last report.
     int batteryReplaced_ = 0;  ///< Replacements since the last report.
 

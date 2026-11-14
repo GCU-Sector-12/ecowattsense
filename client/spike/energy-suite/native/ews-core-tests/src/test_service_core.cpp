@@ -580,12 +580,139 @@ EWS_TEST(ServiceDeviceWOnMainsStaysThePowerOfTheMinute) {
     CHECK(HistoryField(rig.History(), 1, 7) == "9.320");
 }
 
-EWS_TEST(ServiceDeviceWOnBatteryWithAZeroChangeIsZero) {
+EWS_TEST(ServiceDeviceWOnBatteryWithAZeroChangeIsHeldAndEmptyWhenTheServiceStops) {
     Rig rig("devw-zero");
     rig.power.Set(true);
     SetCharge(rig, 30000);
     StartOk(rig);
-    rig.Ticks(1);  // the charge did not change
-    CHECK(HistoryField(rig.History(), 1, 9) == "0.000");
-    CHECK(HistoryField(rig.History(), 1, 7) == "0.000");
+    rig.Ticks(1);  // the charge did not change: the row is held back (SPEC 7)
+    CHECK(CountLines(rig.History()) == 0);
+    rig.core.Stop();  // nothing fell before the stop: the held row is written with empty battery fields
+    CHECK(HistoryField(rig.History(), 1, 9) == "");
+    CHECK(HistoryField(rig.History(), 1, 7) == "");
+}
+
+EWS_TEST(ServiceStillMinuteSharesTheNextFallWithIt) {
+    Rig rig("split-two");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(1);
+    SetCharge(rig, 29909);  // -91 mWh over the still minute and this one: 91 x 3.6 / 120 s = 2.730 W each
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 3);
+    CHECK(HistoryField(rig.History(), 1, 9) == "-2.730");
+    CHECK(HistoryField(rig.History(), 1, 7) == "2.730");
+    CHECK(HistoryField(rig.History(), 2, 9) == "-2.730");
+    CHECK(HistoryField(rig.History(), 2, 7) == "2.730");
+    CHECK(Occurrences(rig.Log(), " battery_split 1\n") == 1);
+}
+
+EWS_TEST(ServiceThreeStillMinutesShareAFallOfFortyMilliwattHours) {
+    Rig rig("split-four");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(3);
+    SetCharge(rig, 29960);  // 40 x 3.6 / 240 s = 0.600 W for each of the four rows
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 5);
+    CHECK(Occurrences(rig.History(), ",-0.600,L2\n") == 4);
+    CHECK(Occurrences(rig.Log(), " battery_split 3\n") == 1);
+}
+
+EWS_TEST(ServiceStillMinuteWhenThePowerSourceChangesIsWrittenEmpty) {
+    Rig rig("split-source");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(1);
+    rig.clock.Advance(6);
+    rig.power.Set(false);
+    rig.core.PowerSourceChanged();
+    // The 60 s row and the 6 s row were both still minutes on battery: both are written with empty battery fields.
+    CHECK(CountLines(rig.History()) == 3);
+    CHECK(HistoryField(rig.History(), 1, 9) == "");
+    CHECK(HistoryField(rig.History(), 1, 7) == "");
+    CHECK(HistoryField(rig.History(), 2, 9) == "");
+    CHECK(HistoryField(rig.History(), 2, 7) == "");
+    CHECK(Occurrences(rig.Log(), " battery_split") == 0);
+}
+
+EWS_TEST(ServiceStillMinutesHeldLongerThanFifteenMinutesAreWrittenEmpty) {
+    Rig rig("split-long");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(16);
+    // Only the first minute has been held for more than 900 s.
+    CHECK(CountLines(rig.History()) == 2);
+    CHECK(HistoryField(rig.History(), 1, 9) == "");
+    CHECK(HistoryField(rig.History(), 1, 7) == "");
+}
+
+EWS_TEST(ServiceJumpRowBehindAStillMinuteGetsTheSplitPower) {
+    Rig rig("split-jump");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 25000);  // impossible: held for replacement
+    rig.Ticks(1);
+    rig.Ticks(1);  // still
+    SetCharge(rig, 24960);  // -40 mWh over the still minute and this one: 40 x 3.6 / 120 s = 1.200 W
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 4);
+    CHECK(Occurrences(rig.History(), ",-1.200,L2\n") == 3);
+}
+
+EWS_TEST(ServiceNormalFallWithNoHeldMinuteIsWrittenAtOnce) {
+    Rig rig("split-none");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    SetCharge(rig, 29989);
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 2);
+    CHECK(HistoryField(rig.History(), 1, 9) == "-0.660");
+    CHECK(Occurrences(rig.Log(), " battery_split") == 0);
+}
+
+EWS_TEST(ServiceReportKeepsTheRawBatteryChangeWhenMinutesWereHeld) {
+    Rig rig("split-report");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(2);
+    SetCharge(rig, 29960);
+    rig.Ticks(1);
+    SetCharge(rig, 29949);
+    rig.Ticks(1);
+    SetCharge(rig, 29938);
+    rig.Ticks(1);
+    // End minus start: 62 mWh = 223 200 000 uJ, whatever the history rows show.
+    CHECK(rig.senders.batches.size() == 1);
+    CHECK(Has(rig.SentLine(0, 0), "\"battery_energy_uj\":-223200000"));
+    CHECK(CountLines(rig.History()) == 6);
+}
+
+EWS_TEST(ServiceStillMinutesStayHeldWhenAnIntervalEnds) {
+    Rig rig("split-interval");
+    rig.power.Set(true);
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(5);  // the interval ends with five held minutes
+    CHECK(rig.senders.batches.size() == 1);
+    CHECK(CountLines(rig.History()) == 0);
+    SetCharge(rig, 29940);  // 60 x 3.6 / 360 s = 0.600 W for six rows
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 7);
+    CHECK(Occurrences(rig.History(), ",-0.600,L2\n") == 6);
+}
+
+EWS_TEST(ServiceMainsMinutesWithNoChangeAreNeverHeld) {
+    Rig rig("split-mains");
+    SetCharge(rig, 30000);
+    StartOk(rig);
+    rig.Ticks(1);
+    CHECK(CountLines(rig.History()) == 2);
 }
