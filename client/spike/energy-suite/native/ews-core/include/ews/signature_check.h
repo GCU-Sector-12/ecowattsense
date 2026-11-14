@@ -15,7 +15,7 @@ inline constexpr char kSigningThumbprintPlaceholder[] = "PENDING_THUMBPRINT";
 
 /// The pinned SHA-1 thumbprint (40 hex digits, any case) of the EcoWattSense signing certificate.
 /// This is the one place of the native code that holds it.
-inline constexpr char kSigningThumbprint[] = "PENDING_THUMBPRINT";
+inline constexpr char kSigningThumbprint[] = "F53EC709CE14C833AECF191E11DAB909446B6CBA";
 
 /// WinVerifyTrust results the decision knows (HRESULT values, written here so the pure code needs no Windows header).
 inline constexpr std::int32_t kTrustOk = 0;

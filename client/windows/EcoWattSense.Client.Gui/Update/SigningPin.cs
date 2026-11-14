@@ -12,5 +12,5 @@ public static class SigningPin
     public const string Placeholder = "PENDING_THUMBPRINT";
 
     /// <summary>The SHA-1 thumbprint (40 hex digits, any case) of the signing certificate, or <see cref="Placeholder"/>.</summary>
-    public const string Thumbprint = "PENDING_THUMBPRINT";
+    public const string Thumbprint = "F53EC709CE14C833AECF191E11DAB909446B6CBA";
 }
