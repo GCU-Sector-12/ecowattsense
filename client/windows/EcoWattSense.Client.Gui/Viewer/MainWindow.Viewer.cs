@@ -75,6 +75,7 @@ public partial class MainWindow
         LevelLineValue.Text = ViewerText.LevelLine(status.Level);
         PowerSourceViewerValue.Text = ViewerText.PowerSource(ViewerSources.ReadOnBattery());
         LastReportValue.Text = ViewerText.LastReport(status, zone);
+        ShowSendNow(status);
         CalibratedValue.Text = ViewerText.Calibrated(status, zone);
         DeviceIdValue.Text = ViewerText.ShortId(ViewerSources.ReadDeviceIdText());
         ShowSettings(SettingsReader.Read(ViewerSources.StatusFile));

@@ -387,6 +387,7 @@ The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. 
 - 24 h view: its own control. A line of `device_w` per minute for the last 24 hours from the history files, with a band for the state. Each state is shown with a word and a colour (Active, Idle, Unused). Gaps stay gaps.
 - The view refreshes on a file change event of `history\` and `status\`, and only while the window is visible. Drawing is done by WPF shapes; no frame-by-frame redraw.
 - Text fields, if any, are left-aligned with the label above or to the left.
+- Send now: on the "Last report" card, under the report time, the line "Waiting to send: N reports" (`queued` of `status.json`; "All reports sent." for 0; no line when the field is missing) and the button "Send now", enabled when N > 0 and a server is set (`server_url` not empty and `server_key_set` true). A click writes `EWS1 send\n` to the session pipe, shows "Sending..." until the next `status.json` change and disables the button for 30 s; a failed write shows "The service did not answer."
 - Calibrate button: on the "Calibrated" card, under the date of the model. It starts `EnergyCalibrator.exe` as the same user, without elevation. It is enabled only when none of these four reasons applies; the first one that applies is shown as a line under the button:
   1. a calibration is running: "Calibration is running."
   2. the calibrator was not found: "Calibrator not found."
