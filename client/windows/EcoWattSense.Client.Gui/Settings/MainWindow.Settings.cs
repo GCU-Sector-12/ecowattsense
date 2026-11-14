@@ -32,6 +32,7 @@ public partial class MainWindow
         SettingsNav.Visibility = Visibility.Visible;
         SettingsDataFolder.Text = ViewerSources.DataFolder;
         ShowSettings(SettingsReader.Read(ViewerSources.StatusFile));
+        _ = CheckForUpdateAsync();
     }
 
     /// <summary>Shows the page of the "This computer" item.</summary>
@@ -57,6 +58,7 @@ public partial class MainWindow
         ComputerNav.Background = settings ? Brushes.Transparent : SelectedNavBrush;
         SettingsNav.Background = settings ? SelectedNavBrush : Brushes.Transparent;
         if (settings) _ = RefreshAutostartAsync();
+        if (settings) _ = CheckForUpdateAsync();
     }
 
     /// <summary>Fills the page from the checked status.json fields.</summary>
