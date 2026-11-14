@@ -1,0 +1,30 @@
+<!--
+  EcoWattSense.Setup.csproj: build file of Setup.exe, the installer of the EcoWattSense energy suite (SPEC section 10).
+  Who uses it: dotnet build, and the packaging script that copies the output next to the other programs.
+  The only package is System.ServiceProcess.ServiceController from Microsoft; it starts and stops the service.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>EcoWattSense.Setup</RootNamespace>
+    <AssemblyName>Setup</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>
+
