@@ -12,6 +12,7 @@
 #include "ews/service_args.h"
 #include "ews/service_core.h"
 #include "pipe_server.h"
+#include "network_watch.h"
 
 namespace ews_service {
 
@@ -56,6 +57,7 @@ private:
     ews::WinHttpSenderFactory senders_;
     ews::ServiceCore core_;
     std::unique_ptr<PipeServer> pipe_;
+    std::unique_ptr<NetworkWatch> network_;
     ews::UniqueHandle timer_;
     bool done_ = false;
     int ticks_ = 0;

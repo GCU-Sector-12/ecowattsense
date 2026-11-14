@@ -270,10 +270,12 @@ Formats: `timestamp` as `2026-11-14T10:05:00Z` (UTC, whole seconds). `interval_s
 - `<data>\queue\reports.jsonl`: one report per line, oldest first, at most 2016 lines (7 days). When full, the oldest line is dropped and counted in the log.
 - Send: `POST <server_url>/api/reports`, header `X-EWS-Key`, body a list of up to 100 reports, WinHTTP, 10 second timeout, no redirects. HTTPS only; HTTP is allowed only for loopback.
 - 200 or 201: sent lines leave the queue. An item marked `rejected` leaves the queue and is counted.
-- 401, 429, 5xx, network error: the queue stays. The next try waits 1, 2, 4, ... up to 60 intervals.
+- 401, 429, 5xx, network error: the queue stays. The next try waits 1, 2, 4, ... report intervals, never more than 30 minutes (the cap is 1800 divided by `interval_seconds` intervals, at least 1). A success resets the wait.
 - Any other 4xx answer: the sent lines leave the queue and are counted as rejected, because a retry cannot fix them.
 - The certificate of the server is always checked. The answer is read up to 64 KB; more is ignored.
-- Sending happens only at a report tick.
+- Sending happens at a report tick, and also at the two events below. Both reset the wait, run on the service thread (no second sending thread, no polling) and do nothing when sending is off, no server is set or the queue is empty. Afterwards `status.json` is written as after any send.
+  - Network back: the service registers with Windows for connectivity changes (`NotifyNetworkConnectivityHintChange`; when it is missing, `NotifyIpInterfaceChange`). The callback only posts an event. On "internet reachable" (an interface added, in the fallback) the service tries a send at once. Log word `send_on_network`.
+  - Send command: the pipe message `EWS1 send\n` (section 6) tries a send at once, at most once in 30 seconds; a later one in that window is dropped and counted. Log word `send_requested`.
 - `server_enabled=0`: reports are queued and not sent.
 
 ### 5.6 `service.ini`
@@ -322,6 +324,7 @@ The service also writes the settings it uses, because the client cannot read `co
 - Name `\\.\pipe\EcoWattSense.Service.Session`. The service is the server. Inbound only, message mode, remote clients refused. The code asks for a maximum of 4 instances but creates and serves only one at a time: it takes one client, reads one message (5 second time limit), disconnects, and listens again. A second client at the same moment finds the pipe busy and tries again later. The first instance is created with the "first instance" flag, so the service does not start listening when another program already owns the name (a counted error, the service runs on without the pipe).
 - Access, as the security descriptor string `D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x120196;;;IU)`: three allow rules and nothing else. SYSTEM (`SY`) and Administrators (`BA`) have full access. Interactive users (`IU`, anybody logged on at a screen or over remote desktop) have mask `0x120196`: write data, append data, write extended attributes, write attributes, read attributes, read control and synchronise. That is enough for a client to open the pipe and write to it, and not to read what other clients send. Other accounts, services and network users have no access.
 - One message, ASCII, at most 128 bytes: `EWS1 idle=<seconds> bright=<0-100 or ->\n`
+- A second message is accepted: the exact text `EWS1 send\n` (10 bytes, nothing else). It asks the service to try a send of the queued reports at once (section 5.5). The same rules apply (the client session must be active); anything that is neither this text nor the activity message is dropped and counted.
 - The client sends one message every 60 seconds and one on each unlock.
 - The service accepts a message only when the client's session is in the state "active" (the physical console or a remote desktop session; a user who works over remote desktop is not in the console session). A malformed or out-of-range message is dropped and counted.
 - "Somebody is logged on" means: at least one session is active and has a user name. The service works this out from the session list at its start and again on every session event; it never polls.
