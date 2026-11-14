@@ -32,11 +32,12 @@
 #include "ews/status_format.h"
 #include "ews/status_keep.h"
 #include "ews/utc_stamp.h"
+#include "ews/version.h"
 
 namespace ews {
 
 /// The version text written to status.json.
-inline constexpr const char* kServiceVersion = "0.1.0";
+inline constexpr const char* kServiceVersion = kSuiteVersion;
 
 /// The clock. Tests use a fake that they move by hand.
 class IClock {

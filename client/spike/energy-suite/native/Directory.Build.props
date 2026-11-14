@@ -5,6 +5,7 @@
 <Project>
   <PropertyGroup>
     <IgnoreWarnIntDirInTempDetected>true</IgnoreWarnIntDirInTempDetected>
+    <EwsVersionDefine Condition="'$(EwsVersion)'!=''">EWS_VERSION=$(EwsVersion);</EwsVersionDefine>
     <NativeRoot>$(MSBuildThisFileDirectory)</NativeRoot>
     <OutDir>$(NativeRoot)out\$(Configuration)\</OutDir>
     <IntDir>$(NativeRoot)obj\$(MSBuildProjectName)\$(Configuration)\</IntDir>
@@ -16,7 +17,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;$(EwsVersionDefine)%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <!-- /utf-8: sources are UTF-8. /external: Windows SDK headers do not raise our warnings. IgnoreWarnIntDirInTempDetected: a checkout under a temp folder (agent worktrees) must still build with 0 warnings. -->
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <AdditionalOptions>/utf-8 /external:anglebrackets %(AdditionalOptions)</AdditionalOptions>

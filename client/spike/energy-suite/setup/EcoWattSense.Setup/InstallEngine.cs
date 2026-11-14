@@ -139,7 +139,7 @@ public sealed class ConfigWriter
 }
 
 /// <summary>The install: check, scan, copy, rights, configuration, service, autostart, calibration.</summary>
-public sealed class InstallEngine
+public sealed partial class InstallEngine
 {
     private readonly SetupServices _services;
     private readonly SetupLayout _layout;
@@ -347,7 +347,7 @@ public sealed class InstallEngine
     private int StepTask()
     {
         _services.Tasks.Delete(SetupLayout.TaskName);
-        string clientType = Scan?.DeviceType == "laptop" ? "laptop" : "desktop";
+        string clientType = ClientDeviceType();
         string xml = TaskXml.Build(_layout.ClientExe, _layout.ProgramDir, clientType);
         return _services.Tasks.Register(SetupLayout.TaskName, xml);
     }

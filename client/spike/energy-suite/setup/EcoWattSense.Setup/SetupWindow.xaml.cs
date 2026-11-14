@@ -1,7 +1,7 @@
 // SetupWindow.xaml.cs: code behind of the Setup window.
 // Who uses it: App creates one window per run. The window only shows pages and collects input; every real action is done
 // by InstallEngine and MaintenanceEngine, which run on a worker thread so the window stays responsive.
-// Pages: 0 Scan, 1 Server, 2 Install, 3 Calibration, 4 Uninstall. Install mode walks 0 to 3; /settings shows page 1 only;
+// Pages: 0 Scan, 1 Server, 2 Install, 3 Calibration, 4 Uninstall. Install mode walks 0 to 3; /upgrade shows page 2 only and runs at once; /settings shows page 1 only;
 // /uninstall shows page 4 only. The server key is read once from the password box, passed on and cleared.
 using System.Windows;
 using System.Windows.Controls;
@@ -9,7 +9,7 @@ using System.Windows.Media;
 
 namespace EcoWattSense.Setup;
 
-/// <summary>The three ways Setup can run.</summary>
+/// <summary>The four ways Setup can run.</summary>
 public enum SetupMode
 {
     /// <summary>The normal install or upgrade.</summary>
@@ -18,6 +18,8 @@ public enum SetupMode
     Settings,
     /// <summary>`Setup.exe /uninstall`.</summary>
     Uninstall,
+    /// <summary>`Setup.exe /upgrade`: no questions, keeps the configuration; falls back to Install without an installation.</summary>
+    Upgrade,
 }
 
 /// <summary>The Setup window.</summary>
@@ -33,6 +35,7 @@ public partial class SetupWindow : Window
     private readonly SetupLayout _layout;
     private readonly string _packageDir;
     private readonly string? _tempCopyDir;
+    private readonly string _offeredUrl;
     private readonly InstallEngine _install;
     private readonly MaintenanceEngine _maintenance;
     private readonly Func<Task>[] _nextActions;
@@ -57,7 +60,8 @@ public partial class SetupWindow : Window
     /// <param name="layout">The folders.</param>
     /// <param name="packageDir">The folder Setup runs from.</param>
     /// <param name="tempCopyDir">The temporary copy Setup runs from during an uninstall, or null.</param>
-    public SetupWindow(SetupMode mode, SetupServices services, SetupLayout layout, string packageDir, string? tempCopyDir)
+    /// <param name="serverUrl">The address offered by /server=; shown when none is stored.</param>
+    public SetupWindow(SetupMode mode, SetupServices services, SetupLayout layout, string packageDir, string? tempCopyDir, string serverUrl = "")
     {
         InitializeComponent();
         _mode = mode;
@@ -65,6 +69,7 @@ public partial class SetupWindow : Window
         _layout = layout;
         _packageDir = packageDir;
         _tempCopyDir = tempCopyDir;
+        _offeredUrl = serverUrl;
         SetupLog log = new(services, layout);
         DeviceNameSync deviceName = new(services, layout, ConnectionTester.CreateRealHandler(), () => StoredKeyReader.Read(layout.KeyFile), log);
         _install = new InstallEngine(services, layout, log, deviceName);
@@ -75,6 +80,7 @@ public partial class SetupWindow : Window
         _stepItems = [StepScanItem, StepServerItem, StepInstallItem, StepCalibrationItem];
         foreach (Border item in _stepItems) item.MouseLeftButtonUp += StepItem_Click;
         LoadServerValues();
+        VersionText.Text = "Version " + SetupVersion.Text;
         Loaded += Window_Loaded;
     }
 
@@ -82,6 +88,7 @@ public partial class SetupWindow : Window
     {
         PrepareForMode();
         if (_mode == SetupMode.Install) await RunPrepare();
+        if (_mode == SetupMode.Upgrade) await RunUpgrade();
     }
 
     /// <summary>Chooses the first page and the sidebar for the mode.</summary>
@@ -89,15 +96,17 @@ public partial class SetupWindow : Window
     {
         bool install = _mode == SetupMode.Install;
         StepScanItem.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
-        StepInstallItem.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
+        StepInstallItem.Visibility = install || _mode == SetupMode.Upgrade ? Visibility.Visible : Visibility.Collapsed;
         StepCalibrationItem.Visibility = install ? Visibility.Visible : Visibility.Collapsed;
         StepServerText.Text = _mode == SetupMode.Install ? "2  Server" : _mode == SetupMode.Settings ? "Settings" : "Uninstall";
         DevicePanel.Visibility = _mode == SetupMode.Settings ? Visibility.Visible : Visibility.Collapsed;
         AutostartBox.Visibility = DevicePanel.Visibility;
         ServerHeading.Text = _mode == SetupMode.Settings ? "Settings" : "Server";
         _nextTexts[1] = _mode == SetupMode.Settings ? "Save" : "Next";
-        Show(install ? 0 : _mode == SetupMode.Settings ? 1 : 4);
-        NextButton.IsEnabled = !install;
+        StepInstallText.Text = _mode == SetupMode.Upgrade ? "Update" : "3  Install";
+        InstallHeading.Text = _mode == SetupMode.Upgrade ? "Update" : "Install";
+        Show(FirstPage);
+        NextButton.IsEnabled = !install && _mode != SetupMode.Upgrade;
     }
 
     /// <summary>Shows one page, marks it in the sidebar and sets the buttons.</summary>
@@ -118,7 +127,42 @@ public partial class SetupWindow : Window
         for (int index = 0; index < _stepItems.Length; index++) _stepItems[index].Background = IsCurrent(index, current) ? ActiveBrush : Brushes.Transparent;
     }
 
-    private bool IsCurrent(int index, int current) => _mode != SetupMode.Install ? index == 1 : index == current;
+    private bool IsCurrent(int index, int current) => _mode switch
+    {
+        SetupMode.Install => index == current,
+        SetupMode.Upgrade => index == 2,
+        _ => index == 1,
+    };
+
+    /// <summary>The page shown first: Scan, Server (settings), Install page (upgrade) or Uninstall.</summary>
+    private int FirstPage => _mode switch
+    {
+        SetupMode.Install => 0,
+        SetupMode.Settings => 1,
+        SetupMode.Upgrade => 2,
+        _ => 4,
+    };
+
+    /// <summary>The step names of the list for this mode.</summary>
+    private string[] StepNames => InstallTitles.OrderFor(_mode == SetupMode.Upgrade);
+
+    /// <summary>
+    /// The upgrade page: no questions. Runs the upgrade at once with the step list and the bar, then shows
+    /// "Updated to &lt;version&gt;." and a Close button; a failure shows the message and Close.
+    /// </summary>
+    private async Task RunUpgrade()
+    {
+        SetBusy(true);
+        InstallText.Text = "Updating EcoWattSense. This can take a minute.";
+        BuildStepList();
+        IProgress<InstallProgress> progress = new Progress<InstallProgress>(ShowProgress);
+        StepOutcome outcome = await Task.Run(() => _install.Upgrade(_packageDir, SetupVersion.Text, progress));
+        _finished = true;
+        if (outcome.Ok) { CompleteWaitingRows(); InstallBar.Value = InstallBar.Maximum; }
+        InstallText.Text = outcome.Ok ? $"{outcome.Message} {outcome.Note}".Trim() : outcome.Message;
+        SetBusy(false);
+        Show(2);
+    }
 
     private async Task RunPrepare()
     {
@@ -223,10 +267,10 @@ public partial class SetupWindow : Window
         _marks.Clear();
         _texts.Clear();
         _doneSteps = 0;
-        InstallBar.Maximum = InstallTitles.Order.Length;
+        InstallBar.Maximum = StepNames.Length;
         InstallBar.Value = 0;
         InstallBar.Visibility = Visibility.Visible;
-        foreach (string name in InstallTitles.Order) StepList.Children.Add(MakeRow(name));
+        foreach (string name in StepNames) StepList.Children.Add(MakeRow(name));
     }
 
     private Grid MakeRow(string name)
@@ -281,7 +325,7 @@ public partial class SetupWindow : Window
     /// <summary>Marks a step that was skipped, for example the computer name when none was given, as done.</summary>
     private void CompleteWaitingRows()
     {
-        foreach (string name in InstallTitles.Order.Where(item => _marks[item].Text == MarkFor(StepState.Waiting))) SetMark(name, StepState.Done, InstallTitles.For(name));
+        foreach (string name in StepNames.Where(item => _marks[item].Text == MarkFor(StepState.Waiting))) SetMark(name, StepState.Done, InstallTitles.For(name));
     }
 
     private void FinishInstall(StepOutcome outcome)
@@ -392,7 +436,7 @@ public partial class SetupWindow : Window
     {
         string? ini = _services.Files.ReadText(_layout.IniFile);
         DeviceNameBox.Text = DeviceNameRules.FromFile(_services.Files.ReadText(_layout.DeviceNameFile));
-        UrlBox.Text = IniEditor.Get(ini, "server_url");
+        UrlBox.Text = ServerUrlRules.Prefill(IniEditor.Get(ini, "server_url"), _offeredUrl);
         _hadUrl = UrlBox.Text.Length > 0;
         SendBox.IsChecked = _hadUrl && IniEditor.Get(ini, "server_enabled") != "0";
         _keyStored = _services.Files.FileExists(_layout.KeyFile);
