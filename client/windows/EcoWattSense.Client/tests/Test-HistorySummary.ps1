@@ -38,4 +38,26 @@ Check ([math]::Abs((Energy $rows '2026-11-14T06:00:00Z' $plus2) - $expected) -lt
 Check ([math]::Abs((Energy $rows '2026-11-14T06:00:00Z' $utc) - (2000 * 60 / 3600000)) -lt 1e-12) 'same rows in UTC'
 # Late in the local evening the UTC date is still the same day but the local day has just ended.
 Check ($null -eq (Energy @((Row '2026-11-14T10:00:00Z' 100)) '2026-11-14T22:30:00Z' $plus2)) 'new local day has no rows yet'
+# Measured part only: a row with an empty device W but a measured W shows the measured value.
+function MRow($end, $device, $measured, $seconds = 60) {
+    [EcoWattSense.Client.Gui.History.HistoryRow]::new((Utc $end), $seconds, $false, 2, $null, $null, $device, $measured, $null, $null)
+}
+$summary = [EcoWattSense.Client.Gui.History.HistorySummary]
+$reading = $summary::PowerNowReading([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' $null 4.5)), (Utc '2026-11-14T10:01:00Z'))
+Check ($reading.Watts -eq 4.5 -and $reading.MeasuredOnly) 'measured part shown when device W is empty'
+$reading = $summary::PowerNowReading([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' 7.5 4.5)), (Utc '2026-11-14T10:01:00Z'))
+Check ($reading.Watts -eq 7.5 -and -not $reading.MeasuredOnly) 'device W wins over measured W'
+$reading = $summary::PowerNowReading([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' $null $null)), (Utc '2026-11-14T10:01:00Z'))
+Check ($null -eq $reading.Watts -and -not $reading.MeasuredOnly) 'both empty is unknown'
+$reading = $summary::PowerNowReading([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' $null 4.5)), (Utc '2026-11-14T10:03:00Z'))
+Check ($null -eq $reading.Watts) 'stale measured row is unknown'
+# Today with mixed rows: 1000 W device for 1800 s plus 1000 W measured for 1800 s = 1 kWh, flagged.
+$mixed = [EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' 1000 $null 1800), (MRow '2026-11-14T10:30:00Z' $null 1000 1800))
+$today = $summary::EnergyToday($mixed, (Utc '2026-11-14T12:00:00Z'), $utc)
+Check ([math]::Abs($today.Kwh - 1.0) -lt 1e-9 -and $today.IncludesMeasuredOnly) 'today from mixed rows'
+$today = $summary::EnergyToday([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-14T10:00:00Z' 1000 $null 3600)), (Utc '2026-11-14T12:00:00Z'), $utc)
+Check (-not $today.IncludesMeasuredOnly) 'device rows only are not flagged'
+$today = $summary::EnergyToday([EcoWattSense.Client.Gui.History.HistoryRow[]]@((MRow '2026-11-13T23:59:00Z' $null 1000 60), (MRow '2026-11-14T10:00:00Z' 1000 $null 3600)), (Utc '2026-11-14T12:00:00Z'), $utc)
+Check (-not $today.IncludesMeasuredOnly) 'a measured row of yesterday is not flagged'
+
 Write-Output "Passed $checks history summary checks."

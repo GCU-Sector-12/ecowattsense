@@ -31,7 +31,7 @@ public partial class MainWindow
     {
         LivePanel.Visibility = Visibility.Collapsed;
         ViewerPanel.Visibility = Visibility.Visible;
-        ShowHistorySummary(null, null);
+        ShowHistorySummary(new PowerReading(null, false), new TodayEnergy(null, false));
         // There is no activation pipe in viewer mode, so the tray icon is what brings a hidden window back.
         trayIcon.Visible = true;
         statusWatcher = new StatusFolderWatcher(ViewerSources.StatusFolder, "status.json");
@@ -49,18 +49,20 @@ public partial class MainWindow
     }
 
     /// <summary>Fills the Power now and Today cards from the history, which another part of the app reads.</summary>
-    /// <param name="powerNowWatts">The device power of the last history row in watts, or null when unknown.</param>
-    /// <param name="todayKwh">The energy of today in kilowatt hours, or null when unknown.</param>
+    /// <param name="power">The power of the last history row: device W, else the measured part (flagged).</param>
+    /// <param name="today">The energy of today in kilowatt hours, flagged when a row had only the measured part.</param>
     /// <remarks>May be called from any thread.</remarks>
-    public void ShowHistorySummary(double? powerNowWatts, double? todayKwh)
+    public void ShowHistorySummary(PowerReading power, TodayEnergy today)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(new Action<double?, double?>(ShowHistorySummary), DispatcherPriority.Normal, powerNowWatts, todayKwh);
+            Dispatcher.BeginInvoke(new Action<PowerReading, TodayEnergy>(ShowHistorySummary), DispatcherPriority.Normal, power, today);
             return;
         }
-        PowerNowValue.Text = ViewerText.Watts(powerNowWatts);
-        TodayValue.Text = ViewerText.Kilowatthours(todayKwh);
+        PowerNowValue.Text = ViewerText.Watts(power.Watts);
+        PowerNowNote.Text = ViewerText.PowerNote(power.MeasuredOnly);
+        PowerNowNote.Visibility = power.MeasuredOnly ? Visibility.Visible : Visibility.Collapsed;
+        TodayValue.Text = ViewerText.Kilowatthours(today.Kwh, today.IncludesMeasuredOnly);
     }
 
     /// <summary>Reads status.json and the other card sources and fills the cards.</summary>
@@ -133,8 +135,8 @@ public partial class MainWindow
         donutChart?.SetRows(result.Rows, nowUtc);
         ShowLastMeasurement(result.Rows);
         ShowHistorySummary(
-            HistorySummary.PowerNow(result.Rows, nowUtc),
-            HistorySummary.EnergyTodayKwh(result.Rows, nowUtc, TimeZoneInfo.Local));
+            HistorySummary.PowerNowReading(result.Rows, nowUtc),
+            HistorySummary.EnergyToday(result.Rows, nowUtc, TimeZoneInfo.Local));
     }
     /// <summary>Queues a refresh on the window thread when the status file changes.</summary>
     private void OnStatusChanged()

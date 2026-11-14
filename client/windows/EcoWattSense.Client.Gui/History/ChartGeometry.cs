@@ -25,6 +25,9 @@ namespace EcoWattSense.Client.Gui.History
         /// <summary>Line pieces. A missing minute or an empty value ends a piece.</summary>
         public List<List<ChartPoint>> Segments { get; } = new();
 
+        /// <summary>Line pieces of minutes with no device W but a measured W (drawn dashed).</summary>
+        public List<List<ChartPoint>> MeasuredSegments { get; } = new();
+
         /// <summary>Runs of minutes on battery.</summary>
         public List<ChartRect> BatteryRects { get; } = new();
 
@@ -68,17 +71,20 @@ namespace EcoWattSense.Client.Gui.History
 
             var layout = new ChartLayout();
             var line = new LineBuilder(layout.Segments);
+            var measuredLine = new LineBuilder(layout.MeasuredSegments);
             var battery = new RunBuilder(layout.BatteryRects);
             var states = new RunBuilder(layout.StateRects);
             double max = 0;
             for (int i = 0; i < SlotCount; i++)
             {
                 line.Feed(i, slots[i]?.DeviceW);
+                measuredLine.Feed(i, MeasuredOnly(slots[i]));
                 battery.Feed(i, BatteryKey(slots[i]));
                 states.Feed(i, StateKey(slots[i]));
-                max = Math.Max(max, slots[i]?.DeviceW ?? 0);
+                max = Math.Max(max, slots[i]?.DeviceW ?? MeasuredOnly(slots[i]) ?? 0);
             }
             line.Finish();
+            measuredLine.Finish();
             battery.Finish();
             states.Finish();
 
@@ -114,6 +120,9 @@ namespace EcoWattSense.Client.Gui.History
             if (index < 0 || index >= SlotCount) return;
             slots[index] = row;
         }
+
+        /// <summary>Gives the measured W of a row that has no device W, else null.</summary>
+        private static double? MeasuredOnly(HistoryRow? row) => row?.DeviceW == null ? row?.MeasuredW : null;
 
         private static int BatteryKey(HistoryRow? row) => row != null && row.OnBattery ? 1 : -1;
 

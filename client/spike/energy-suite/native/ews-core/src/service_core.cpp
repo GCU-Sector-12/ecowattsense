@@ -245,10 +245,11 @@ void ServiceCore::ProcessMinute(const Snapshot& current) {
     input.brightnessPct = CurrentBrightness();
     input.model = model_.has_value() ? &*model_ : nullptr;
     MinuteEnergy energy = CalculateMinuteEnergy(input);
+    MinuteEnergy shown = HistoryMinuteEnergy(input, energy);
     MinuteBattery battery = JudgeBatteryChange(previous_.battery, current.battery, onBattery_, seconds);
     batteryJumps_ += battery.jump ? 1 : 0;
     interval_->AddMinute(MakeIntervalMinute(seconds, cpuPercent, energy, battery));
-    AppendHistory(current, seconds, cpuPercent, energy, battery);
+    AppendHistory(current, seconds, cpuPercent, shown, battery);
     previous_ = current;
 }
 
@@ -263,7 +264,7 @@ void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const s
     row.state = ComputeState(idle, config_.idleThresholdSeconds, config_.unusedThresholdSeconds, !somebodyLoggedOn_);
     row.cpuPct = cpuPercent;
     row.deviceW = ToWatts(energy.deviceUj, seconds);
-    row.measuredW = energy.deviceUj.has_value() ? ToWatts(energy.measuredUj, seconds) : std::nullopt;
+    row.measuredW = energy.level != MeasureLevel::Unknown ? ToWatts(energy.measuredUj, seconds) : std::nullopt;
     row.batteryW = ToWatts(battery.changeUj, seconds);
     row.level = energy.level;
     UseBatteryPowerOnBattery(row);

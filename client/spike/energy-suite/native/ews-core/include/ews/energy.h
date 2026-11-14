@@ -14,11 +14,12 @@ enum class MeasureLevel {
     Unknown,  ///< The minute could not be calculated.
     L1,       ///< The EMI "system" channel measured the whole computer.
     L2,       ///< Processor package and memory measured, the rest from the model.
-    L3        ///< Everything from the model.
+    L3,       ///< Everything from the model.
+    L4        ///< No model: only the measured parts (history only, never in a report).
 };
 
 /// @param level A level.
-/// @return "L1", "L2" or "L3"; an empty text for Unknown.
+/// @return "L1" to "L4"; an empty text for Unknown.
 const char* MeasureLevelWord(MeasureLevel level);
 
 /// What the service knows about one minute. An std::optional that is empty is an unknown value.
@@ -48,5 +49,13 @@ struct MinuteEnergy {
 /// @param input The values of the minute.
 /// @return The level, the device energy and the measured part.
 MinuteEnergy CalculateMinuteEnergy(const MinuteInput& input);
+
+/// What the history shows for a minute. With a model, or when the minute is known, it is `calculated` unchanged.
+/// Without a model and with no known level, it is level L4: the known package and memory growth as the measured
+/// part and no device energy (the report does not use this; SPEC 7). Unknown when no part is known.
+/// @param input The values of the minute.
+/// @param calculated The result of CalculateMinuteEnergy for the same input.
+/// @return The minute for the history row.
+MinuteEnergy HistoryMinuteEnergy(const MinuteInput& input, const MinuteEnergy& calculated);
 
 }  // namespace ews

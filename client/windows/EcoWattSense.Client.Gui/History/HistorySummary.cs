@@ -11,6 +11,16 @@ namespace EcoWattSense.Client.Gui.History
     /// <summary>
     /// Sums and picks values from history rows.
     /// </summary>
+    /// <summary>Power now: the watts and whether they are the measured part only.</summary>
+    /// <param name="Watts">Device W, else measured W of the newest fresh row, or null.</param>
+    /// <param name="MeasuredOnly">True when device W was empty and Watts is the measured W.</param>
+    public readonly record struct PowerReading(double? Watts, bool MeasuredOnly);
+
+    /// <summary>Energy today: the kWh and whether any row was counted from the measured part only.</summary>
+    /// <param name="Kwh">The energy, or null when no row of today has a value.</param>
+    /// <param name="IncludesMeasuredOnly">True when at least one counted row had no device W.</param>
+    public readonly record struct TodayEnergy(double? Kwh, bool IncludesMeasuredOnly);
+
     public static class HistorySummary
     {
         /// <summary>A last row older than this is stale: the service is not writing.</summary>
@@ -33,7 +43,7 @@ namespace EcoWattSense.Client.Gui.History
         /// <summary>
         /// Energy today in kWh: the sum of device W times seconds over the rows that ended
         /// on today's day of the given time zone. A row belongs to the day it ended on.
-        /// Empty values are left out.
+        /// A row with no device W counts with its measured W. Empty values are left out.
         /// </summary>
         /// <param name="rows">Rows in any order.</param>
         /// <param name="nowUtc">The current time, Kind Utc.</param>
@@ -41,9 +51,35 @@ namespace EcoWattSense.Client.Gui.History
         /// <returns>kWh, or null when no row of today has a value.</returns>
         public static double? EnergyTodayKwh(IReadOnlyList<HistoryRow> rows, DateTime nowUtc, TimeZoneInfo zone)
         {
+            return EnergyToday(rows, nowUtc, zone).Kwh;
+        }
+
+        /// <summary>
+        /// Power now with the source of the value: device W of the newest row, else its measured W (SPEC 9).
+        /// </summary>
+        /// <param name="rows">Rows in any order.</param>
+        /// <param name="nowUtc">The current time, Kind Utc.</param>
+        /// <returns>Unknown (null watts) when there is no row, the newest row is stale, or both values are empty.</returns>
+        public static PowerReading PowerNowReading(IReadOnlyList<HistoryRow> rows, DateTime nowUtc)
+        {
+            HistoryRow? last = rows.MaxBy(Ended);
+            if (last == null || nowUtc - last.EndUtc >= FreshLimit) return new PowerReading(null, false);
+            if (last.DeviceW != null) return new PowerReading(last.DeviceW, false);
+            return new PowerReading(last.MeasuredW, last.MeasuredW != null);
+        }
+
+        /// <summary>
+        /// Energy today like EnergyTodayKwh, but a row with no device W counts with its measured W.
+        /// </summary>
+        /// <param name="rows">Rows in any order.</param>
+        /// <param name="nowUtc">The current time, Kind Utc.</param>
+        /// <param name="zone">The local time zone.</param>
+        /// <returns>The kWh and whether a measured-only row was part of it.</returns>
+        public static TodayEnergy EnergyToday(IReadOnlyList<HistoryRow> rows, DateTime nowUtc, TimeZoneInfo zone)
+        {
             var tally = new DayTally(TimeZoneInfo.ConvertTimeFromUtc(nowUtc, zone).Date, zone);
             foreach (HistoryRow row in rows) tally.Add(row);
-            return tally.Kwh();
+            return new TodayEnergy(tally.Kwh(), tally.MeasuredOnlyRows > 0);
         }
 
         private static DateTime Ended(HistoryRow row) => row.EndUtc;
@@ -56,19 +92,24 @@ namespace EcoWattSense.Client.Gui.History
             private double wattSeconds;
             private int used;
 
+            /// <summary>Number of added rows that had no device W and used the measured W.</summary>
+            public int MeasuredOnlyRows { get; private set; }
+
             public DayTally(DateTime day, TimeZoneInfo zone)
             {
                 this.day = day;
                 this.zone = zone;
             }
 
-            /// <summary>Adds the row when it ended today and has a device W value.</summary>
+            /// <summary>Adds the row when it ended today and has a device W or measured W value.</summary>
             public void Add(HistoryRow row)
             {
-                if (row.DeviceW == null) return;
+                double? watts = row.DeviceW ?? row.MeasuredW;
+                if (watts == null) return;
                 if (TimeZoneInfo.ConvertTimeFromUtc(row.EndUtc, zone).Date != day) return;
-                wattSeconds += row.DeviceW.Value * row.Seconds;
+                wattSeconds += watts.Value * row.Seconds;
                 used++;
+                MeasuredOnlyRows += row.DeviceW == null ? 1 : 0;
             }
 
             /// <summary>Gives kWh, or null when nothing was added.</summary>

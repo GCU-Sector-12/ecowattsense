@@ -71,6 +71,8 @@ try {
         $checks++
     }
     if ($text::Watts([Nullable[double]]12.34) -ne '12.3 W' -or $text::Watts([Nullable[double]]$null) -ne 'Unknown' -or
+        $text::PowerNote($true) -ne 'Processor and memory only. Calibrate to see the whole computer.' -or $text::PowerNote($false) -ne '' -or
+        $text::Kilowatthours([Nullable[double]]0.426, $true) -ne '0.43 kWh (processor and memory only)' -or $text::Kilowatthours([Nullable[double]]0.426, $false) -ne '0.43 kWh' -or
         $text::Watts([Nullable[double]]-1) -ne 'Unknown' -or $text::Watts([Nullable[double]][double]::NaN) -ne 'Unknown') { throw 'Watts text wrong' }
     if ($text::Kilowatthours([Nullable[double]]0.426) -ne '0.43 kWh' -or $text::Kilowatthours([Nullable[double]]$null) -ne 'Unknown' -or
         $text::Kilowatthours([Nullable[double]][double]::PositiveInfinity) -ne 'Unknown') { throw 'kWh text wrong' }

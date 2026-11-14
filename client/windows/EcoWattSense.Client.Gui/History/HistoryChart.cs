@@ -1,6 +1,6 @@
 // HistoryChart.cs: the 24 hour chart control of the client window (SPEC section 9).
 // Who uses it: MainWindow puts one into the Border named HistoryHost and calls SetRows after each history change.
-// It draws a line of device W, shading for time on battery, a band of the state per minute,
+// It draws a line of device W, a dashed line of measured W where device W is empty, shading for time on battery, a band of the state per minute,
 // hour labels, a watt axis and a legend. The shapes are built once per data change or size change
 // (no timer, no frame-by-frame drawing); WPF renders them on the GPU.
 #nullable enable
@@ -83,7 +83,7 @@ namespace EcoWattSense.Client.Gui.History
             DrawLine(layout);
             DrawBand(layout);
             DrawHourLabels(layout);
-            DrawLegend();
+            DrawLegend(layout.MeasuredSegments.Count > 0);
         }
 
         private double X(double slot) => LeftMargin + slot / ChartGeometry.SlotCount * plotWidth;
@@ -111,11 +111,14 @@ namespace EcoWattSense.Client.Gui.History
         private void DrawLine(ChartLayout layout)
         {
             foreach (List<ChartPoint> piece in layout.Segments) AddPolyline(piece);
+            foreach (List<ChartPoint> piece in layout.MeasuredSegments) AddPolyline(piece, true);
         }
 
-        private void AddPolyline(List<ChartPoint> piece)
+        /// <summary>Draws one line piece; the measured part is dashed in the same colour.</summary>
+        private void AddPolyline(List<ChartPoint> piece, bool dashed = false)
         {
             var line = new Polyline { Stroke = LineBrush, StrokeThickness = 1.5, StrokeLineJoin = PenLineJoin.Round };
+            if (dashed) line.StrokeDashArray = new DoubleCollection { 3, 2 };
             foreach (ChartPoint p in piece) line.Points.Add(new Point(X(p.X), Y(p.Y)));
             canvas.Children.Add(line);
         }
@@ -132,21 +135,22 @@ namespace EcoWattSense.Client.Gui.History
             foreach (ChartTick t in layout.HourTicks) AddText(t.Label, X(t.X) - 22, plotBottom + 4 + BandHeight + 1, 44, TextAlignment.Center);
         }
 
-        /// <summary>Draws the legend: Battery, Active, Idle, Unused, each with its colour.</summary>
-        private void DrawLegend()
+        /// <summary>Draws the legend: Battery, Active, Idle, Unused, and the dashed measured part when it is drawn.</summary>
+        private void DrawLegend(bool withMeasured)
         {
             double y = ActualHeight - LegendHeight + 2;
             AddLegendItem(0, y, BatteryBrush, "Battery");
             AddLegendItem(1, y, ActiveBrush, "Active");
             AddLegendItem(2, y, IdleBrush, "Idle");
             AddLegendItem(3, y, UnusedBrush, "Unused");
+            if (withMeasured) AddLegendItem(4, y, LineBrush, "Measured part only (dashed)", 160);
         }
 
-        private void AddLegendItem(int index, double y, Brush brush, string word)
+        private void AddLegendItem(int index, double y, Brush brush, string word, double textWidth = 70)
         {
             double x = LeftMargin + index * 86;
             AddRect(x, y + 3, 10, 10, brush);
-            AddText(word, x + 14, y, 70, TextAlignment.Left);
+            AddText(word, x + 14, y, textWidth, TextAlignment.Left);
         }
 
         private void AddRect(double x, double y, double width, double height, Brush brush)
