@@ -36,6 +36,8 @@ public static class Program
         InstallChecks.Run();
         UndoChecks.Run();
         MaintenanceChecks.Run();
+        ConnectionChecks.Run();
+        NavChecks.Run();
         Console.WriteLine($"{Harness.Total - Harness.Failed} passed, {Harness.Failed} failed, {Harness.Total} checks");
         return Harness.Failed;
     }

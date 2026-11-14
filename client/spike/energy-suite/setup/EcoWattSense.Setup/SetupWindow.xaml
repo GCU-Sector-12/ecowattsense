@@ -116,7 +116,9 @@
                         <TextBlock x:Name="KeyHint" Text="Server key" Foreground="#728095" FontSize="15"
                                    Margin="11,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                     </Grid>
-                    <CheckBox x:Name="SendBox" Content="Send reports to the server" FontSize="15" Margin="0,20,0,0"/>
+                    <Button x:Name="TestButton" Content="Test connection" Style="{StaticResource NavButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="TestButton_Click"/>
+                    <TextBlock x:Name="TestResultText" Style="{StaticResource Body}" Margin="0,8,0,0"/>
+                    <CheckBox x:Name="SendBox" Content="Send reports to the server" FontSize="15" Margin="0,12,0,0"/>
                     <StackPanel x:Name="DevicePanel" Visibility="Collapsed">
                         <TextBlock Text="Device type" Style="{StaticResource Label}"/>
                         <ComboBox x:Name="DeviceBox" Style="{StaticResource Field}"/>
