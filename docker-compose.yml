@@ -25,9 +25,10 @@ services:
     build:
       context: ./dashboard
       # Build-time data source of the dashboard. Empty keeps the sample data (EWS_API-19).
+      # The .env keys start with ECOWATTSENSE_ because deploy.sh only syncs EWS_ and ECOWATTSENSE_ keys.
       args:
-        VITE_DEVICES_DATA_SOURCE: ${VITE_DEVICES_DATA_SOURCE:-}
-        VITE_SUMMARY_DATA_SOURCE: ${VITE_SUMMARY_DATA_SOURCE:-}
+        VITE_DEVICES_DATA_SOURCE: ${ECOWATTSENSE_DEVICES_DATA_SOURCE:-}
+        VITE_SUMMARY_DATA_SOURCE: ${ECOWATTSENSE_SUMMARY_DATA_SOURCE:-}
     ports:
       # Bind address: 127.0.0.1 on a laptop. On the VM use the docker0 address (172.17.0.1), so the tunnel container can reach it.
       - "${ECOWATTSENSE_FRONT_BIND:-127.0.0.1}:${ECOWATTSENSE_FRONT_PORT:-8081}:80"
