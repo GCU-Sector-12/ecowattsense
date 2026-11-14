@@ -38,3 +38,7 @@ export const stateColors = {
   unused: 'var(--ews-unused)',
   no_data: 'var(--ews-text-muted)',
 }
+
+// Download address of the Windows installer shown on the Computers page.
+export const INSTALLER_DOWNLOAD_URL =
+  'https://github.com/GCU-Sector-12/ecowattsense/releases/download/v0.1.1-energy-suite/EcoWattSense-Web-Setup.exe'
