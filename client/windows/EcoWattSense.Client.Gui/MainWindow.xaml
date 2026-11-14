@@ -390,13 +390,33 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <TextBlock Text="About" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock Text="Client version" Style="{StaticResource Label}" Margin="0,0,0,4"/>
+                            <TextBlock x:Name="SettingsClientVersion" Text="unknown" Margin="0,0,0,14"/>
                             <TextBlock Text="Service version" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                             <TextBlock x:Name="SettingsVersion" Text="unknown" Margin="0,0,0,14"/>
                             <TextBlock Text="Data folder" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                             <TextBlock x:Name="SettingsDataFolder" Text="unknown" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
-<Border Style="{StaticResource Card}">                        <StackPanel>                            <TextBlock Text="Uninstall" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>                            <TextBlock Text="Removes the programs and the service. Your data stays unless you choose to remove it." TextWrapping="Wrap"/>                            <Button x:Name="UninstallAppButton"                                    Content="Uninstall EcoWattSense..."                                    Style="{StaticResource PageButton}"                                    Click="OnUninstallClick"/>                            <TextBlock x:Name="UninstallNote"                                       FontSize="12"                                       Foreground="#52685D"                                       TextWrapping="Wrap"                                       Margin="0,8,0,0"/>                        </StackPanel>                    </Border>
+<Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Updates" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                            <TextBlock x:Name="UpdateVersionText" Text="This version" Margin="0,0,0,8"/>
+                            <TextBlock x:Name="UpdateStatusText" Text="Checking for updates..." TextWrapping="Wrap"/>
+                            <Button x:Name="UpdateButton"
+                                    Content="Update"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource PageButton}"
+                                    Click="OnUpdateClick"/>
+                            <TextBlock x:Name="UpdateNote"
+                                       FontSize="12"
+                                       Foreground="#52685D"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}">                        <StackPanel>                            <TextBlock Text="Uninstall" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>                            <TextBlock Text="Removes the programs and the service. Your data stays unless you choose to remove it." TextWrapping="Wrap"/>                            <Button x:Name="UninstallAppButton"                                    Content="Uninstall EcoWattSense..."                                    Style="{StaticResource PageButton}"                                    Click="OnUninstallClick"/>                            <TextBlock x:Name="UninstallNote"                                       FontSize="12"                                       Foreground="#52685D"                                       TextWrapping="Wrap"                                       Margin="0,8,0,0"/>                        </StackPanel>                    </Border>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
