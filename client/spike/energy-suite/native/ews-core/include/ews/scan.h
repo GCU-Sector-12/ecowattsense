@@ -125,12 +125,12 @@ struct ScanResult {
 /// The facts the level rule needs (SPEC 3.4).
 struct LevelFacts {
     bool liveSystemChannel = false;  ///< A live EMI channel of kind system.
-    bool livePowerMeter = false;     ///< The ACPI power meter is live.
     bool liveCpuPackage = false;     ///< A live EMI channel of kind cpu_package.
     bool mwhBattery = false;         ///< A battery with unit mWh and a known full charged capacity.
 };
 
-/// Decides the level. L1: live system channel or live power meter. L2: live cpu_package channel.
+/// Decides the level. L1: live system channel (the ACPI power meter never counts, SPEC 12.6).
+/// L2: live cpu_package channel.
 /// L3: mWh battery. L4: nothing of that. The rules are tested in this order.
 /// @param facts What the scan found.
 /// @return The level.

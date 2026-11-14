@@ -102,7 +102,7 @@ EMI channel kinds, set from the channel name:
 
 | Level | Rule | Meaning |
 |---|---|---|
-| `L1` | a live `system` channel, or a live ACPI power meter | The whole computer is measured. |
+| `L1` | a live `system` channel (the ACPI power meter never counts) | The whole computer is measured. |
 | `L2` | a live `cpu_package` channel | Processor and memory are measured. The rest comes from the calibration model. |
 | `L3` | no live energy channel, battery reports mWh | Everything on mains comes from the calibration model. |
 | `L4` | none of the above | The service sends no `energy_uj`. The server estimates from its table. |
@@ -176,7 +176,7 @@ All energy values are whole microjoules. 1 mWh = 3 600 000 µJ.
 
 Device power of one minute:
 
-- L1: the `system` channel, or the ACPI power meter.
+- L1: the `system` channel only.
 - L2: sum of the model's `measured_parts` from EMI + `rest_w` + `rest_w_per_cpu_pct` × processor percent + screen power.
 - L3: `base_w` + `cpu_w_per_pct` × processor percent + screen power.
 - Screen power: 0 when the display is off; else `screen_w_at_50` + (brightness − 50) × `screen_w_per_pct`, not below 0. An unknown brightness counts as 50.
@@ -469,7 +469,7 @@ Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter
 3. Brightness through `\\.\LCD` is denied for a standard user on the HP 250 G7 (measured 13 Nov 2026). Whether the service account can read it is not tested yet. The pipe value is the fallback.
 4. EMI on AMD and on other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
-6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on the HP 250 G7). Until a computer with a live meter is found, the service does not use it for energy.
+6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on mains on the HP 250 G7). The scan lists it with its test result, but it never gives level L1 and is not used for energy.
 
 ## 13. Web installer
 

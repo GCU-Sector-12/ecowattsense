@@ -141,13 +141,23 @@ EWS_TEST(ScanLiveSystemChannelGivesL1) {
     CHECK(r.calibration == Calibration::NotNeeded);
 }
 
-EWS_TEST(ScanLivePowerMeterGivesL1) {
-    Scenario s;
+EWS_TEST(ScanLivePowerMeterWithEmiPackageGivesL2NotL1) {
+    Scenario s;  // the default scenario has EMI package and DRAM channels, all live
     s.powerMeter.second = ews::Reading<std::vector<ews::PowerMeterInstance>>::Success({{"System", 12.5}});
     auto r = Run(s);
     CHECK(r.powerMeter.common.live == Tri::True);
     CHECK(r.powerMeter.common.sample.value_or(0.0) == 12.5);
-    CHECK(r.level == MeasurementLevel::L1);
+    CHECK(r.level == MeasurementLevel::L2);
+    CHECK(r.calibration == Calibration::Needed);
+}
+
+EWS_TEST(ScanLivePowerMeterAloneDoesNotGiveL1) {
+    Scenario s;  // no live EMI channel, an mWh battery: the meter must not lift the level above L3
+    ews_test::SetEmiChannels(s, {"RAPL_Package0_PKG"}, {false});
+    s.powerMeter.second = ews::Reading<std::vector<ews::PowerMeterInstance>>::Success({{"System", 12.5}});
+    auto r = Run(s);
+    CHECK(r.powerMeter.common.live == Tri::True);
+    CHECK(r.level == MeasurementLevel::L3);
 }
 
 EWS_TEST(ScanPowerMeterLiveWhenOnlyTheFirstReadIsAboveZero) {

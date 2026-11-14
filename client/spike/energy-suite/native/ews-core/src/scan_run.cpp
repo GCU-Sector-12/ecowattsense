@@ -390,7 +390,6 @@ LevelFacts FactsOf(const ScanResult& result) {
     LevelFacts facts;
     facts.liveSystemChannel = std::any_of(channels.begin(), channels.end(), LiveOfKind{EmiKind::System});
     facts.liveCpuPackage = std::any_of(channels.begin(), channels.end(), LiveOfKind{EmiKind::CpuPackage});
-    facts.livePowerMeter = result.powerMeter.common.live == Tri::True;
     facts.mwhBattery = result.battery.reportsMwh;
     return facts;
 }
