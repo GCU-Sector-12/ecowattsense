@@ -120,6 +120,40 @@ public sealed class FakeWorld : IFileOps, IAclOps, IServiceOps, ITaskOps, IProce
     }
 
     /// <inheritdoc />
+    public int MoveDirectory(string source, string target)
+    {
+        Calls.Add("movedir " + source + " -> " + target);
+        if (LockedMoves > 0) { LockedMoves--; return 32; }
+        if (!Directories.Contains(source) || Directories.Contains(target)) return 183;
+        foreach (string folder in Directories.Where(name => IsInside(name, source)).ToList()) Directories.Remove(folder);
+        Directories.Add(target);
+        return 0;
+    }
+
+    /// <summary>How many MoveDirectory calls still fail with error 32 (sharing violation).</summary>
+    public int LockedMoves { get; set; }
+
+    /// <summary>The process id the fake service reports while it runs; 0 means no process.</summary>
+    public int ServicePid { get; set; }
+
+    /// <summary>True when the fake service process never exits after the stop (WaitForExit times out).</summary>
+    public bool ProcessStaysAlive { get; set; }
+
+    /// <inheritdoc />
+    public int ProcessId()
+    {
+        Calls.Add("service.pid");
+        return ServiceRunning ? ServicePid : 0;
+    }
+
+    /// <inheritdoc />
+    public bool WaitForExit(int processId, int milliseconds)
+    {
+        Calls.Add("waitexit " + processId);
+        return !ProcessStaysAlive;
+    }
+
+    /// <inheritdoc />
     public int DeleteDirectory(string path)
     {
         Calls.Add("deletedir " + path);

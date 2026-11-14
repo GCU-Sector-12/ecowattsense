@@ -287,7 +287,7 @@ public sealed partial class InstallEngine
     {
         _serviceExisted = _services.Service.Exists();
         _serviceWasRunning = _serviceExisted && _services.Service.IsRunning();
-        return _serviceWasRunning ? _services.Service.Stop() : 0;
+        return _serviceWasRunning ? ServiceStop.Run(_services, _log) : 0;
     }
 
     private void UndoStopOld()
@@ -301,12 +301,12 @@ public sealed partial class InstallEngine
         bool sameFolder = string.Equals(Path.GetFullPath(_request.PackageDir).TrimEnd('\\'), Path.GetFullPath(_layout.ProgramDir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
         if (sameFolder) return 0;
         CopyReporter reporter = new(_progress, _services.Files.CountFiles(_request.PackageDir));
-        return _services.Files.CopyDirectory(_request.PackageDir, _layout.ProgramDir, reporter);
+        return new ProgramSwap(_services, _layout, _log).Run(_request.PackageDir, reporter);
     }
 
     private void UndoCopy()
     {
-        if (!_programDirExisted) _services.Files.DeleteDirectory(_layout.ProgramDir);
+        new ProgramSwap(_services, _layout, _log).Undo(_programDirExisted);
     }
 
     private int StepFolders()

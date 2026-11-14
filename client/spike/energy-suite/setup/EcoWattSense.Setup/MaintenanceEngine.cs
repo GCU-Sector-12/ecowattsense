@@ -94,7 +94,7 @@ public sealed class MaintenanceEngine
     private int StepStop()
     {
         bool running = _services.Service.Exists() && _services.Service.IsRunning();
-        return running ? _services.Service.Stop() : 0;
+        return running ? ServiceStop.Run(_services, _log) : 0;
     }
 
     private int StepDeleteService() => _services.Service.Delete();
@@ -140,7 +140,7 @@ public sealed class MaintenanceEngine
     private int StepStopForSettings()
     {
         _serviceWasRunning = _services.Service.Exists() && _services.Service.IsRunning();
-        return _serviceWasRunning ? _services.Service.Stop() : 0;
+        return _serviceWasRunning ? ServiceStop.Run(_services, _log) : 0;
     }
 
     private void UndoStopForSettings()
