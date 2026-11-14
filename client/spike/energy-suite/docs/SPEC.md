@@ -223,7 +223,8 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 ### 5.2 Command line
 
 - no argument: run under the service control manager.
-- `--console [--data-dir <folder>]`: run the same loop in a console, for tests.
+- `--console [--data-dir <folder>] [--tick-seconds <n>] [--run-seconds <n>]`: run the same loop in a console, for tests. `--tick-seconds` (1 to 60, default 60) sets the length of one tick; a report is built every `interval_seconds / 60` ticks. `--run-seconds` stops the program by itself after that time. Both options exist only in console mode.
+- `--data-dir <folder>` replaces `C:\ProgramData\EcoWattSense` in every mode.
 - `--configure`: read `url=<...>` and `key=<...>` lines from standard input and write `service.ini` and `key.bin`. The key is never a command-line argument.
 
 ### 5.3 Loop
@@ -233,7 +234,9 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - Each tick: read the cumulative counters (EMI channels, battery charge, `GetSystemTimes`), calculate the minute, append one history row.
 - Every `interval_seconds` (default 300): build the report, append it to the queue, try to send, write `status.json`, check whether `model.json` changed (file time) and reload it.
 - Events, no polling: power source change, suspend and resume, display on or off, session logon, logoff, lock and unlock (service control handler).
-- Stop: finish the current write, release the lock, exit within 5 seconds.
+- Stop: take one last read, close the interval, put its report into the queue without sending, release the lock, exit within 5 seconds.
+- If `instance.lock` is held by another program at start, the service writes one log line and stops.
+- An interval whose processor percent is unknown gives no report (the server requires that field). It is counted in the log.
 
 ### 5.4 Report fields
 
@@ -300,7 +303,9 @@ device_type=laptop
 - Access: interactive users may write.
 - One message, ASCII, at most 128 bytes: `EWS1 idle=<seconds> bright=<0-100 or ->\n`
 - The client sends one message every 60 seconds and one on each unlock.
-- The service accepts a message only when the client's session is the active console session. A malformed or out-of-range message is dropped and counted.
+- The service accepts a message only when the client's session is in the state "active" (the physical console or a remote desktop session; a user who works over remote desktop is not in the console session). A malformed or out-of-range message is dropped and counted.
+- "Somebody is logged on" means: at least one session is active and has a user name. The service works this out from the session list at its start and again on every session event; it never polls.
+- `screen_locked` is true when nobody is logged on, or when the active session is locked. With several active sessions the one that sent the last accepted message counts.
 - `idle_seconds` of a report = idle value of the last message + seconds since that message, when the message is younger than 120 seconds. Without a fresh message: seconds since the last fresh message, or since the service start.
 - `state`: 2 below `idle_threshold_seconds`, 1 below `unused_threshold_seconds`, else 0. Nobody logged on gives 0.
 - Brightness: the service reads it itself when the scan in the service context says `display` is readable. Else it uses the value of the pipe. The client reads the brightness through WMI (`WmiMonitorBrightness` in `root\wmi`), the way the calibrator does; that works for a standard user.
