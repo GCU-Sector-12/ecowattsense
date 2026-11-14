@@ -39,6 +39,19 @@ export const stateColors = {
   no_data: 'var(--ews-text-muted)',
 }
 
-// Download address of the Windows installer shown on the Computers page.
+// Fallback download address of the Windows installer, used when the latest release cannot be read.
 export const INSTALLER_DOWNLOAD_URL =
   'https://github.com/GCU-Sector-12/ecowattsense/releases/download/v0.1.2-energy-suite/EcoWattSense-Web-Setup.exe'
+
+// Manifest that names the latest Windows release (version and zip address).
+export const LATEST_RELEASE_MANIFEST_URL =
+  'https://raw.githubusercontent.com/GCU-Sector-12/ecowattsense/EWS-energy-suite/client/spike/energy-suite/release/latest.json'
+
+// Every release download address must start with this prefix.
+export const RELEASE_DOWNLOAD_PREFIX = 'https://github.com/GCU-Sector-12/ecowattsense/releases/download/'
+
+// The EcoWattSense client on this computer answers its installed version here (JSON: {"version":"0.1.3"}).
+export const LOCAL_CLIENT_VERSION_URL = 'http://127.0.0.1:47613/version'
+
+// How long the dashboard waits for the local client before it treats it as not installed.
+export const LOCAL_CLIENT_TIMEOUT_MS = 1500
