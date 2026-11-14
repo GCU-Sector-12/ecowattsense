@@ -69,6 +69,26 @@ internal static class Advapi
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ChangeServiceConfig2W(IntPtr service, uint level, IntPtr info);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ServiceStatusProcess
+    {
+        public uint ServiceType;
+        public uint CurrentState;
+        public uint ControlsAccepted;
+        public uint Win32ExitCode;
+        public uint ServiceSpecificExitCode;
+        public uint CheckPoint;
+        public uint WaitHint;
+        public uint ProcessId;
+        public uint ServiceFlags;
+    }
+
+    public const int ScStatusProcessInfo = 0;
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool QueryServiceStatusEx(IntPtr service, int infoLevel, out ServiceStatusProcess status, uint size, out uint needed);
+
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool DeleteService(IntPtr service);
@@ -106,6 +126,18 @@ public sealed class RealServiceOps : IServiceOps
     {
         using ServiceController controller = new(SetupLayout.ServiceName);
         return controller.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending;
+    }
+
+    /// <inheritdoc />
+    public int ProcessId()
+    {
+        IntPtr manager = Advapi.OpenSCManagerW(null, null, 1);
+        if (manager == IntPtr.Zero) return 0;
+        IntPtr service = Advapi.OpenServiceW(manager, SetupLayout.ServiceName, Advapi.ServiceQueryStatus);
+        bool read = Advapi.QueryServiceStatusEx(service, Advapi.ScStatusProcessInfo, out Advapi.ServiceStatusProcess status, (uint)Marshal.SizeOf<Advapi.ServiceStatusProcess>(), out _);
+        CloseIfOpen(service);
+        Advapi.CloseServiceHandle(manager);
+        return read ? (int)status.ProcessId : 0;
     }
 
     /// <inheritdoc />

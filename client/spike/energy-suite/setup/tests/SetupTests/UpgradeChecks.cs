@@ -52,7 +52,7 @@ public static class UpgradeChecks
         List<InstallProgress> reports = [];
         StepOutcome outcome = RunUpgrade(world, reports);
         Check(outcome.Ok && outcome.Message == "Updated to 0.1.0.", "upgrade mode: a good run says Updated to <version>.");
-        string[] expected = ["close_client 1", "close_client ok", "stop_old_service ok", "copy_programs ok", "data_folders ok", "start_service ok", "autostart_task ok", "start_client started"];
+        string[] expected = ["close_client 1", "close_client ok", "wait_service_exit ok", "stop_old_service ok", "copy_new ok", "swap ok", "remove_old ok", "copy_programs ok", "data_folders ok", "start_service ok", "autostart_task ok", "start_client started"];
         Check(Kit.LogWords(world).SequenceEqual(expected), "upgrade mode: the steps run and log in the order close, stop, copy, rights, start, task, client");
         string[] listed = reports.Where(report => report.State == StepState.Done).Select(report => report.Name).ToArray();
         Check(listed.SequenceEqual(InstallTitles.UpgradeOrder), "upgrade mode: progress reports the steps of the upgrade list in order");

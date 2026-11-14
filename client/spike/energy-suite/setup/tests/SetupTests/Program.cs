@@ -42,6 +42,7 @@ public static class Program
         NavChecks.Run();
         ProgressChecks.Run();
         UpgradeChecks.Run();
+        SwapChecks.Run();
         ServerArgChecks.Run();
         Console.WriteLine($"{Harness.Total - Harness.Failed} passed, {Harness.Failed} failed, {Harness.Total} checks");
         return Harness.Failed;

@@ -77,7 +77,7 @@ public static class InstallChecks
         Check(outcome.Ok, "install: a fresh install works");
         string[] expected =
         [
-            "check ok", "scan_result L2_needed_sources2", "scan ok", "stop_old_service ok", "close_client 0", "close_client ok", "copy_programs ok", "data_folders ok",
+            "check ok", "scan_result L2_needed_sources2", "scan ok", "stop_old_service ok", "close_client 0", "close_client ok", "copy_new ok", "swap ok", "copy_programs ok", "data_folders ok",
             "configure ok", "register_service ok", "start_service ok", "autostart_task ok",
         ];
         Check(Kit.LogWords(world).SequenceEqual(expected), "install: the steps run and log in the order of SPEC 10");

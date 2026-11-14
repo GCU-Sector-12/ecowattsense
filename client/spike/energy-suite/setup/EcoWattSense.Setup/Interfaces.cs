@@ -63,6 +63,9 @@ public interface IFileOps
     /// <summary>Deletes a folder tree; a missing folder is fine. Returns 0 or an error code (32 is a sharing violation).</summary>
     int DeleteDirectory(string path);
 
+    /// <summary>Renames a folder (Directory.Move, same volume). Returns 0 or an error code (32 is a sharing violation).</summary>
+    int MoveDirectory(string source, string target);
+
     /// <summary>Marks an empty folder for deletion at the next restart (MoveFileEx, MOVEFILE_DELAY_UNTIL_REBOOT). Returns 0 or an error code.</summary>
     int DeleteAtReboot(string path);
 
@@ -94,6 +97,9 @@ public interface IServiceOps
 
     /// <summary>Tells whether the service is running or starting.</summary>
     bool IsRunning();
+
+    /// <summary>The process id of the running service (QueryServiceStatusEx), or 0 when it has no process.</summary>
+    int ProcessId();
 
     /// <summary>Stops the service and waits up to 30 seconds. Returns 0 or an error code.</summary>
     int Stop();
@@ -147,6 +153,9 @@ public interface IProcessOps
 
     /// <summary>Moves the current directory of this process, so it holds no folder that is about to be deleted. Returns 0 or an error code.</summary>
     int SetWorkingDirectory(string path);
+
+    /// <summary>Waits until the process with this id has exited. Returns true when it is gone (or never existed), false on timeout.</summary>
+    bool WaitForExit(int processId, int milliseconds);
 
     /// <summary>Waits the given milliseconds (used between retries).</summary>
     void Wait(int milliseconds);

@@ -181,6 +181,18 @@ public sealed class RealProcessOps : IProcessOps
     }
 
     /// <inheritdoc />
+    public bool WaitForExit(int processId, int milliseconds)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            return process.WaitForExit(milliseconds);
+        }
+        catch (ArgumentException) { return true; }
+        catch (Exception) { return false; }
+    }
+
+    /// <inheritdoc />
     public void Wait(int milliseconds) => Thread.Sleep(milliseconds);
 
     private static readonly string[] ClientProcessNames = ["EcoWattSense.Client.Gui", "EnergyCalibrator"];

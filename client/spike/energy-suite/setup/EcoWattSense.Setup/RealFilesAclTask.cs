@@ -77,6 +77,13 @@ public sealed class RealFileOps : IFileOps
         catch (Exception exception) { return ErrorCodes.From(exception); }
     }
 
+    /// <inheritdoc />
+    public int MoveDirectory(string source, string target)
+    {
+        try { Directory.Move(source, target); return 0; }
+        catch (Exception exception) { return ErrorCodes.From(exception); }
+    }
+
     private const int MoveFileDelayUntilReboot = 0x4;
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
