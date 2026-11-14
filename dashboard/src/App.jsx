@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import { navigation } from './data/ui.js'
+import { getSampleSession, subscribeToSession } from './auth/sampleSession.js'
 
 const DEFAULT_SIDEBAR = { width: 300, collapsed: false }
 const NARROW_WIDTH = 72
@@ -101,6 +102,32 @@ function resizedSidebar(current, width, finished) {
   return { width: clampWidth(width), collapsed: false }
 }
 
+/**
+ * Applies the sample-session route guard and marks the decision as ready.
+ * Unauthenticated users are sent to Login; authenticated users return to their saved route.
+ * @param {{username: string}|null} session - Current sample session.
+ * @param {string} page - Resolved page key.
+ * @param {(ready: boolean) => void} setGuardReady - Updates the guard rendering state.
+ * @returns {void}
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+ */
+function applyRouteGuard(session, page, setGuardReady) {
+  if (!session && page !== 'login') {
+    sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
+    window.location.hash = '#login'
+    setGuardReady(true)
+    return
+  }
+  if (session && page === 'login') {
+    const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
+    sessionStorage.removeItem('ews-return-route')
+    window.location.hash = returnRoute
+    setGuardReady(true)
+    return
+  }
+  setGuardReady(true)
+}
+
 // The one list of every page: its name and its component. To add a page, add one line here.
 // The names go to resolveRoute(). It is exported so a test can check them. Reports has no page,
 // so its address is "not-found".
@@ -119,7 +146,17 @@ export const PAGES = {
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
-  const route = resolveRoute(useHash(), Object.keys(PAGES))
+  const hash = useHash()
+  const route = resolveRoute(hash, Object.keys(PAGES))
+  const [session, setSession] = useState(getSampleSession)
+  const [guardReady, setGuardReady] = useState(false)
+
+  useEffect(() => subscribeToSession(setSession), [])
+
+  useEffect(() => {
+    applyRouteGuard(session, route.page, setGuardReady)
+  }, [hash, route.page, session])
+
   const Page = PAGES[route.page]
   const [sidebar, setSidebar] = useState(readSidebar)
   const [resizing, setResizing] = useState(false)
@@ -141,6 +178,8 @@ export default function App() {
 
   useEffect(() => saveSidebar(sidebar, resizing), [sidebar, resizing])
 
+  const showLogin = !guardReady || !session || route.page === 'login'
+
   /**
    * Switches between the full and the icons-only sidebar.
    * @returns {void}
@@ -158,6 +197,8 @@ export default function App() {
   function resizeSidebar(width, finished) {
     setSidebar((current) => resizedSidebar(current, width, finished))
   }
+
+  if (showLogin) return <LoginPage onLogin={setSession} />
 
   return (
     <AppShell
@@ -211,7 +252,7 @@ export default function App() {
       </Drawer>
 
       <AppShell.Main className={sidebarClasses.page} bg="var(--ews-page)">
-        <Page deviceId={route.deviceId} />
+        <Page deviceId={route.deviceId} onLogin={setSession} />
       </AppShell.Main>
     </AppShell>
   )

@@ -1,5 +1,6 @@
 // Dashboard page built from docs/design/dashboard-mockup.png with sample data.
 // App.jsx renders this page for #dashboard; providers supply counts, energy, devices and settings.
+import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
 import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Monitor, Clock, Power } from 'lucide-react'
@@ -42,11 +43,13 @@ function loadDashboard() {
  * @returns {JSX.Element} The page.
  */
 export default function DashboardPage() {
-  const { data, error } = useSampleData(loadDashboard)
-  if (error) return <Text role="alert">Unable to load dashboard.</Text>
-  if (!data) return <Text>Loading dashboard...</Text>
+  const { data, error, retry } = useSampleData(loadDashboard)
+  if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="dashboard" />
   const [summary, { devices }, settings] = data
-  const referenceTime = sampleScreen.generated_at
+  const realDevices = import.meta.env.VITE_DEVICES_DATA_SOURCE === 'real'
+  const realSummary = import.meta.env.VITE_SUMMARY_DATA_SOURCE === 'real'
+  const generatedAt = realDevices || realSummary ? new Date().toISOString() : sampleScreen.generated_at
+  const referenceTime = realDevices ? generatedAt : sampleScreen.generated_at
   const cards = [
     { state: 'active', icon: Monitor, caption: stateDisplay.active.caption },
     { state: 'idle', icon: Clock, caption: `No activity for ${formatThreshold(settings.idle_threshold_seconds)}` },
@@ -57,7 +60,7 @@ export default function DashboardPage() {
     <Stack gap="md">
       <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
-        generatedAt={referenceTime} userName={sampleScreen.user_name} />
+        generatedAt={generatedAt} userName={sampleScreen.user_name} />
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         {cards.map(({ state, icon, caption }) => (
           <StatCard key={state} state={state} icon={icon}
@@ -72,10 +75,13 @@ export default function DashboardPage() {
         {summary.counts.no_data} {summary.counts.no_data === 1 ? 'computer' : 'computers'} with no data
       </Text>
       <Grid gap="md" breakpoints={{ desktop: "64em" }}>
-        <Grid.Col span={{ base: 12, desktop: 8 }}><EnergyChart points={summary.series} /></Grid.Col>
-        <Grid.Col span={{ base: 12, desktop: 4 }}><StatusDonut summary={summary} /></Grid.Col>
+        <Grid.Col span={{ base: 12, desktop: 8 }}>{summary.series.length ? <EnergyChart points={summary.series} /> :
+          <DataState empty label="Energy usage" />}</Grid.Col>
+        <Grid.Col span={{ base: 12, desktop: 4 }}>{summary.counts.total ? <StatusDonut summary={summary} /> :
+          <DataState empty label="Computer status" />}</Grid.Col>
       </Grid>
-      <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} />
+      {devices.length ? <ComputerTable computers={devices} limit={5} showAllLink referenceTime={referenceTime} /> :
+        <DataState empty label="Computers" />}
     </Stack>
   )
 }

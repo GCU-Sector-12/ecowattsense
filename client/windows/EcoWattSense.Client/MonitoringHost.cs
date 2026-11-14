@@ -1,3 +1,5 @@
+// Builds the monitoring host shared by the Windows console and GUI clients.
+
 using EcoWattSense.Client.Identity;
 using EcoWattSense.Client.Monitoring;
 using EcoWattSense.Client.Reporting;
@@ -7,6 +9,18 @@ namespace EcoWattSense.Client;
 
 public static class MonitoringHost
 {
+    /// <summary>Acquires the instance lock and builds the configured monitoring host.</summary>
+    /// <param name="builder">The host builder with the client configuration.</param>
+    /// <param name="selectDeviceType">Selects a device type when one is not stored or configured.</param>
+    /// <param name="cancellationToken">Cancels host creation.</param>
+    /// <param name="onLockAcquired">Optional callback that receives the lock path before setup continues.</param>
+    /// <returns>The unstarted host, which owns the instance lock.</returns>
+    /// <exception cref="ClientAlreadyRunningException">Another client holds the instance lock.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Device type selection is cancelled or invalid, or the server settings request is rejected or returns invalid data.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The configured activity thresholds are invalid.</exception>
+    /// <exception cref="OperationCanceledException">Host creation is cancelled.</exception>
     public static async Task<IHost> CreateAsync(HostApplicationBuilder builder, Func<string> selectDeviceType,
         CancellationToken cancellationToken = default, Func<string, Task>? onLockAcquired = null)
     {

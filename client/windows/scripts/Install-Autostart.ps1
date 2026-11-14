@@ -49,9 +49,11 @@ $ErrorActionPreference = 'Stop'
 # ValidateSet ignores case, but the client only accepts lowercase device types.
 $DeviceType = $DeviceType.ToLowerInvariant()
 
+$scriptFolder = $PSScriptRoot
+if ([string]::IsNullOrEmpty($scriptFolder)) {
+    $scriptFolder = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
 if ([string]::IsNullOrEmpty($ExePath)) {
-    $scriptFolder = $PSScriptRoot
-    if ([string]::IsNullOrEmpty($scriptFolder)) { $scriptFolder = Split-Path -Parent $MyInvocation.MyCommand.Path }
     $ExePath = Join-Path $scriptFolder 'EcoWattSense.Client.Gui.exe'
 }
 
@@ -87,13 +89,16 @@ $action = New-ScheduledTaskAction -Execute $execute -Argument $arguments -Workin
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $trigger.Delay = 'PT1M'
 
+# AtLogOn has no repetition parameters. Leaving Duration unset makes the pattern indefinite.
+$trigger.Repetition = New-CimInstance -ClientOnly -Namespace 'root/Microsoft/Windows/TaskScheduler' `
+    -ClassName MSFT_TaskRepetitionPattern -Property @{ Interval = 'PT5M' }
+
 # Interactive: runs in your own session, only while you are logged on, with no stored password.
 # The client must run in your session to see keyboard and mouse activity.
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
 
-# RestartCount/RestartInterval only help when the task fails to start. If the client
-# crashes or is ended after it has started, Task Scheduler does not start it again
-# (checked by hand). It then starts again at the next log on.
+# Keep the existing failure retry settings. Logon repetition also covers a client that exits
+# after startup, and IgnoreNew skips a repeat while the task is still running.
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -115,7 +120,7 @@ Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
 
 Write-Output "Registered task '$TaskName' for $user."
 Write-Output "  Starts: $exe $arguments"
-Write-Output "  When:   1 minute after you log in"
+Write-Output "  When:   1 minute after you log in, then every 5 minutes if the task is not running"
 Write-Output "To start it now without logging out: Start-ScheduledTask -TaskName '$TaskName'"
 
 # Warn if the server is switched on but the key is missing for the task.

@@ -106,11 +106,33 @@ source ".NET Runtime". At each start the client writes a few lines (file paths, 
 After that it writes only warnings and errors, not every reading, so the log does not fill up.
 A crash is also shown with the source "Application Error".
 
-If the client crashes or is ended, it does not start again by itself. It starts again at the
-next login. To start it at once, use the command below.
+### Recovery, pause and resume
 
-To start it now without signing out: `Start-ScheduledTask -TaskName 'EcoWattSense Client'`.
-To stop it until the next login, choose **Exit** from the tray menu.
+After the logon trigger fires, Task Scheduler tries to start the client every five minutes
+for the rest of the session. It skips a repeat while the scheduled task is running. If
+the client crashes or exits, the next repeat can start it again in the tray. After installing
+or updating the task, sign out and back in to activate the logon trigger.
+
+To pause automatic launches, disable the task:
+
+```powershell
+Disable-ScheduledTask -TaskName 'EcoWattSense Client'
+```
+
+The client may still be running. Choose **Exit** from its tray menu to stop monitoring.
+If the tray is unavailable and Task Scheduler started the client, use
+`Stop-ScheduledTask -TaskName 'EcoWattSense Client'` after disabling the task.
+Stopping the client by itself leaves automatic launches enabled.
+
+To resume automatic launches, enable the task and sign out and back in to activate
+the logon trigger again:
+
+```powershell
+Enable-ScheduledTask -TaskName 'EcoWattSense Client'
+```
+
+To start the client immediately while you are still signed in, use
+`Start-ScheduledTask -TaskName 'EcoWattSense Client'`.
 
 ### Only one copy runs
 

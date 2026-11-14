@@ -5,6 +5,10 @@ import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App.jsx'
 import { renderWithMantine } from '../test/render.jsx'
+import { createSampleSession, clearSampleSession } from '../auth/sampleSession.js'
+
+beforeEach(() => createSampleSession('admin'))
+afterEach(() => clearSampleSession())
 
 /** Changes the hash and notifies the mounted router. @param {string} hash - Target route. */
 function goToHash(hash) {
@@ -66,12 +70,10 @@ it('opens the history page from #computers/abc and keeps Computers highlighted',
   expect(screen.getByRole('link', { name: 'Computers' })).toHaveAttribute('data-active', 'true')
 })
 
-it('opens the Login page from #login and highlights no menu item', () => {
+it('returns an authenticated user to the dashboard when they open #login', async () => {
   renderWithMantine(<App />)
   goToHash('#login')
-
-  expect(screen.getByRole('heading', { name: 'Login' })).toBeInTheDocument()
-  expect(highlightedItems()).toHaveLength(0)
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
 })
 
 it('shows "Page not found" with a link to the Dashboard for an unknown address', () => {
