@@ -158,7 +158,7 @@ Rules:
 
 - The call sets the name, `os` and `device_type`.
 - A report never changes the name.
-- The name from this call is stored only while `display_name` is empty (null). A name set by the admin (section 5.11) is never overwritten by the client. The answer holds the name that is stored now.
+- The name from this call is stored when `display_name` is empty (null) or was set by a client. A name set by the admin (section 5.11) is never overwritten by the client. The answer holds the name that is stored now.
 - A computer is also made known by its first report. It then has no name until it registers.
 - A new computer registered before its first report gets `first_seen_at` and `last_seen_at` of the moment of registration.
 
@@ -430,7 +430,7 @@ Response 200:
 | `devices[].first_seen_at` | string, date-time UTC | The time of the first report |
 | `devices[].archived` | boolean | True when the admin archived the computer |
 
-`display_name` is the name from `PUT /api/devices/{device_id}` (field `device_name`) or set by the admin (section 5.11). The client name is stored only while `display_name` is empty. A name set by the admin is never overwritten by the client.
+`display_name` is the name from `PUT /api/devices/{device_id}` (field `device_name`) or set by the admin (section 5.11). The client name is stored when `display_name` is empty or was set by a client. A name set by the admin is never overwritten by the client.
 
 `display_name`, `location_id`, `location_name` and `building` are null until an admin sets them.
 
@@ -597,7 +597,8 @@ Response 200: the changed computer, in the exact shape of one element of `device
 
 Rules:
 
-- The name set here is never overwritten by `PUT /api/devices/{device_id}` (section 5.3). A client sets its name only while `display_name` is null.
+- The name set here is never overwritten by `PUT /api/devices/{device_id}` (section 5.3).
+- A name set here counts as set by the admin, so a client cannot overwrite it (section 5.3). Clearing the name lets the client set it again.
 - An archived computer still gets its reports. Archiving only hides it from the default list.
 
 Status codes:
@@ -722,7 +723,6 @@ What changes elsewhere to match this document:
 - `device_name` in the client call versus `display_name` in the database and the admin endpoints. One word should win.
 - Clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false (a transition rule, to confirm).
 - Endpoints for the admin to change energy rates and locations and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version. Renaming or archiving a computer is in section 5.11. The admin settings are in section 5.12.
-- The client name is stored only while `display_name` is empty (sections 5.3 and 5.11). So a client cannot change its own name later, and the server cannot tell a name from the client from a name from the admin. A column that says who set the name would fix this. It needs a change of the `devices` table and a migration of the existing staging database.
 - A `commands` table and `registered_at` in `devices` are needed for the ping and the registration. They are not in the brief or the ERD yet.
 - The lifetime of the session cookie. Admin users in the `users` table with password hashes, instead of one user in `.env`.
 - A version in the path (`/api/v1`) before the first client ships.
