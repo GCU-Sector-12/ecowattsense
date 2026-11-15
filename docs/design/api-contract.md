@@ -159,6 +159,7 @@ Rules:
 - The call sets the name, `os` and `device_type`.
 - A report never changes the name.
 - The name from this call is stored when `display_name` is empty (null) or was set by a client. A name set by the admin (section 5.11) is never overwritten by the client. The answer holds the name that is stored now.
+- A call without a name (null, empty or left out) keeps the stored name. Only the admin can remove a name (section 5.11).
 - A computer is also made known by its first report. It then has no name until it registers.
 - A new computer registered before its first report gets `first_seen_at` and `last_seen_at` of the moment of registration.
 

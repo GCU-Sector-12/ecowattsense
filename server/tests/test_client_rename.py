@@ -80,11 +80,19 @@ def test_client_cannot_rename_an_admin_name(client, engine):
     assert (stored(engine).display_name, stored(engine).name_source) == ("Admin name", "admin")
 
 
-def test_empty_name_clears_a_client_name(client, engine):
+def test_no_name_keeps_a_client_name(client, engine):
     client.put(PATH, json=body("Lab 1"))
-    response = client.put(PATH, json=body(None))
-    assert response.json()["device_name"] is None
-    assert (stored(engine).display_name, stored(engine).name_source) == (None, None)
+    response = client.put(PATH, json={"os": "windows", "device_type": "desktop"})
+    assert response.json()["device_name"] == "Lab 1"
+    assert (stored(engine).display_name, stored(engine).name_source) == ("Lab 1", "client")
+
+
+@pytest.mark.parametrize("empty", [None, "", "   "])
+def test_null_empty_or_spaces_keep_a_client_name(client, engine, empty):
+    client.put(PATH, json=body("Lab 1"))
+    response = client.put(PATH, json=body(empty))
+    assert response.json()["device_name"] == "Lab 1"
+    assert (stored(engine).display_name, stored(engine).name_source) == ("Lab 1", "client")
 
 
 def test_empty_name_keeps_an_admin_name(client, engine):
