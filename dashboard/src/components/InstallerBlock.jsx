@@ -12,7 +12,11 @@ import { installState, useLatestRelease } from '../data/useLatestRelease.js'
  * @returns {JSX.Element} Rendered content.
  */
 function InstallerMenu({ url, target, opened, onClose }) {
-  /** Mantine reports every open or close; only a close is accepted here, opening is done by openMenu. */
+  /**
+   * Mantine reports every open or close; only a close is accepted here, opening is done by openMenu.
+   * @param {boolean} next - True when Mantine wants the menu open, false when it wants it closed.
+   * @returns {void}
+   */
   function handleChange(next) {
     if (!next) onClose()
   }
@@ -57,13 +61,20 @@ export default function InstallerBlock({ collapsed }) {
   const [menuOpened, setMenuOpened] = useState(false)
   const state = installState(release.version, release.localVersion)
 
-  /** Opens the menu from a right click, the context-menu key or Shift+F10 instead of the browser menu. */
+  /**
+   * Opens the menu from a right click, the context-menu key or Shift+F10 instead of the browser menu.
+   * @param {Event} event - The context-menu or key event; its default browser menu is stopped.
+   * @returns {void}
+   */
   function openMenu(event) {
     event.preventDefault()
     setMenuOpened(true)
   }
 
-  /** Closes the menu. */
+  /**
+   * Closes the menu.
+   * @returns {void}
+   */
   function closeMenu() {
     setMenuOpened(false)
   }

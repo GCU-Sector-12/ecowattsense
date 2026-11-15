@@ -83,7 +83,9 @@ it('opens the same menu with the More button', async () => {
   renderWithMantine(<InstallerBlock collapsed={false} />)
   await screen.findByText('Version 0.1.3')
   await user.click(screen.getByRole('button', { name: 'More' }))
-  expect(await screen.findByRole('menuitem', { name: 'Reinstall' })).toBeInTheDocument()
+  // The menu opens in a portal after a transition; under a full parallel test run this can take
+  // longer than the default 1 s of findBy, so the wait is longer here.
+  expect(await screen.findByRole('menuitem', { name: 'Reinstall' }, { timeout: 5000 })).toBeInTheDocument()
 })
 
 it('shows only an icon link when the sidebar is collapsed, and its menu opens with a right click', async () => {
