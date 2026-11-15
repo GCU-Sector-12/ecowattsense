@@ -120,3 +120,41 @@ export function historyDate(timestamp) {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(new Date(timestamp))
 }
+
+/**
+ * Gives a selected UTC day a short readable form for the chart title.
+ * @param {string} day - YYYY-MM-DD.
+ * @returns {string} Date such as 14 Nov 2026.
+ */
+export function shortDay(day) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  }).format(new Date(day + 'T00:00:00Z'))
+}
+
+/**
+ * Places a report inside its UTC day for the timeline.
+ * @param {object} report - Report with timestamp and interval_seconds.
+ * @returns {{left: string, width: string}} CSS percentages of the 24 hour day.
+ */
+export function timelinePlace(report) {
+  const time = new Date(report.timestamp)
+  const minutes = time.getUTCHours() * 60 + time.getUTCMinutes() + time.getUTCSeconds() / 60
+  return {
+    left: (minutes / 1440 * 100) + '%',
+    width: (report.interval_seconds / 86400 * 100) + '%',
+  }
+}
+
+/**
+ * Describes which rows of the table are on screen.
+ * @param {number} page - 1-based page.
+ * @param {number} pageSize - Rows per page.
+ * @param {number} total - Number of reports.
+ * @returns {string} Text such as Showing 1 to 25 of 60 reports.
+ */
+export function rangeText(page, pageSize, total) {
+  const first = total ? (page - 1) * pageSize + 1 : 0
+  const last = Math.min(page * pageSize, total)
+  return `Showing ${first} to ${last} of ${total} reports`
+}

@@ -78,3 +78,13 @@ it('keeps a useful tick when a partial day has no four-hour boundary', () => {
   ]} />)
   expect(AreaChart.mock.lastCall[0].xAxisProps.ticks).toEqual(['2025-03-10T13:30:00Z'])
 })
+
+it('shows a custom title and keeps the default title otherwise', () => {
+  const point = [{ timestamp: '2025-07-10T00:00:00Z', energy_uj: 1 }]
+  const { unmount } = renderWithMantine(<EnergyChart points={point} />)
+  expect(screen.getByText('Energy Usage (Today)')).toBeInTheDocument()
+  unmount()
+  renderWithMantine(<EnergyChart points={point} title="Energy usage, 14 Nov 2026" />)
+  expect(screen.getByText('Energy usage, 14 Nov 2026')).toBeInTheDocument()
+  expect(screen.queryByText('Energy Usage (Today)')).not.toBeInTheDocument()
+})

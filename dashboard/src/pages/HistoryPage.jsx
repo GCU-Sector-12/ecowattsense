@@ -10,7 +10,7 @@ import { sampleScreen } from '../data/ui.js'
 import { formatGbp, timeAgo, ujToKwh } from '../data/units.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import {
-  calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM,
+  calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shortDay,
 } from '../data/historyView.js'
 
 /**
@@ -81,7 +81,7 @@ function HistoryTotals({ totals }) {
  * @param {object} props - Loaded device and optional history response.
  * @returns {JSX.Element} Details and history, or the appropriate empty state.
  */
-function HistoryContent({ data }) {
+function HistoryContent({ data, day, paging }) {
   if (!data.device) return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
       <Text component="h2" fz="lg" fw={700}>Device not found</Text>
@@ -91,7 +91,7 @@ function HistoryContent({ data }) {
   return (
     <Stack gap="md">
       <DeviceDetails device={data.device} referenceTime={isRealHistory() ? new Date() : sampleScreen.generated_at} />
-      {data.history ? <AvailableHistory history={data.history} /> : (
+      {data.history ? <AvailableHistory history={data.history} day={day} paging={paging} /> : (
         <Card radius="lg" padding="lg" bg="var(--ews-card)" role="status">
           <Text>{isRealHistory() ? 'No history available for this computer.' : 'No sample history available for this computer.'}</Text>
         </Card>
@@ -102,17 +102,15 @@ function HistoryContent({ data }) {
 
 /**
  * Shows populated history or an empty-report message without labelling the device as missing.
- * @param {object} props - History response with reports and totals.
+ * @param {object} props - History response with reports and totals, the selected day and table paging props.
  * @returns {JSX.Element} Daily totals and available reports.
  */
-function AvailableHistory({ history }) {
+function AvailableHistory({ history, day, paging }) {
   return (
     <Stack gap="md">
       <HistoryTotals totals={history.totals} />
-      {history.reports.length ? <Box component="section" aria-label="Energy for this computer">
-        <EnergyChart points={energyByHalfHour(history.reports)} />
-      </Box> : null}
-      {history.reports.length ? <HistoryReports reports={history.reports} /> : <DataState empty label="History reports" />}
+      {history.reports.length ? <EnergyChart points={energyByHalfHour(history.reports)} title={`Energy usage, ${shortDay(day)}`} /> : null}
+      {history.reports.length ? <HistoryReports reports={history.reports} {...paging} /> : <DataState empty label="History reports" />}
     </Stack>
   )
 }
@@ -126,26 +124,38 @@ function AvailableHistory({ history }) {
  */
 export default function HistoryPage({ deviceId }) {
   const [day, setDay] = useState(calendarDay)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   // Sample readings do not depend on the date, so only real mode reloads when it changes.
   const loadDay = isRealHistory() ? day : undefined
   const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
   const { data, error, retry } = useSampleData(loader)
 
-  /** @param {Event} event - Native date change. @returns {void} Stores the selected sample date. */
+  /** @param {Event} event - Native date change. @returns {void} Stores the selected date and returns to page 1. */
   function changeDay(event) {
     setDay(event.currentTarget.value || day)
+    setPage(1)
   }
+
+  /** @param {number} size - New rows per page. @returns {void} Stores the size and returns to page 1. */
+  function changePageSize(size) {
+    setPageSize(size)
+    setPage(1)
+  }
+  // Only real mode pages the table; the sample day has 48 rows and shows them all.
+  const paging = isRealHistory() ? { page, pageSize, onPage: setPage, onPageSize: changePageSize } : {}
+  const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
 
   return (
     <Stack gap="md">
       <Header title="Computer history" subtitle={`Computer ${deviceId}`}
-        generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
+        generatedAt={generatedAt} userName={sampleScreen.user_name} />
       <Anchor href="#computers">Back to computers</Anchor>
       <TextInput type="date" label="History date" value={day} onChange={changeDay} maw={240} />
       {isRealHistory() ? null : <Text size="sm" c="var(--ews-text-muted)">
         Sample history from {historyDate(SAMPLE_HISTORY_FROM)}. Date selection does not change these sample readings.
       </Text>}
-      {data ? <HistoryContent data={data} /> : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
+      {data ? <HistoryContent data={data} day={day} paging={paging} /> : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
     </Stack>
   )
 }
