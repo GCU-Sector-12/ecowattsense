@@ -77,15 +77,15 @@ def update_device(device: Device, body: DeviceIn) -> None:
     """Set the name, os and device_type of a known computer (contract 5.3).
 
     The name is stored when the stored display_name is empty or was set by a client. A name set
-    by the admin is never overwritten by the client. An empty name over a client name clears it.
-    os and device_type are always set.
+    by the admin is never overwritten by the client. A call without a name keeps the stored name,
+    so a failed read of the name on the client never deletes it. os and device_type are always set.
 
     Args:
         device: The stored computer.
         body: The registration: device_name, os and device_type.
     """
     client_may_set = device.display_name is None or device.name_source == "client"
-    if client_may_set:
+    if client_may_set and body.device_name is not None:
         device.display_name = body.device_name
         device.name_source = name_source_of(body.device_name)
     device.os = body.os

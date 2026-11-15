@@ -78,12 +78,11 @@ def test_second_put_for_the_same_device(client, engine):
     assert device.first_seen_at == first_seen
 
 
-def test_put_without_a_name_clears_a_client_name(client, engine):
-    # Left out means no name (contract 5.3), so a client name is cleared (EWS_API-24).
+def test_put_without_a_name_keeps_the_stored_name(client, engine):
     client.put(DEVICE_PATH, json=DEVICE)
     response = client.put(DEVICE_PATH, json={"os": "windows", "device_type": "desktop"})
-    assert response.json() == {"device_id": DEVICE_ID, "device_name": None, "created": False}
-    assert devices_in(engine)[0].display_name is None
+    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 1 PC 03", "created": False}
+    assert devices_in(engine)[0].display_name == "Lab 1 PC 03"
 
 
 def test_settings_come_from_the_seeded_tables(client):
