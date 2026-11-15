@@ -24,6 +24,15 @@ void AppendOptionalTime(std::string& out, const char* key, const std::optional<s
     out += std::string(",\"") + key + "\":" + JsonQuote(FormatUtcTime(*value));
 }
 
+/// Appends `,"server_device_name":"text"` or `,"server_device_name":null` when a PUT answer was seen.
+void AppendServerName(std::string& out, const StatusFields& fields) {
+    if (!fields.serverNameKnown) {
+        return;
+    }
+    std::string value = fields.serverDeviceName.has_value() ? JsonQuote(*fields.serverDeviceName) : std::string("null");
+    out += ",\"server_device_name\":" + value;
+}
+
 }  // namespace
 
 const char* SendResultWord(LastSend result) {
@@ -70,7 +79,11 @@ std::string BuildStatusJson(const StatusFields& fields) {
     out += showVersion ? ",\"settings_version\":" + std::to_string(*fields.settingsVersion) : "";
     AppendOptionalTime(out, "last_settings_utc", fields.lastSettingsUnix);
     AppendOptionalTime(out, "last_ping_utc", fields.lastPingUnix);
-    out += std::string(",\"last_ping_result\":\"") + PingResultWord(fields.lastPingResult) + "\"}\n";
+    out += std::string(",\"last_ping_result\":\"") + PingResultWord(fields.lastPingResult) + "\"";
+    AppendOptionalText(out, "device_name", fields.deviceName);
+    AppendServerName(out, fields);
+    out += fields.nameSync != NameSync::None ? std::string(",\"name_sync\":\"") + NameSyncWord(fields.nameSync) + "\"" : "";
+    out += "}\n";
     return out;
 }
 

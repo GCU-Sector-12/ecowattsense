@@ -477,6 +477,10 @@ void ServiceCore::PipeMessage(std::string_view text, bool senderSessionActive) {
         SendRequested();
         return;
     }
+    if (IsNameMessage(text)) {
+        NameRequested(text);
+        return;
+    }
     Reading<ews::PipeMessage> parsed = ParsePipeMessage(text);
     if (!parsed.ok()) {
         ++droppedPipeMessages_;

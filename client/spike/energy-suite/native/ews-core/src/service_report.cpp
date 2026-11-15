@@ -313,6 +313,10 @@ void ServiceCore::WriteStatus() {
     fields.lastSettingsUnix = lastSettingsUnix_;
     fields.lastPingUnix = lastPingUnix_;
     fields.lastPingResult = lastPing_;
+    fields.deviceName = ReadLocalName();
+    fields.serverNameKnown = serverNameKnown_;
+    fields.serverDeviceName = serverName_;
+    fields.nameSync = nameSync_;
     Reading<bool> folder = EnsureSubfolder(settings_.dataDir, L"status");
     std::wstring statusDir = (std::filesystem::path(settings_.dataDir) / L"status").wstring();
     bool written = folder.ok() && WriteFileAtomically(statusDir, L"status.json", BuildStatusJson(fields)).ok();

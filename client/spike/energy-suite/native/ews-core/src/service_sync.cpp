@@ -18,6 +18,7 @@ namespace {
 constexpr int kCounterCap = 1 << 20;                      ///< The most the tick counter of the ping grows to.
 constexpr std::int64_t kRegisterWindowSeconds = 3600;     ///< The least time between two registrations while the server says false.
 constexpr std::size_t kMaxNameFileBytes = 1024;           ///< The largest accepted device-name.txt.
+constexpr std::size_t kMaxNameSyncFileBytes = 256;        ///< The largest accepted name-sync.json.
 
 /// @param word The sorted answer of a ping.
 /// @return The word of status.json.
@@ -78,10 +79,29 @@ ServerSettings SettingsInForce(const ServiceConfig& config, int pingIntervalSeco
     return settings;
 }
 
+/// Writes `<folder>\device-name.txt` (one UTF-8 line) through a temporary file.
+/// @param folder The Client folder.
+/// @param name The checked name.
+/// @return True when the file now holds the name.
+bool WriteNameFile(const std::filesystem::path& folder, const std::string& name) {
+    return WriteFileAtomically(folder.wstring(), L"device-name.txt", name + "\n").ok();
+}
+
+/// Deletes `<folder>\device-name.txt`.
+/// @param folder The Client folder.
+/// @return True when the file is gone (a missing file is not an error).
+bool DeleteNameFile(const std::filesystem::path& folder) {
+    std::error_code error;
+    std::filesystem::remove(folder / L"device-name.txt", error);
+    return !error;
+}
+
 }  // namespace
 
 /// Reads commands-done.json and server-settings.json at start. A missing file is normal; a bad settings file is ignored and counted.
 void ServiceCore::LoadSyncFiles() {
+    Reading<std::string> nameSync = ReadWholeFile(StatusFile(settings_.dataDir, L"name-sync.json"), kMaxNameSyncFileBytes);
+    nameSync_ = nameSync.ok() ? ParseNameSync(nameSync.value) : NameSync::None;
     Reading<std::string> done = ReadWholeFile(StatusFile(settings_.dataDir, L"commands-done.json"), kMaxCommandsFileBytes);
     doneCommands_ = done.ok() ? ParseCommandsDone(done.value) : std::vector<DoneCommand>{};
     Reading<std::string> text = ReadWholeFile(StatusFile(settings_.dataDir, L"server-settings.json"), kMaxSettingsFileBytes);
@@ -222,9 +242,8 @@ void ServiceCore::HandlePing(const PingAnswer& answer, const std::vector<DoneCom
     doneCommands_ = WithoutAcked(doneCommands_, sentAcks, answer.commands);
     doneDirty_ = doneDirty_ || !sentAcks.empty();
     SaveDoneCommands();
-    if (!answer.registered) {
-        RegisterDevice();
-    }
+    bool putSent = !answer.registered && RegisterDevice();
+    RetryNameSync(putSent);
 }
 
 /// Reads the settings when the version of the ping answer is not the one in force and not one whose answer was bad.
@@ -317,20 +336,89 @@ CommandResult ServiceCore::CommandPullSettings() {
     return PullSettings() == PullResult::Applied ? CommandResult::Done : CommandResult::Failed;
 }
 
-/// Sends PUT /api/devices/{device_id} with the computer name, at most once an hour. A failure is logged and holds the next ping on 429 or 503.
-void ServiceCore::RegisterDevice() {
+/// Sends PUT /api/devices/{device_id} with the computer name, at most once an hour. Returns true when it was sent.
+bool ServiceCore::RegisterDevice() {
     std::int64_t now = NowUnix();
     bool recent = lastRegisterUnix_.has_value() && now >= *lastRegisterUnix_ && now - *lastRegisterUnix_ < kRegisterWindowSeconds;
     if (recent) {
-        return;
+        return false;
     }
     lastRegisterUnix_ = now;
+    PutName();
+    return true;
+}
+
+/// Returns the computer name of device-name.txt, or nothing when the file is missing, empty or bad.
+std::optional<std::string> ServiceCore::ReadLocalName() {
     std::filesystem::path nameFile = std::filesystem::path(settings_.dataDir) / L"Client" / L"device-name.txt";
     Reading<std::string> text = ReadWholeFile(nameFile, kMaxNameFileBytes);
-    std::optional<std::string> name = text.ok() ? DeviceNameFromFile(text.value) : std::nullopt;
-    ApiAnswer answer = api_->Call("PUT", "/api/devices/" + deviceId_, BuildDeviceBody(name, config_.deviceType));
+    return text.ok() ? DeviceNameFromFile(text.value) : std::nullopt;
+}
+
+/// Writes the name to device-name.txt through a temporary file, or deletes the file for no name. Returns true when it worked.
+bool ServiceCore::StoreLocalName(const std::optional<std::string>& name) {
+    std::filesystem::path folder = std::filesystem::path(settings_.dataDir) / L"Client";
+    return name.has_value() ? WriteNameFile(folder, *name) : DeleteNameFile(folder);
+}
+
+/// Handles the pipe message `EWS1 name=<base64>`: a bad message, or one less than 10 seconds after the last good one, is dropped and counted.
+void ServiceCore::NameRequested(std::string_view text) {
+    Reading<std::optional<std::string>> parsed = ParseNameMessage(text);
+    std::int64_t now = NowUnix();
+    bool early = lastNameRequestUnix_.has_value() && now >= *lastNameRequestUnix_ && now - *lastNameRequestUnix_ < kNameMessageGapSeconds;
+    if (!parsed.ok() || early) {
+        ++droppedPipeMessages_;
+        return;
+    }
+    lastNameRequestUnix_ = now;
+    if (!StoreLocalName(parsed.value)) {
+        Log(LogEvent::StateWriteFailed, {3});
+        return;
+    }
+    SetNameSync(NameSync::Pending);
+    // While a Retry-After hold runs the PUT waits; the ping tick sends it later.
+    bool sendNow = api_ && pingHold_ == 0;
+    if (sendNow) {
+        PutName();
+    }
+    WriteStatus();
+}
+
+/// Sends PUT /api/devices/{device_id} with the local name and the device type, then notes the answer.
+void ServiceCore::PutName() {
+    ApiAnswer answer = api_->Call("PUT", "/api/devices/" + deviceId_, BuildDeviceBody(ReadLocalName(), config_.deviceType));
     Hold(answer);
-    Log(LogEvent::DeviceRegistered, {ApiWordCode(ApiWordFor(answer.status))});
+    NoteNameAnswer(answer);
+}
+
+/// Sends the PUT again when the name is pending and neither a PUT of this ping nor a Retry-After hold stands in the way.
+void ServiceCore::RetryNameSync(bool putSent) {
+    bool again = !putSent && nameSync_ == NameSync::Pending && pingHold_ == 0;
+    if (again) {
+        PutName();
+    }
+}
+
+/// Notes the answer of a PUT. 200 is ok and keeps the name the server holds; 401 and other 4xx (422) are failed and not
+/// tried again; anything else (network, 429, 5xx) leaves the name pending.
+void ServiceCore::NoteNameAnswer(const ApiAnswer& answer) {
+    ApiWord word = ApiWordFor(answer.status);
+    Reading<DeviceAnswer> parsed = word == ApiWord::Ok ? ParseDeviceAnswer(answer.body) : Reading<DeviceAnswer>();
+    serverNameKnown_ = serverNameKnown_ || parsed.ok();
+    serverName_ = parsed.ok() ? parsed.value.name : serverName_;
+    bool refused = word == ApiWord::Unauthorised || word == ApiWord::Rejected;
+    NameSync state = refused ? NameSync::Failed : NameSync::Pending;
+    SetNameSync(word == ApiWord::Ok ? NameSync::Ok : state);
+    Log(LogEvent::DeviceRegistered, {ApiWordCode(word)});
+}
+
+/// Remembers the name state; writes name-sync.json below the status folder when the state changed.
+void ServiceCore::SetNameSync(NameSync state) {
+    bool changed = state != nameSync_;
+    nameSync_ = state;
+    if (changed && !WriteStatusFile(settings_.dataDir, L"name-sync.json", FormatNameSync(state))) {
+        Log(LogEvent::StateWriteFailed, {3});
+    }
 }
 
 }  // namespace ews

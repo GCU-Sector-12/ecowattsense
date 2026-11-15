@@ -7,6 +7,8 @@
 #include <optional>
 #include <string>
 
+#include "ews/device_name.h"
+
 namespace ews {
 
 /// The result of the last send attempt (the seven words of SPEC 5.7).
@@ -44,13 +46,18 @@ struct StatusFields {
     std::optional<std::int64_t> lastSettingsUnix; ///< The time of the last good settings read.
     std::optional<std::int64_t> lastPingUnix;     ///< The time of the last ping attempt.
     LastPing lastPingResult = LastPing::Never;
+    std::optional<std::string> deviceName;        ///< The local computer name (device-name.txt); left out when there is none.
+    bool serverNameKnown = false;                 ///< True after a PUT answer that named the server side (even when it holds no name).
+    std::optional<std::string> serverDeviceName;  ///< The name the server holds; written as null when none (only when `serverNameKnown`).
+    NameSync nameSync = NameSync::None;           ///< Where the name stands with the server; left out for None.
 };
 
 /// Builds the text: one line, keys in the order schema, service_version, level, model_generated_utc,
 /// last_report_utc, last_send_utc, last_send_result, queued, server_url, server_key_set, server_enabled,
 /// device_type, interval_seconds, idle_threshold_seconds, unused_threshold_seconds, settings_source ("server" or
 /// "local"), settings_version (only for the server source and when known), last_settings_utc, last_ping_utc (both only
-/// when known), last_ping_result, ending with a line feed.
+/// when known), last_ping_result, device_name (only when there is a local name), server_device_name (only after a
+/// PUT answer; null when the server holds no name), name_sync (only when not None), ending with a line feed.
 /// The settings fields are always written, so the client can show them without reading config (closed to users).
 /// @param fields The values.
 /// @return The JSON text.
