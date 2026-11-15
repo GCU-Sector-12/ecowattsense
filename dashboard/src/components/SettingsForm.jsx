@@ -8,6 +8,7 @@ import { buildPayload, isChanged, toFormValues, validateForm } from './settingsF
 
 const SAVED_MILLISECONDS = 3000
 const CONFLICT_TEXT = 'Settings were changed by someone else. Reload to see them.'
+const RELOAD_TEXT = 'Could not reload the settings. Check the connection and try again.'
 const NETWORK_TEXT = 'Could not save the settings. Check the connection and try again.'
 
 /**
@@ -74,28 +75,13 @@ export default function SettingsForm({ settings }) {
   }
 
   /** @returns {Promise<void>} Sends the form; a good answer becomes the new form state. */
-  async function save() {
-    setStatus({ kind: 'saving', message: '' })
-    try {
-      const saved = await saveSettings(buildPayload(values, base))
-      setBase(saved)
-      setValues(toFormValues(saved))
-      setStatus({ kind: 'saved', message: '' })
-    } catch (error) {
-      setStatus(failureStatus(error))
-    }
+  function save() {
+    return saveForm(values, base, { setBase, setValues, setStatus })
   }
 
   /** @returns {Promise<void>} Reads the settings again and replaces the typed values. */
-  async function reload() {
-    try {
-      const fresh = await getSettings()
-      setBase(fresh)
-      setValues(toFormValues(fresh))
-      setStatus({ kind: 'idle', message: '' })
-    } catch {
-      setStatus({ kind: 'failed', message: 'Could not reload the settings. Check the connection and try again.' })
-    }
+  function reload() {
+    return reloadForm({ setBase, setValues, setStatus })
   }
 
   return (
@@ -135,4 +121,42 @@ function hideSavedLater(kind, setStatus) {
   if (kind !== 'saved') return undefined
   const timer = setTimeout(() => setStatus({ kind: 'idle', message: '' }), SAVED_MILLISECONDS)
   return () => clearTimeout(timer)
+}
+
+/**
+ * Sends the form and publishes the answer: the saved settings become the form state.
+ * @param {object} values - Valid form values.
+ * @param {object} base - Settings from the last GET.
+ * @param {{setBase: Function, setValues: Function, setStatus: Function}} setters - State setters.
+ * @returns {Promise<void>} Resolves after the state is updated; never rejects.
+ */
+function saveForm(values, base, setters) {
+  setters.setStatus({ kind: 'saving', message: '' })
+  return saveSettings(buildPayload(values, base))
+    .then(saved => showSettings(saved, { kind: 'saved', message: '' }, setters))
+    .catch(error => setters.setStatus(failureStatus(error)))
+}
+
+/**
+ * Reads the settings again and replaces the typed values with them.
+ * @param {{setBase: Function, setValues: Function, setStatus: Function}} setters - State setters.
+ * @returns {Promise<void>} Resolves after the state is updated; never rejects.
+ */
+function reloadForm(setters) {
+  return getSettings()
+    .then(fresh => showSettings(fresh, { kind: 'idle', message: '' }, setters))
+    .catch(() => setters.setStatus({ kind: 'failed', message: RELOAD_TEXT }))
+}
+
+/**
+ * Makes settings the new base and form values.
+ * @param {object} settings - Settings from the server.
+ * @param {{kind: string, message: string}} status - Status to show.
+ * @param {{setBase: Function, setValues: Function, setStatus: Function}} setters - State setters.
+ * @returns {void}
+ */
+function showSettings(settings, status, setters) {
+  setters.setBase(settings)
+  setters.setValues(toFormValues(settings))
+  setters.setStatus(status)
 }
