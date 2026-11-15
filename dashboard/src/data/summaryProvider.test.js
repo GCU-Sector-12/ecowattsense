@@ -20,6 +20,9 @@ afterEach(restore)
 /** @returns {Promise<void>} Checks recorded-day semantics and independent copies. */
 async function checkSample() {
   const first = await getSummary()
+  const second = await getSummary(sample.date)
+  expect(first).toEqual(sample)
+  expect(second).toEqual(sample)
   expect(first.date).toBe(sample.date)
   expect(first.series).toHaveLength(sample.series.length)
   first.series[0].energy_uj = -1
