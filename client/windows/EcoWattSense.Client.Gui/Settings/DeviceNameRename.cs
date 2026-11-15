@@ -64,6 +64,7 @@ public static class DeviceNameLines
         if (sync != "ok" || deviceName is null) return "";
         bool same = serverName is null ? deviceName.Length == 0 : deviceName == serverName;
         if (same) return "";
+        if (serverName is null) return "The server has no name for this computer yet.";
         return $"The server keeps the name «{serverName}». An admin can change it in the dashboard.";
     }
 }

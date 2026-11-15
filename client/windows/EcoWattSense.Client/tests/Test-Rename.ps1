@@ -52,7 +52,7 @@ Check ($lines::Line('Office', $nullString, 'pending') -eq 'Waiting to send the n
 Check ($lines::Line('Office', 'Office', 'failed') -eq 'The server did not accept the name.') 'failed line'
 Check ($lines::Line('Office', 'Office', 'ok') -eq '') 'ok and same: no line'
 Check ($lines::Line('Office', 'Admin name', 'ok') -eq (Kept 'Admin name')) 'ok and different: server keeps line'
-Check ($lines::Line('Office', $nullString, 'ok') -eq (Kept '')) 'ok, server has none, name set: line'
+Check ($lines::Line('Office', $nullString, 'ok') -eq 'The server has no name for this computer yet.') 'ok, server has none, name set: line'
 Check ($lines::Line('', $nullString, 'ok') -eq '') 'ok, both empty: no line'
 Check ($lines::Line('', 'Admin name', 'ok') -eq (Kept 'Admin name')) 'ok, local empty, server has a name: line'
 Check ($lines::Line($nullString, 'Admin name', 'ok') -eq '') 'device name unknown: no line'
