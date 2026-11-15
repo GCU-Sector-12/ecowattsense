@@ -1,6 +1,6 @@
 // Energy Usage page (#energy). Opened from the sidebar by App.jsx.
 import { useEffect, useState } from 'react'
-import { Alert, Card, Group, SegmentedControl, SimpleGrid, Stack, Table, Text } from '@mantine/core'
+import { Alert, Card, Group, SegmentedControl, SimpleGrid, Stack, Table, Text, useMantineTheme } from '@mantine/core'
 import { BarChart } from '@mantine/charts'
 import Header from '../components/Header.jsx'
 import { getSummary } from '../data/index.js'
@@ -46,6 +46,7 @@ function handleLoadError(cause, setError, setRows) {
  * @returns {JSX.Element} Energy Usage page.
  */
 export default function EnergyPage() {
+  const theme = useMantineTheme()
   const [range, setRange] = useState('7')
   const [rows, setRows] = useState([])
   const [error, setError] = useState('')
@@ -92,7 +93,7 @@ export default function EnergyPage() {
           h={280}
           data={chartData}
           dataKey="day"
-          series={[{ name: 'energy', label: 'Energy', color: 'chartLine' }]}
+          series={[{ name: 'energy', label: 'Energy', color: theme.other.chartLine }]}
           withLegend={false}
           gridAxis="y"
           tickLine="none"
