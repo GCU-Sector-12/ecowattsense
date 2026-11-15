@@ -1,3 +1,4 @@
+// Mantine theme adapter for EcoWattSense design tokens. Used by main.jsx when creating the dashboard theme.
 import { createTheme } from '@mantine/core'
 
 // Mantine theme built from the EcoWattSense design tokens
