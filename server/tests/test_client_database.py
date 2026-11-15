@@ -71,17 +71,18 @@ def test_second_put_for_the_same_device(client, engine):
     changed = {"device_name": "Lab 2 PC 01", "os": "linux", "device_type": "laptop"}
     response = client.put(DEVICE_PATH, json=changed)
     assert response.status_code == 200
-    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 2 PC 01", "created": False}
+    # The name is stored only while it is empty (contract 5.3), so the first name stays.
+    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 1 PC 03", "created": False}
     (device,) = devices_in(engine)
-    assert (device.display_name, device.os, device.device_type) == ("Lab 2 PC 01", "linux", "laptop")
+    assert (device.display_name, device.os, device.device_type) == ("Lab 1 PC 03", "linux", "laptop")
     assert device.first_seen_at == first_seen
 
 
-def test_put_without_a_name_clears_the_name(client, engine):
+def test_put_without_a_name_keeps_the_stored_name(client, engine):
     client.put(DEVICE_PATH, json=DEVICE)
     response = client.put(DEVICE_PATH, json={"os": "windows", "device_type": "desktop"})
-    assert response.json() == {"device_id": DEVICE_ID, "device_name": None, "created": False}
-    assert devices_in(engine)[0].display_name is None
+    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 1 PC 03", "created": False}
+    assert devices_in(engine)[0].display_name == "Lab 1 PC 03"
 
 
 def test_settings_come_from_the_seeded_tables(client):

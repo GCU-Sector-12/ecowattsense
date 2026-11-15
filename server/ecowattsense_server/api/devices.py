@@ -1,6 +1,6 @@
 """The devices endpoints: PUT /api/devices/{device_id} for the clients, GET /api/devices for the dashboard.
 
-PUT (contract 5.3) registers a computer or changes its name, os and device_type. The clients call
+PUT (contract 5.3) registers a computer or sets its name (only while it has none), os and device_type. The clients call
 it with the header X-EWS-Key when they first connect and when the user changes the name. The
 call can be repeated: created is true only for the call that adds the computer.
 GET lists the computers for the admin dashboard.
@@ -59,18 +59,22 @@ def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
 
 
 def update_device(device: Device, body: DeviceIn) -> None:
-    """Set the name, os and device_type of a known computer. The last call wins (contract 5.3).
+    """Set the name, os and device_type of a known computer (contract 5.3).
+
+    The name is stored only while the stored display_name is empty. A name set by the admin is
+    never overwritten by the client. os and device_type are always set.
 
     Args:
         device: The stored computer.
         body: The registration: device_name, os and device_type.
     """
-    device.display_name = body.device_name
+    if device.display_name is None:
+        device.display_name = body.device_name
     device.os = body.os
     device.device_type = body.device_type
 
 
-def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> bool:
+def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> tuple[bool, str | None]:
     """Store one registration: update the computer when it is known, add it when it is not.
 
     Args:
@@ -79,7 +83,8 @@ def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> bool
         body: The registration: device_name, os and device_type.
 
     Returns:
-        True when this call added the computer, False when it was known before.
+        A pair. The first is True when this call added the computer, False when it was known
+        before. The second is the name that is stored now.
 
     Raises:
         IntegrityError: Another call added the same computer at the same moment.
@@ -88,10 +93,10 @@ def save_registration(session: Session, device_id: UUID, body: DeviceIn) -> bool
     if device is not None:
         update_device(device, body)
         session.commit()
-        return False
+        return False, device.display_name
     session.add(new_device(device_id, body, utc_now()))
     session.commit()
-    return True
+    return True, body.device_name
 
 
 @router.put("/devices/{device_id}", response_model=DeviceOut,
@@ -106,16 +111,16 @@ def register_device(device_id: UUID, body: DeviceIn,
         session: The database session.
 
     Returns:
-        The id, the name now, and created (true only when this call added the computer).
+        The id, the name that is stored now, and created (true only when this call added the computer).
     """
     try:
-        created = save_registration(session, device_id, body)
+        created, name = save_registration(session, device_id, body)
     except IntegrityError:
         # Two first calls came at the same moment and the other one added the row. This call
         # is then a repeat, so it updates the row and answers created false.
         session.rollback()
-        created = save_registration(session, device_id, body)
-    return DeviceOut(device_id=device_id, device_name=body.device_name, created=created)
+        created, name = save_registration(session, device_id, body)
+    return DeviceOut(device_id=device_id, device_name=name, created=created)
 
 
 @router.get("/devices", response_model=DevicesOut, dependencies=[Depends(require_admin)])
