@@ -26,7 +26,7 @@ it('opens Settings from the hash and switches to the dark theme', async () => {
   const menuItem = screen.getByRole('link', { name: 'Settings' })
   expect(menuItem).toHaveAttribute('data-active', 'true')
 
-  expect(await screen.findByText('Report interval: 300 seconds')).toBeInTheDocument()
+  expect(await screen.findByLabelText('Report interval (seconds)')).toBeInTheDocument()
   await userEvent.click(screen.getByText('Dark'))
   expect(document.documentElement).toHaveAttribute('data-mantine-color-scheme', 'dark')
 })
