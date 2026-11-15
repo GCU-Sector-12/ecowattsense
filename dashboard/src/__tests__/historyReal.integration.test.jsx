@@ -149,3 +149,28 @@ it('disables Next day on today', async () => {
   expect(screen.getByRole('button', { name: 'Next day' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Previous day' })).toBeEnabled()
 })
+
+it('keeps the old day on screen, dimmed and busy, while the next day loads', async () => {
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const second = { ...historyFor('2026-11-13', 3), totals: { ...totals, energy_uj: 3600000000000 * 5 } }
+  const fetcher = vi.fn(async url => {
+    const isNewDay = String(url).includes('from=2026-11-13')
+    if (!isNewDay) return route(historyFor('2026-11-14', 3))(url)
+    await gate
+    return route(second)(url)
+  })
+  vi.stubGlobal('fetch', fetcher)
+  renderWithMantine(<HistoryPage deviceId="real-1" />)
+  fireEvent.change(screen.getByLabelText('History date'), { target: { value: '2026-11-14' } })
+  await screen.findByText('2.000 kWh')
+  expect(screen.getByTestId('history-content')).not.toHaveAttribute('aria-busy', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'Previous day' }))
+  await waitFor(() => expect(screen.getByTestId('history-content')).toHaveAttribute('aria-busy', 'true'))
+  expect(screen.getByText('2.000 kWh')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Previous day' })).toBeEnabled()
+  expect(screen.queryByRole('status', { name: 'Loading computer history' })).not.toBeInTheDocument()
+  release()
+  expect(await screen.findByText('5.000 kWh')).toBeInTheDocument()
+  expect(screen.getByTestId('history-content')).not.toHaveAttribute('aria-busy', 'true')
+})
