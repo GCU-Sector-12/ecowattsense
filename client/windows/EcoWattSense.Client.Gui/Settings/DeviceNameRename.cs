@@ -12,7 +12,7 @@ namespace EcoWattSense.Client.Gui.Settings;
 
 /// <summary>The result of checking a typed name.</summary>
 /// <param name="Valid">True when the name may be sent.</param>
-/// <param name="Name">The trimmed name; empty means "remove the name".</param>
+/// <param name="Name">The trimmed name.</param>
 /// <param name="Reason">A short line that says why the name is not valid; empty when it is valid.</param>
 public sealed record DeviceNameCheck(bool Valid, string Name, string Reason);
 
@@ -27,10 +27,11 @@ public static class DeviceNameRules
 
     /// <summary>Checks the text a person typed.</summary>
     /// <param name="typed">The text of the box; null counts as empty.</param>
-    /// <returns>The check result. An empty name is valid (it removes the name).</returns>
+    /// <returns>The check result. An empty name is not valid: the server keeps a stored name on an empty value.</returns>
     public static DeviceNameCheck Check(string? typed)
     {
         string name = (typed ?? "").Trim();
+        if (name.Length == 0) return new DeviceNameCheck(false, name, "Enter a name.");
         int length = name.EnumerateRunes().Count();
         if (length > SettingsReader.MaxNameLength) return new DeviceNameCheck(false, name, "Use at most 60 characters.");
         if (name.EnumerateRunes().Any(Rune.IsControl)) return new DeviceNameCheck(false, name, "Remove the control characters.");
@@ -39,10 +40,11 @@ public static class DeviceNameRules
     }
 
     /// <summary>Builds the pipe message for a name that is already trimmed.</summary>
-    /// <param name="name">The trimmed name; empty means "no name".</param>
-    /// <returns>The message with a final line feed, or null when it would be longer than <see cref="MaxMessageBytes"/> bytes.</returns>
+    /// <param name="name">The trimmed name.</param>
+    /// <returns>The message with a final line feed, or null when the name is empty or the message would be longer than <see cref="MaxMessageBytes"/> bytes.</returns>
     public static string? Message(string name)
     {
+        if (name.Length == 0) return null;
         string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(name));
         string message = MessagePrefix + encoded + "\n";
         return message.Length <= MaxMessageBytes ? message : null;

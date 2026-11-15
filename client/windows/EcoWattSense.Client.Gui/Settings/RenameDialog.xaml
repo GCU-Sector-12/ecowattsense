@@ -15,7 +15,7 @@
                  HorizontalContentAlignment="Left"
                  Padding="6,5"
                  TextChanged="OnNameChanged"/>
-        <TextBlock Text="Up to 60 characters. Leave empty to remove the name."
+        <TextBlock Text="Up to 60 characters."
                    FontSize="12" Foreground="#52685D" TextWrapping="Wrap" Margin="0,6,0,0"/>
         <TextBlock x:Name="ReasonText" FontSize="12" Foreground="#A33A2E" TextWrapping="Wrap" Margin="0,6,0,0"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">

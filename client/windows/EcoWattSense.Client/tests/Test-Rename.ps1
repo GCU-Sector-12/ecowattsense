@@ -15,9 +15,10 @@ function Kept($name) { "The server keeps the name $($guillemets[0])$name$($guill
 
 # Name validation.
 $r = $rules::Check($nullString)
-Check ($r.Valid -and $r.Name -eq '' -and $r.Reason -eq '') 'null is an empty valid name'
+Check (!$r.Valid -and $r.Reason -eq 'Enter a name.') 'null is not valid'
 $r = $rules::Check('   ')
-Check ($r.Valid -and $r.Name -eq '') 'spaces only trim to empty'
+Check (!$r.Valid -and $r.Name -eq '' -and $r.Reason -eq 'Enter a name.') 'spaces only trim to empty and are not valid'
+Check (!$rules::Check('').Valid) 'empty is not valid'
 $r = $rules::Check('  Office PC  ')
 Check ($r.Valid -and $r.Name -eq 'Office PC') 'name is trimmed'
 Check ($rules::Check('a' * 60).Valid) '60 characters are valid'
@@ -38,7 +39,7 @@ Check (!$rules::Check("a`nb").Valid) 'line feed inside is not valid'
 
 # The exact pipe text and the byte limit.
 Check ($rules::Message('Office PC') -eq "EWS1 name=T2ZmaWNlIFBD`n") 'exact message for a name'
-Check ($rules::Message('') -eq "EWS1 name=`n") 'empty name: nothing after name='
+Check ($null -eq $rules::Message('')) 'empty name: no message is built'
 $utf8 = [System.Text.Encoding]::UTF8
 $polishMessage = $rules::Message($polish)
 Check ($polishMessage -eq ('EWS1 name=' + [Convert]::ToBase64String($utf8.GetBytes($polish)) + "`n")) 'Polish name is base64 of UTF-8'
