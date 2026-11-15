@@ -28,7 +28,7 @@ function loadSampleSummary(date = sample.date) {
   if (!Number.isInteger(daysBeforeSample) || daysBeforeSample < 0 || daysBeforeSample >= 30) {
     return structuredClone({ ...sample, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [] })
   }
-  const factor = 0.8 + ((daysBeforeSample * 13) % 41) / 100
+  const factor = daysBeforeSample === 0 ? 1 : 0.8 + ((daysBeforeSample * 13) % 41) / 100
   return {
     ...structuredClone(sample),
     date,

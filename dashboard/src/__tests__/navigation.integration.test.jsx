@@ -43,21 +43,18 @@ it('shows the dashboard when there is no hash', async () => {
   expect(screen.getAllByRole('row')).toHaveLength(6)
 })
 
-// EWS_WEB-23: every sidebar item has its own page, an unknown address shows "Page not found",
-// and the right menu item is highlighted.
-
-// The menu items that are highlighted right now (the sidebar marks them with data-active).
 /** @returns {NodeListOf<Element>} Currently highlighted navigation items. */
 function highlightedItems() {
   return document.querySelectorAll('[data-active="true"]')
 }
 
-it('opens the Energy Usage page from #energy and highlights Energy Usage', () => {
+it('opens the Energy Usage page from #energy and highlights Energy Usage', async () => {
   renderWithMantine(<App />)
   goToHash('#energy')
 
   expect(screen.getByRole('heading', { name: 'Energy Usage' })).toBeInTheDocument()
-  expect(screen.getByText('Coming in this sprint')).toBeInTheDocument()
+  expect(await screen.findByText('Daily breakdown')).toBeInTheDocument()
+  expect(screen.getByRole('radio', { name: '7 days' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Energy Usage' })).toHaveAttribute('data-active', 'true')
 })
 
