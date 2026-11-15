@@ -19,14 +19,28 @@ export async function loadSummary(date) {
 }
 
 /**
- * Returns recorded readings only for the recorded sample day.
+ * Returns one generated daily summary within the 30-day sample window.
  * @param {string} [date=sample.date] - Requested day.
- * @returns {object} Fresh response with empty energy data for unrecorded days.
+ * @returns {object} Fresh daily response, or empty values outside the sample window.
  */
 function loadSampleSummary(date = sample.date) {
-  return structuredClone(date === sample.date ? sample : {
-    ...sample, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [],
-  })
+  const daysBeforeSample = (Date.parse(sample.date + 'T00:00:00Z') - Date.parse(date + 'T00:00:00Z')) / 86400000
+  if (!Number.isInteger(daysBeforeSample) || daysBeforeSample < 0 || daysBeforeSample >= 30) {
+    return structuredClone({ ...sample, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [] })
+  }
+  const factor = 0.8 + ((daysBeforeSample * 13) % 41) / 100
+  return {
+    ...structuredClone(sample),
+    date,
+    energy_uj: Math.round(sample.energy_uj * factor),
+    cost_gbp: Number((sample.cost_gbp * factor).toFixed(4)),
+    co2_kg: Number((sample.co2_kg * factor).toFixed(4)),
+    series: sample.series.map((point) => ({
+      ...point,
+      timestamp: point.timestamp.replace(sample.date, date),
+      energy_uj: Math.round(point.energy_uj * factor),
+    })),
+  }
 }
 
 /**
