@@ -574,6 +574,46 @@ Example response:
 }
 ```
 
+### 5.12 Admin settings (EWS_API-20)
+
+`GET /api/admin/settings` requires the `ews_session` cookie and returns 200 with
+exactly the same fields and current values as the client `GET /api/settings`.
+A client key alone does not grant admin access. Missing, expired or invalid sessions
+return 401.
+
+`PUT /api/admin/settings` requires that cookie and `Content-Type: application/json`.
+Send all nine fields from the GET response. `settings_version` is the version the
+admin read. The other fields are the five integer settings, `tariff_valid_from`,
+`price_gbp_per_kwh` and `co2_kg_per_kwh`.
+
+- Integer settings must be JSON whole numbers greater than zero and at most
+  2147483647. Booleans, strings and fractions are rejected. Report interval must
+  be between 60 and 3600 seconds, matching the Settings page validation.
+- `unused_threshold_seconds` must be greater than `idle_threshold_seconds`.
+- Price and CO2 must be finite JSON numbers greater than or equal to zero.
+- `tariff_valid_from` is an ISO datetime with a timezone, normalized to UTC.
+  The tariff is inserted at that instant, or updates the existing tariff at the
+  same instant. Other tariff periods are preserved. A future instant schedules
+  a tariff; the GET endpoints continue returning the tariff currently in force.
+- Unknown fields, missing values and invalid values return 422 with FastAPI
+  validation details. An unsupported content type also returns 422.
+- A stale `settings_version` returns 409 with `detail` asking the admin to reload.
+  The save makes no changes in this case. Reload and reapply the intended edits.
+- A successful save atomically stores all settings and the tariff and raises
+  `settings_version` by one. The 200 response contains the submitted settings and
+  tariff with the new version, including a future tariff when one was submitted.
+  Repeating the old request gives 409, so a retry cannot overwrite a later save.
+- Client settings reads and ping replies expose the new version. Existing
+  databases without a version row start at version 1.
+
+Example body (replace `settings_version` with the latest GET value):
+
+```json
+{"settings_version":1,"report_interval_seconds":300,"ping_interval_seconds":60,
+ "idle_threshold_seconds":600,"unused_threshold_seconds":3600,"no_data_after_cycles":3,
+ "tariff_valid_from":"2026-11-17T00:00:00Z","price_gbp_per_kwh":0.25,"co2_kg_per_kwh":0.207}
+```
+
 ## 6. Values
 
 **States.** The code is stored in the database and sent in reports. The name is used in replies and on screen.
@@ -611,7 +651,7 @@ The client pulls the settings with `GET /api/settings` when it starts and when t
 | `ping_interval_seconds` | 60 | How often the client sends a ping |
 | `settings_version` | 1 | Goes up by 1 when an admin changes a setting or the tariff |
 
-The admin changes the settings in the dashboard. The endpoints for that are not in this version of the document. The admin can also push a change at once with the command `set_interval` (section 5.5).
+The admin changes the settings in the dashboard. The admin endpoints are defined in section 5.12. The admin can also push a change at once with the command `set_interval` (section 5.5).
 
 ## 8. What this document settles
 
@@ -636,7 +676,7 @@ What changes elsewhere to match this document:
 - The prefix of the other server settings (`ECOWATTSENSE_` today, `EWS_` proposed).
 - `device_name` in the client call versus `display_name` in the database and the admin endpoints. One word should win.
 - Clients built before 19 October do not send `on_battery` yet. Until they do, the server may treat a missing `on_battery` as false (a transition rule, to confirm).
-- Endpoints for the admin to change settings, energy rates, tariffs, locations, to rename or archive a computer and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version.
+- Endpoints for the admin to change energy rates and locations, to rename or archive a computer and to queue commands (plan cards SRV-10 and SRV-11). They come in the next version.
 - A `commands` table and `registered_at` in `devices` are needed for the ping and the registration. They are not in the brief or the ERD yet.
 - The lifetime of the session cookie. Admin users in the `users` table with password hashes, instead of one user in `.env`.
 - A version in the path (`/api/v1`) before the first client ships.
