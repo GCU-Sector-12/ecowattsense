@@ -74,6 +74,7 @@ public partial class MainWindow
         SettingsInterval.Text = SettingsText.Minutes(info.IntervalSeconds);
         SettingsIdle.Text = SettingsText.Minutes(info.IdleSeconds);
         SettingsUnused.Text = SettingsText.Minutes(info.UnusedSeconds);
+        SettingsSourceLine.Text = SettingsText.SettingsSourceLines(info, TimeZoneInfo.Local);
         SettingsVersion.Text = SettingsText.Version(info.ServiceVersion);
         ShowSetupButton();
     }

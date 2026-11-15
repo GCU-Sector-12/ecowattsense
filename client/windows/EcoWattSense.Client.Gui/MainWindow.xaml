@@ -385,7 +385,9 @@
                             <TextBlock Text="Idle after" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                             <TextBlock x:Name="SettingsIdle" Text="unknown" Margin="0,0,0,14"/>
                             <TextBlock Text="Unused after" Style="{StaticResource Label}" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="SettingsUnused" Text="unknown" Margin="0,0,0,14"/>
+                            <TextBlock x:Name="SettingsUnused" Text="unknown" Margin="0,0,0,6"/>
+                            <TextBlock x:Name="SettingsSourceLine" Text="Local settings (not read from the server yet)"
+                                       FontSize="12" Foreground="#52685D" TextWrapping="Wrap" Margin="0,0,0,14"/>
                             <CheckBox x:Name="AutostartCheck"
                                       Content="Start the client with Windows"
                                       IsEnabled="False"

@@ -115,4 +115,25 @@ Check ($task::Parse($userXml) -eq $kind::User) 'task XML with a user principal i
 Check ($task::Parse($nullString) -eq $kind::None -and $task::Parse('  ') -eq $kind::None) 'no task XML is None'
 Check ($task::Parse('this is not xml') -eq $kind::Unknown) 'broken XML is Unknown'
 Check ($task::Parse("<Task $ns/>") -eq $kind::User) 'task XML with no Principal is User'
+# The "where do the settings come from" line (UTC zone, so the clock times are the same on every computer).
+$utc = [TimeZoneInfo]::Utc
+$lines = { param($json) $text::SettingsSourceLines($reader::Parse($json), $utc) }
+$localLine = 'Local settings (not read from the server yet)'
+$serverJson = '{ "settings_source": "server", "settings_version": 7, "last_settings_utc": "2026-11-15T21:26:42Z", "last_ping_utc": "2026-11-15T21:30:00Z", "last_ping_result": "ok" }'
+Check ((& $lines $serverJson) -eq 'Settings from the server, version 7, checked 21:26') 'source line: server with all fields'
+$failedJson = $serverJson.Replace('"last_ping_result": "ok"', '"last_ping_result": "timeout"')
+Check ((& $lines $failedJson) -eq "Settings from the server, version 7, checked 21:26`n" + 'Server not reached at the last check (21:30).') 'source line: ping not ok adds a second line'
+$noPingTime = '{ "settings_source": "server", "settings_version": 2, "last_settings_utc": "2026-11-15T08:05:00Z", "last_ping_result": "dns" }'
+Check ((& $lines $noPingTime) -eq "Settings from the server, version 2, checked 08:05`n" + 'Server not reached at the last check.') 'source line: ping not ok without a time'
+$noPingResult = '{ "settings_source": "server", "settings_version": 7, "last_settings_utc": "2026-11-15T21:26:42Z" }'
+Check ((& $lines $noPingResult) -eq 'Settings from the server, version 7, checked 21:26') 'source line: no ping result adds nothing'
+Check ((& $lines '{ "settings_source": "local", "settings_version": 7, "last_settings_utc": "2026-11-15T21:26:42Z" }') -eq $localLine) 'source line: local'
+Check ((& $lines '{ "service_version": "0.1.0" }') -eq $localLine) 'source line: fields missing (older service)'
+Check ((& $lines '{ "settings_source": "server" }') -eq $localLine) 'source line: server without version and time is local'
+Check ((& $lines '{ "settings_source": 5, "settings_version": "7", "last_settings_utc": 12 }') -eq $localLine) 'source line: wrong types'
+Check ((& $lines '{ "settings_source": "server", "settings_version": 7.5, "last_settings_utc": "2026-11-15T21:26:42Z" }') -eq $localLine) 'source line: fractional version is local'
+Check ((& $lines '{ "settings_source": "server", "settings_version": 7, "last_settings_utc": "yesterday" }') -eq $localLine) 'source line: bad time text is local'
+Check ((& $lines '{ not json') -eq $localLine) 'source line: broken file'
+$zone = [TimeZoneInfo]::CreateCustomTimeZone('Test+2', [TimeSpan]::FromHours(2), 'Test+2', 'Test+2')
+Check ($text::SettingsSourceLines($reader::Parse($serverJson), $zone) -eq 'Settings from the server, version 7, checked 23:26') 'source line: shown in the given time zone'
 Write-Output "Passed $checks settings info checks."

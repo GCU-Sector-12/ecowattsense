@@ -19,8 +19,15 @@ namespace EcoWattSense.Client.Gui.Settings;
 /// <param name="IntervalSeconds">The report interval in seconds, or null.</param>
 /// <param name="IdleSeconds">The idle threshold in seconds, or null.</param>
 /// <param name="UnusedSeconds">The unused threshold in seconds, or null.</param>
+/// <param name="SettingsSource">"server" or "local", or null (an older service).</param>
+/// <param name="SettingsVersion">The version of the settings read from the server, or null.</param>
+/// <param name="LastSettingsUtc">When the settings were last checked on the server (UTC), or null.</param>
+/// <param name="LastPingUtc">When the server was last asked (UTC), or null.</param>
+/// <param name="LastPingResult">The result word of the last ask, "ok" when it worked, or null.</param>
 public sealed record SettingsInfo(string? ServiceVersion, string? ServerUrl, bool? KeySet, bool? ServerEnabled,
-    string? DeviceType, int? IntervalSeconds, int? IdleSeconds, int? UnusedSeconds)
+    string? DeviceType, int? IntervalSeconds, int? IdleSeconds, int? UnusedSeconds,
+    string? SettingsSource = null, int? SettingsVersion = null, DateTime? LastSettingsUtc = null,
+    DateTime? LastPingUtc = null, string? LastPingResult = null)
 {
     /// <summary>The value for a file that is missing, broken or has none of the fields.</summary>
     public static readonly SettingsInfo Unknown = new(null, null, null, null, null, null, null, null);
@@ -95,7 +102,38 @@ public static class SettingsReader
             Known(GetText(root, "device_type", MaxVersionLength)),
             GetSeconds(root, "interval_seconds"),
             GetSeconds(root, "idle_threshold_seconds"),
-            GetSeconds(root, "unused_threshold_seconds"));
+            GetSeconds(root, "unused_threshold_seconds"),
+            GetText(root, "settings_source", MaxVersionLength),
+            GetVersionNumber(root, "settings_version"),
+            GetUtcTime(root, "last_settings_utc"),
+            GetUtcTime(root, "last_ping_utc"),
+            GetText(root, "last_ping_result", MaxVersionLength));
+    }
+
+    /// <summary>Reads a whole, non-negative version number.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <param name="name">The property name.</param>
+    /// <returns>The number, or null when the property is missing, not a whole number or negative.</returns>
+    private static int? GetVersionNumber(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out JsonElement value)) return null;
+        if (value.ValueKind != JsonValueKind.Number) return null;
+        bool whole = value.TryGetInt32(out int number);
+        return whole && number >= 0 ? number : null;
+    }
+
+    /// <summary>Reads a time written like 2026-11-15T21:26:42Z.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <param name="name">The property name.</param>
+    /// <returns>The time as UTC, or null when the property is missing, not a string or not in that form.</returns>
+    private static DateTime? GetUtcTime(JsonElement root, string name)
+    {
+        string? text = GetText(root, name, MaxVersionLength);
+        if (text is null) return null;
+        const string format = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+        var style = System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal;
+        bool good = DateTime.TryParseExact(text, format, System.Globalization.CultureInfo.InvariantCulture, style, out DateTime time);
+        return good ? time : null;
     }
 
     /// <summary>Reads a string property with a length limit.</summary>
@@ -206,4 +244,37 @@ public static class SettingsText
     /// <param name="version">The version text, or null.</param>
     /// <returns>The version, or "unknown" for null or an empty text.</returns>
     public static string Version(string? version) => string.IsNullOrEmpty(version) ? Unknown : version;
+
+    /// <summary>The line under the settings that says where they come from.</summary>
+    public const string LocalSettings = "Local settings (not read from the server yet)";
+
+    /// <summary>Gives the lines that say where the settings come from (one or two lines).</summary>
+    /// <param name="info">The checked fields.</param>
+    /// <param name="zone">The time zone for the clock times; the computer's own zone in the page.</param>
+    /// <returns>The server line, plus a second line when the last ask failed; the local line when the source is not "server" or its fields are missing or wrong.</returns>
+    public static string SettingsSourceLines(SettingsInfo info, TimeZoneInfo zone)
+    {
+        bool fromServer = info.SettingsSource == "server" && info.SettingsVersion is not null && info.LastSettingsUtc is not null;
+        if (!fromServer) return LocalSettings;
+        string checkedAt = ClockTime(info.LastSettingsUtc, zone);
+        string line = $"Settings from the server, version {info.SettingsVersion}, checked {checkedAt}";
+        bool pingFailed = info.LastPingResult is not null && info.LastPingResult != "ok";
+        return pingFailed ? line + "\n" + PingFailedLine(info.LastPingUtc, zone) : line;
+    }
+
+    /// <summary>Gives the line for a failed ask of the server.</summary>
+    /// <param name="pingUtc">When the server was last asked (UTC), or null.</param>
+    /// <param name="zone">The time zone for the clock time.</param>
+    /// <returns>"Server not reached at the last check (HH:mm)."; without the brackets when the time is unknown.</returns>
+    private static string PingFailedLine(DateTime? pingUtc, TimeZoneInfo zone)
+        => pingUtc is null
+            ? "Server not reached at the last check."
+            : $"Server not reached at the last check ({ClockTime(pingUtc, zone)}).";
+
+    /// <summary>Turns a UTC time into local HH:mm.</summary>
+    /// <param name="utc">The UTC time, or null.</param>
+    /// <param name="zone">The time zone.</param>
+    /// <returns>The hours and minutes in that zone; "unknown" for null.</returns>
+    private static string ClockTime(DateTime? utc, TimeZoneInfo zone)
+        => utc is { } time ? TimeZoneInfo.ConvertTimeFromUtc(time, zone).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture) : Unknown;
 }
