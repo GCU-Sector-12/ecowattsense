@@ -23,7 +23,7 @@ info:
 
     * A version in the path (`/api/v1`) before the first client ships.
     * When the server answers 429 and 503, and with which `Retry-After`.
-    * Endpoints for the admin to change energy rates and locations, to rename or archive a computer and to queue commands. They come in the next version.
+    * Endpoints for the admin to change energy rates, to rename or archive a computer, to add or rename rooms and to queue commands. They come in the next version.
 
 servers:
   - url: "/"
@@ -422,6 +422,75 @@ paths:
         '422':
           $ref: '#/components/responses/AdminDeviceInvalid'
 
+  /api/locations:
+    get:
+      operationId: getLocations
+      tags: [admin]
+      summary: List the rooms
+      description: |
+        Caller: the admin, from the dashboard. Auth: the cookie `ews_session`, the same as `GET /api/devices`.
+
+        It lists the rooms, so the dashboard can fill a room picker. The rooms are sorted by `name` and then by `building`. An empty list is valid.
+      security:
+        - adminSession: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LocationsOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+
+  /api/admin/locations:
+    post:
+      operationId: postAdminLocation
+      tags: [admin]
+      summary: Add a room
+      description: |
+        Caller: the admin, from the dashboard. Auth: the cookie `ews_session`.
+
+        It adds one room. A field that is not in the body table is an error. The name is unique, whatever the building.
+      security:
+        - adminSession: []
+      requestBody:
+        $ref: '#/components/requestBodies/AdminLocationBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/AdminLocationCreated'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '409':
+          $ref: '#/components/responses/AdminLocationNameTaken'
+        '422':
+          $ref: '#/components/responses/AdminLocationInvalid'
+
+  /api/admin/locations/{location_id}:
+    patch:
+      operationId: patchAdminLocation
+      tags: [admin]
+      summary: Change the name or the building of a room
+      description: |
+        Caller: the admin, from the dashboard. Auth: the cookie `ews_session`.
+
+        It changes the name or the building of one room. Only the fields in the body change. The call can be repeated safely: the same body gives the same result.
+
+        At least one field is required. A field that is not in the body table is an error. A blank building or null clears the building. Null is not allowed for the name.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/LocationIdPath'
+      requestBody:
+        $ref: '#/components/requestBodies/AdminLocationChangeBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminLocationOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '404':
+          $ref: '#/components/responses/AdminLocationNotFound'
+        '409':
+          $ref: '#/components/responses/AdminLocationNameTaken'
+        '422':
+          $ref: '#/components/responses/AdminLocationInvalid'
+
 # Components. Everything that paths use more than once, or that would nest deep, lives here.
 
 components:
@@ -442,7 +511,7 @@ components:
       description: |
         The admin session. `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. A missing or expired cookie gives 401.
 
-        The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}` and `/api/logout`.
+        The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}`, `GET /api/locations`, `POST /api/admin/locations`, `PATCH /api/admin/locations/{location_id}` and `/api/logout`.
 
   parameters:
     DeviceIdPath:
@@ -453,6 +522,14 @@ components:
       schema:
         $ref: '#/components/schemas/DeviceId'
       example: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+    LocationIdPath:
+      name: location_id
+      in: path
+      required: true
+      description: 'The room.'
+      schema:
+        type: integer
+      example: 3
     LocationId:
       name: location_id
       in: query
@@ -608,6 +685,25 @@ components:
             device_name: "Lab 1 PC 03"
             os: "macos"
             device_type: "laptop"
+    AdminLocationBody:
+      required: true
+      description: 'The name and the building of the new room.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminLocationNew'
+          example:
+            name: "Lab 3"
+            building: "George Moore"
+    AdminLocationChangeBody:
+      required: true
+      description: 'The fields to change. At least one is required.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminLocationChange'
+          example:
+            building: "Cowcaddens"
     ReportsBody:
       required: true
       description: 'One report object, or a list of 1 to 100 report objects.'
@@ -896,6 +992,62 @@ components:
             detail: "Device not found"
     AdminDeviceInvalid:
       description: 'A field has the wrong type, a field is unknown, the body is empty, the name is longer than 60 characters, or `location_id` is not an id in `locations`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    LocationsOk:
+      description: 'The rooms, sorted by name and then by building. The list can be empty.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Locations'
+          example:
+            locations:
+              - id: 1
+                name: "Lab 1"
+                building: "George Moore"
+              - id: 2
+                name: "Lab 2"
+                building: null
+    AdminLocationCreated:
+      description: 'The new room, in the shape of one element of `locations[]` in `GET /api/locations`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Location'
+          example:
+            id: 3
+            name: "Lab 3"
+            building: "George Moore"
+    AdminLocationOk:
+      description: 'The room as it is now, in the shape of one element of `locations[]` in `GET /api/locations`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Location'
+          example:
+            id: 3
+            name: "Lab 3"
+            building: "Cowcaddens"
+    AdminLocationNotFound:
+      description: 'There is no room with this `location_id`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Location not found"
+    AdminLocationNameTaken:
+      description: 'A room with the same `name` exists, whatever its building.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "A room with this name exists"
+    AdminLocationInvalid:
+      description: 'A field has the wrong type, a field is unknown, the body is empty (PATCH), `name` is missing (POST), null, blank or longer than 60 characters, or `building` is longer than 60 characters.'
       content:
         application/json:
           schema:
@@ -1411,6 +1563,61 @@ components:
         archived:
           type: boolean
           description: 'True hides the computer from `GET /api/devices`. False shows it again.'
+
+    # Rooms: GET /api/locations, POST and PATCH /api/admin/locations
+
+    Location:
+      type: object
+      required: [id, name, building]
+      properties:
+        id:
+          type: integer
+          description: 'The room id. It is `location_id` in the other endpoints.'
+        name:
+          type: string
+          description: 'For example "Lab 1". Unique.'
+        building:
+          type: [string, "null"]
+          description: 'Null when no building is set.'
+
+    Locations:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+
+    AdminLocationNew:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: 'Trimmed. 1 to 60 characters. Unique.'
+        building:
+          type: [string, "null"]
+          maxLength: 60
+          description: 'Trimmed. At most 60 characters. A blank string or null means no building.'
+
+    AdminLocationChange:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+          description: 'Trimmed. 1 to 60 characters. Unique. Null is not allowed.'
+        building:
+          type: [string, "null"]
+          maxLength: 60
+          description: 'Trimmed. At most 60 characters. A blank string or null clears the building.'
 
     # GET /api/devices/{device_id}/history
 
