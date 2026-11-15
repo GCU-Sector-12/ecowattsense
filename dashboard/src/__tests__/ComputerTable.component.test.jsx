@@ -38,10 +38,10 @@ function device(overrides = {}) {
   }
 }
 
-it('uses the first eight ID characters when a device has no display name', () => {
+it('labels a device without a name as Unnamed computer with the short id', () => {
   renderWithMantine(<ComputerTable computers={[device({ display_name: null })]} />)
-  expect(screen.getByRole('cell', { name: '12345678' })).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'View 12345678' }))
+  expect(screen.getByRole('cell', { name: 'Unnamed computer (12345678)' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'View Unnamed computer (12345678)' }))
     .toHaveAttribute('href', '#computers/12345678-1234-4234-8234-123456789abc')
 })
 

@@ -124,3 +124,13 @@ it('renders a populated location from the device provider', async () => {
   renderWithMantine(<HistoryPage deviceId={history.device_id} />)
   expect(await screen.findByText('Lab 1, Main building')).toBeInTheDocument()
 })
+
+it('titles an unnamed computer with the shared label and shows the hint', async () => {
+  const device = devices.devices.find(item => item.device_id === history.device_id)
+  vi.spyOn(providers, 'getDevices').mockResolvedValueOnce({ devices: [{ ...device, display_name: null }] })
+  renderWithMantine(<HistoryPage deviceId={history.device_id} />)
+  const title = `Unnamed computer (${history.device_id.slice(0, 8)})`
+  expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument()
+  expect(screen.getByText(history.device_id, { exact: true })).toBeInTheDocument()
+  expect(screen.getByText(/Set the name in the client Setup/)).toBeInTheDocument()
+})
