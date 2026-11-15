@@ -1,5 +1,5 @@
 // Daily computer history, opened from the computer table through #computers/<device_id>.
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Anchor, Box, Card, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import DataState from '../components/DataState.jsx'
@@ -116,6 +116,21 @@ function AvailableHistory({ history, day, paging }) {
 }
 
 /**
+ * Remembers the last loaded history of this computer, so a day change can keep it on screen.
+ * Only real mode keeps it; the sample page never reloads on a date change.
+ * @param {object|null} data - Current loader result, null while loading or after an error.
+ * @param {string} deviceId - Computer shown; another computer drops the old result.
+ * @param {string} day - Day the current result belongs to.
+ * @returns {{data: object, day: string}|null} Last loaded data with its own day, or null.
+ */
+function useLastShown(data, deviceId, day) {
+  const last = useRef(null)
+  if (data) last.current = { deviceId, data, day }
+  if (last.current?.deviceId !== deviceId || !isRealHistory()) return data ? { data, day } : null
+  return { data: last.current.data, day: last.current.day }
+}
+
+/**
  * Loads one computer's history and defaults the date input to today.
  * Real mode loads the selected UTC day; sample mode keeps the fixed sample readings whatever the date.
  * @param {object} props - Route parameters supplied by App.
@@ -130,6 +145,8 @@ export default function HistoryPage({ deviceId }) {
   const loadDay = isRealHistory() ? day : undefined
   const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
   const { data, error, retry } = useSampleData(loader)
+  const shown = useLastShown(data, deviceId, day)
+  const loadingNext = Boolean(shown) && !data && !error
 
   /** @param {Event} event - Native date change. @returns {void} Stores the selected date and returns to page 1. */
   function changeDay(event) {
@@ -150,7 +167,7 @@ export default function HistoryPage({ deviceId }) {
   // Only real mode pages the table and switches days; the sample day has 48 rows and shows them all.
   const paging = isRealHistory() ? {
     page, pageSize, onPage: setPage, onPageSize: changePageSize,
-    day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(),
+    day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(), loading: loadingNext,
   } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
 
@@ -163,7 +180,11 @@ export default function HistoryPage({ deviceId }) {
       {isRealHistory() ? null : <Text size="sm" c="var(--ews-text-muted)">
         Sample history from {historyDate(SAMPLE_HISTORY_FROM)}. Date selection does not change these sample readings.
       </Text>}
-      {data ? <HistoryContent data={data} day={day} paging={paging} /> : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
+      {shown && !error ? (
+        <Box data-testid="history-content" aria-busy={loadingNext} style={{ opacity: loadingNext ? 0.6 : 1 }}>
+          <HistoryContent data={shown.data} day={shown.day} paging={{ ...paging, day }} />
+        </Box>
+      ) : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
     </Stack>
   )
 }

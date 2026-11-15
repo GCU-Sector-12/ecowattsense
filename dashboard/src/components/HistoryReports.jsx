@@ -1,5 +1,5 @@
 // Timeline and report table for HistoryPage, using the history API report fields.
-import { ActionIcon, Box, Card, Group, Pagination, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Box, Card, Group, Loader, Pagination, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
@@ -72,10 +72,10 @@ function TablePaging({ page, pageSize, total, onPage, onPageSize }) {
 
 /**
  * Previous day, the selected day and Next day, shown in the timeline card header.
- * @param {object} props - Selected day, the shift callback and whether Next day is allowed.
+ * @param {object} props - Selected day, the shift callback, whether Next day is allowed and whether a day is loading.
  * @returns {JSX.Element} Day switcher.
  */
-function DaySwitcher({ day, onShiftDay, canNext }) {
+function DaySwitcher({ day, onShiftDay, canNext, loading }) {
   return (
     <Group gap="xs" wrap="nowrap">
       <ActionIcon variant="default" aria-label="Previous day" onClick={() => onShiftDay(-1)}>
@@ -85,6 +85,7 @@ function DaySwitcher({ day, onShiftDay, canNext }) {
       <ActionIcon variant="default" aria-label="Next day" disabled={!canNext} onClick={() => onShiftDay(1)}>
         <ChevronRight size={16} aria-hidden="true" />
       </ActionIcon>
+      {loading ? <Loader size="xs" aria-label="Loading history" /> : null}
     </Group>
   )
 }
@@ -100,9 +101,10 @@ function DaySwitcher({ day, onShiftDay, canNext }) {
  * @param {string} [props.day] - Selected YYYY-MM-DD; with onShiftDay it shows the day switcher.
  * @param {Function} [props.onShiftDay] - Receives -1 or 1.
  * @param {boolean} [props.canNext] - Whether Next day is enabled.
+ * @param {boolean} [props.loading] - A new day is loading; shows a small loader by the day switcher.
  * @returns {JSX.Element} Scrollable, labelled timeline and table.
  */
-export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize, day, onShiftDay, canNext }) {
+export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize, day, onShiftDay, canNext, loading }) {
   const paged = Boolean(onPage)
   const rows = paged ? reports.slice((page - 1) * pageSize, page * pageSize) : reports
   return (
@@ -110,7 +112,7 @@ export default function HistoryReports({ reports, page = 1, pageSize = 25, onPag
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
         <Group justify="space-between" gap="md">
           <Text component="h2" fz="lg" fw={700} m={0}>Daily timeline</Text>
-          {onShiftDay ? <DaySwitcher day={day} onShiftDay={onShiftDay} canNext={canNext} /> : null}
+          {onShiftDay ? <DaySwitcher day={day} onShiftDay={onShiftDay} canNext={canNext} loading={loading} /> : null}
         </Group>
         <Text c="var(--ews-text-muted)" size="sm" mb="md">{reports.length} reports · Times shown in UTC</Text>
         <Box className={classes.timelineScroll} role="region" aria-label="Scrollable daily timeline" tabIndex={0}>
