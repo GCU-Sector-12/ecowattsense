@@ -22,6 +22,8 @@ class Device(SQLModel, table=True):
     first_seen_at: datetime
     last_seen_at: datetime
     archived: bool = False
+    # Last column, so a new table and an upgraded table have the same column order. Who set display_name: "client" or "admin". None when there is no name.
+    name_source: str | None = None
 
 
 class Report(SQLModel, table=True):
