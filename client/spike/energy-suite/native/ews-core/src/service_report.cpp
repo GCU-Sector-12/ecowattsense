@@ -308,6 +308,11 @@ void ServiceCore::WriteStatus() {
     fields.intervalSeconds = config_.intervalSeconds;
     fields.idleThresholdSeconds = config_.idleThresholdSeconds;
     fields.unusedThresholdSeconds = config_.unusedThresholdSeconds;
+    fields.settingsFromServer = serverSettings_.has_value();
+    fields.settingsVersion = serverSettings_.has_value() ? serverSettings_->version : std::nullopt;
+    fields.lastSettingsUnix = lastSettingsUnix_;
+    fields.lastPingUnix = lastPingUnix_;
+    fields.lastPingResult = lastPing_;
     Reading<bool> folder = EnsureSubfolder(settings_.dataDir, L"status");
     std::wstring statusDir = (std::filesystem::path(settings_.dataDir) / L"status").wstring();
     bool written = folder.ok() && WriteFileAtomically(statusDir, L"status.json", BuildStatusJson(fields)).ok();

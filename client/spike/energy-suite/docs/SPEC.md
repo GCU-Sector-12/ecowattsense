@@ -238,10 +238,11 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 - One waitable timer, 60 seconds. No other timer. The timer does not wake the computer.
 - Each tick: read the cumulative counters (EMI channels, battery charge, `GetSystemTimes`), calculate the minute, append one history row.
 - Every `interval_seconds` (default 300): build the report, append it to the queue, try to send, write `status.json`, check whether `model.json` changed (file time) and reload it.
+- Each tick, after the measurement, the service pings the server when a server URL and a key are set and `ping_interval_seconds` has passed (5.5). The ping runs on this tick; there is no second timer. A settings read (`GET /api/settings`) happens once at start, after the configuration is read, and again when a ping answer shows another `settings_version` or the command `pull_settings` comes. An applied change of `report_interval_seconds` needs no restart: the running report period ends when its length reaches the new length, at the next tick when it is already longer.
 - Events, no polling: power source change, suspend and resume, display on or off, session logon, logoff, lock and unlock (service control handler).
 - Stop: take one last read, close the interval, put its report into the queue without sending, release the lock, exit within 5 seconds.
 - If `instance.lock` is held by another program at start, the service writes one log line and stops.
-- Read only at start: `service.ini`, `key.bin` and the device identity (`device-id.txt`). A change to them needs a restart of the service. `model.json` is the only file that is read again, at each report tick, when its file time has changed.
+- Read only at start: `service.ini`, `key.bin`, the device identity (`device-id.txt`), `status\server-settings.json` and `status\commands-done.json`. A change to the first three needs a restart of the service. `model.json` is read again, at each report tick, when its file time has changed.
 - Level without a valid model: when the scan gives L2 or L3 and `model.json` is missing or invalid, the level is L4. `status.json` shows `\"level\":\"L4\"` (without `model_generated_utc`) and the log has `level_change <old> 4`; an invalid file also logs `model_invalid` at each load, a missing file logs nothing more. In the history, a minute with no whole-computer reading (L1) and no valid model is unknown, so its `level` field is empty (it is never written as L4). A scan level of L1 needs no model and stays L1.
 - Gap: a tick that comes more than 3 tick lengths after the last one (sleep or hibernate that the service did not see as suspend, or a clock set forward) or with the clock gone back is a gap. The service logs `gap_detected`, writes held history rows with empty battery fields, closes the interval at the time of the last good tick (that report is queued and sent as usual), and starts a new interval at the late tick. The time of the gap gets no history row and no energy. A tick of the normal length is never a gap.
 - An interval whose processor percent is unknown gives no report (the server requires that field). It is counted in the log.
@@ -278,6 +279,15 @@ Formats: `timestamp` as `2026-11-14T10:05:00Z` (UTC, whole seconds). `interval_s
   - Send command: the pipe message `EWS1 send\n` (section 6) tries a send at once, at most once in 30 seconds; a later one in that window is dropped and counted. Log word `send_requested`.
 - `server_enabled=0`: reports are queued and not sent.
 
+Ping, settings, commands and registration (api-contract 5.2, 5.3 and 5.5). They use the same HTTP rules as the report send (HTTPS only, HTTP only for loopback, certificate checked, no redirects, 10 seconds, the answer read up to 64 KB, header `X-EWS-Key`) and run only when a URL and a key are set and `server_enabled=1`. Every number in an answer is range-checked; the log holds fixed words and counts only.
+
+- Ping: `POST /api/ping` with `{"device_id":"<id>","unsent_reports":<queue count>}` and, only when there are handled commands, `"acks":[{"command_id":<id>,"result":"done"|"failed"|"unsupported"}]`. It is sent every `ping_interval_seconds` (default 60), checked on the 60 second tick: a value below 60 counts as 60, and the value is rounded to whole minutes. The first ping is on the first tick after start.
+- Settings: `GET /api/settings` at start, when a ping answer has a `settings_version` other than the one in force, and on the command `pull_settings`. The answer is used only when ALL of these hold: `report_interval_seconds` 60 to 3600 (rounded to whole minutes), `ping_interval_seconds` 1 to 86400 (at least 60 after rounding), `idle_threshold_seconds` 1 to 86400, `unused_threshold_seconds` above idle and at most 604800, `settings_version` a whole number of 0 or more. A bad or missing value ignores the whole answer: the last good settings stay, the log has `settings_ignored <count since start>`, and the same bad version is not read again until the version changes. A good answer applies at once and is stored in `<data>\status\server-settings.json` (temporary file and rename; the service cannot write to `config\`), so it survives a restart and works offline.
+- Commands: the ping answer lists commands in `id` order. Each id runs once. A command whose `expires_at` is past is skipped (not run, not acked). Types: `set_interval` (`params.report_interval_seconds`, same rules as above; bad or missing value gives `failed`), `report_now` (closes the running report period now and sends), `flush_buffer` (the same path as the pipe request `EWS1 send`, without its 30 second limit), `clear_buffer` (empties the queue file, sent and unsent; the log has `buffer_cleared <count>`), `pull_settings` (reads the settings now; `failed` when there was no good answer). Any other type gives `unsupported`. The log has `command_run <id> <type 0..5> <result 0..2>`.
+- Handled commands with their result are kept in `<data>\status\commands-done.json` (at most 200). They are sent as `acks` in every ping until a ping that carried them got 200; then they are dropped, except a command the answer lists again. A command that comes again while its id is in the file is not run again, only acked again.
+- Registration: when a ping answer has `registered` false the service sends `PUT /api/devices/{device_id}` with `{"device_name": <first line of <data>\Client\device-name.txt, trimmed, at most 60 characters, or null>, "os": "windows", "device_type": <device type in force>}`, at most once an hour while it stays false. The log has `device_registered <0 ok, 1..5 failure word>`.
+- Failures never stop measuring or reporting, and the last good settings stay. 401 is `unauthorised`; 422 and other 4xx `rejected`; 429 `rate_limited`; 503, other 5xx and an answer that is not understood `server_error`; no answer `network`. On 429 and 503 the next call waits for `Retry-After` (whole seconds, at most 1 hour, rounded up to ticks). The log has `ping_failed <word 1..5> <failures in a row>` for the first failure and then once an hour, and `settings_failed <word>` when the settings call failed.
+
 ### 5.6 `service.ini`
 
 ```
@@ -289,7 +299,7 @@ unused_threshold_seconds=3600
 device_type=laptop
 ```
 
-`interval_seconds` is a multiple of 60 between 60 and 3600. A bad value falls back to the default and is counted in the log (`config_bad_values`). An empty `server_url=` (blank after trimming) means "server not set": it is not a bad value and is not counted. Without a URL nothing is sent: reports are queued, `last_send_result` is `disabled` and the log has `send_disabled 1` once. `server_enabled=0` gives the same words. A URL that is not valid (for example not HTTPS, and not HTTP to loopback) is a bad value and is counted. Server-side settings (`GET /api/settings`) are not read by the service.
+`interval_seconds` is a multiple of 60 between 60 and 3600. A bad value falls back to the default and is counted in the log (`config_bad_values`). An empty `server_url=` (blank after trimming) means "server not set": it is not a bad value and is not counted. Without a URL nothing is sent: reports are queued, `last_send_result` is `disabled` and the log has `send_disabled 1` once. `server_enabled=0` gives the same words. A URL that is not valid (for example not HTTPS, and not HTTP to loopback) is a bad value and is counted. `service.ini` is the starting value. Settings from the server (5.5) win over it: `report_interval_seconds` (as `interval_seconds`), `idle_threshold_seconds`, `unused_threshold_seconds` and `ping_interval_seconds` are taken from `status\server-settings.json` at start (before the first server read) and replaced by each good server answer. Without server settings (no server, offline since the first start, or only bad answers) the values of `service.ini` stay in force.
 
 `key.bin` is the server key protected with DPAPI (machine scope). The folder rights of `config\` are the real protection.
 
@@ -300,7 +310,9 @@ device_type=laptop
   "last_report_utc": "2026-11-14T10:05:00Z", "last_send_utc": "2026-11-14T10:05:01Z",
   "last_send_result": "ok", "queued": 0,
   "server_url": "https://example.org:8443", "server_key_set": true, "server_enabled": true,
-  "device_type": "laptop", "interval_seconds": 300, "idle_threshold_seconds": 600, "unused_threshold_seconds": 3600 }
+  "device_type": "laptop", "interval_seconds": 300, "idle_threshold_seconds": 600, "unused_threshold_seconds": 3600,
+  "settings_source": "server", "settings_version": 8, "last_settings_utc": "2026-11-14T10:00:00Z",
+  "last_ping_utc": "2026-11-14T10:05:00Z", "last_ping_result": "ok" }
 ```
 
 `last_send_result` is one of: `ok`, `disabled`, `unauthorised`, `rejected`, `server_error`, `network`, `never`. Written to a temporary file and renamed.
@@ -313,7 +325,12 @@ The service also writes the settings it uses, because the client cannot read `co
 - `server_key_set`: `true` when `key.bin` was read and decrypted at start, else `false` (no file or not decryptable). The service reads the key for this even when sending is off. The key itself, its length and any hash of it are never written.
 - `server_enabled`: `true` or `false` (`server_enabled` of `service.ini`).
 - `device_type`: the value in use.
-- `interval_seconds`, `idle_threshold_seconds`, `unused_threshold_seconds`: the values in use, whole numbers.
+- `interval_seconds`, `idle_threshold_seconds`, `unused_threshold_seconds`: the values IN FORCE (from the server file when there is one, else from `service.ini`), whole numbers.
+- `settings_source`: `server` when the values in force come from the server settings file, else `local`.
+- `settings_version`: the server settings version in force, a whole number; written only when `settings_source` is `server` and the version is known.
+- `last_settings_utc`: the time of the last good settings read (the form of the other times); left out when there was none.
+- `last_ping_utc`: the time of the last ping attempt; left out before the first one.
+- `last_ping_result`: one of `ok`, `unauthorised`, `rate_limited`, `server_error`, `network`, `rejected`, `never`.
 
 ### 5.8 Log
 
@@ -397,6 +414,7 @@ The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. 
 - Measurement pulse: the dot on the Service card is green while the service runs and grey otherwise. When a history refresh brings a new last row, the dot pulses once (opacity and scale, about one second). The "Last measurement" line shows the end time of that row. No pulse when Windows client-area animations are off or the window is hidden.
 - Donut "Energy by state (24 h)": on the Service card. A ring (about 110 px) split into Active, Idle and Unused by kWh with the total kWh in the centre; the card text has a legend of the three states with their percent. Without data it shows an empty grey ring and "No data". It is built from the history rows when they change; no timer.
 - Settings page: a second item in the sidebar, "Settings", shown only in viewer mode. It is read-only and shows the values of `status.json` (section 5.7); a missing or wrong value shows as "unknown".
+  - Settings page line: "Settings from the server, version N, checked HH:mm", or "Local settings (not read from the server yet)".
   - Server card: Address ("Not set" when empty), Key ("Server key is set" or "Server key is not set"; the key itself is never shown), Sending (On or Off), and the button "Change...", which starts `Setup.exe /settings` elevated (UAC). The note "Setup.exe not found." is shown, and the button disabled, when Setup.exe is not found.
   - This computer card: Device type, Report interval, Idle after, Unused after (in minutes).
   - About card: Service version and the data folder.

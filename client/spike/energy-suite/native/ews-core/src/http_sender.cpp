@@ -9,6 +9,7 @@
 
 #include "ews/config.h"
 #include "ews/secret.h"
+#include "ews/server_api.h"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -48,6 +49,7 @@ private:
 struct Answer {
     int status = 0;
     std::string body;
+    int retryAfterSeconds = 0;
 };
 
 /// @return How many times `"rejected"` (with the quotes) is in the text.
@@ -105,6 +107,18 @@ int ReadStatusCode(HINTERNET request) {
     return done ? static_cast<int>(code) : 0;
 }
 
+/// Reads the number of seconds of the `Retry-After` header. @return The seconds, or 0 when the header is missing or not a whole number.
+int ReadRetryAfter(HINTERNET request) {
+    wchar_t text[16] = {};
+    DWORD size = sizeof text;
+    BOOL done = WinHttpQueryHeaders(request, WINHTTP_QUERY_RETRY_AFTER, WINHTTP_HEADER_NAME_BY_INDEX, text, &size, WINHTTP_NO_HEADER_INDEX);
+    std::string narrow;
+    for (DWORD index = 0; done && index < size / sizeof(wchar_t) && text[index] != L'\0'; ++index) {
+        narrow += text[index] < 128 ? static_cast<char>(text[index]) : '?';
+    }
+    return ParseRetryAfter(narrow);
+}
+
 /// Sends the request and reads the answer. @return The answer; status 0 for any failure (no answer, timeout, bad certificate).
 Answer ReadAnswer(HINTERNET request, const std::wstring& headers, std::string& body) {
     Answer answer;
@@ -114,14 +128,21 @@ Answer ReadAnswer(HINTERNET request, const std::wstring& headers, std::string& b
         return answer;
     }
     answer.status = ReadStatusCode(request);
+    answer.retryAfterSeconds = ReadRetryAfter(request);
     while (ReadChunk(request, answer.body)) {
     }
     return answer;
 }
 
-/// Makes the POST request to `/api/reports`: secure for https, redirects off, timeouts of 10 seconds.
+/// Makes one request: secure for https, redirects off, timeouts of 10 seconds.
 /// The certificate is checked by WinHTTP; no security flag is set to ignore any error.
-Answer Exchange(const ServerEndpoint& endpoint, const std::string& key, std::string& body) {
+/// @param endpoint The checked server address.
+/// @param key The checked key; it goes into the header `X-EWS-Key` only.
+/// @param method `GET`, `POST` or `PUT`.
+/// @param path The path with the leading slash.
+/// @param body The body; empty for none.
+/// @return The answer; status 0 for any failure.
+Answer Exchange(const ServerEndpoint& endpoint, const std::string& key, const std::string& method, const std::string& path, std::string& body) {
     InternetHandle session(WinHttpOpen(L"EcoWattSenseService/1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     if (!session.valid() || !WinHttpSetTimeouts(session.get(), kTimeoutMilliseconds, kTimeoutMilliseconds, kTimeoutMilliseconds, kTimeoutMilliseconds)) {
         return Answer();
@@ -132,12 +153,13 @@ Answer Exchange(const ServerEndpoint& endpoint, const std::string& key, std::str
         return Answer();
     }
     DWORD flags = endpoint.secure ? WINHTTP_FLAG_SECURE : 0;
-    InternetHandle request(WinHttpOpenRequest(connection.get(), L"POST", L"/api/reports", nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
+    InternetHandle request(WinHttpOpenRequest(connection.get(), Widen(method).c_str(), Widen(path).c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
     DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
     if (!request.valid() || !WinHttpSetOption(request.get(), WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof policy)) {
         return Answer();
     }
-    std::wstring headers = L"X-EWS-Key: " + Widen(key) + L"\r\nContent-Type: application/json\r\n";
+    std::wstring headers = L"X-EWS-Key: " + Widen(key) + L"\r\n";
+    headers += body.empty() ? L"" : L"Content-Type: application/json\r\n";
     return ReadAnswer(request.get(), headers, body);
 }
 
@@ -194,8 +216,23 @@ SendResult WinHttpSender::Send(const std::vector<std::string>& lines) {
         return Make(SendWord::Network, false, 0);
     }
     std::string body = BuildBatchBody(lines);
-    Answer answer = Exchange(*endpoint, key_, body);
+    Answer answer = Exchange(*endpoint, key_, "POST", "/api/reports", body);
     return InterpretResponse(answer.status, answer.body, static_cast<int>(lines.size()));
+}
+
+WinHttpServerApi::WinHttpServerApi(std::string serverUrl, std::string serverKey) : url_(std::move(serverUrl)), key_(std::move(serverKey)) {}
+
+WinHttpServerApi::~WinHttpServerApi() { SecureZeroMemory(key_.data(), key_.size()); }
+
+ApiAnswer WinHttpServerApi::Call(const std::string& method, const std::string& path, const std::string& body) {
+    ApiAnswer none;
+    std::optional<ServerEndpoint> endpoint = ParseServerUrl(url_);
+    if (!endpoint.has_value() || !IsValidServerKey(key_)) {
+        return none;
+    }
+    std::string request = body;
+    Answer answer = Exchange(*endpoint, key_, method, path, request);
+    return ApiAnswer{answer.status, answer.body, answer.retryAfterSeconds};
 }
 
 }  // namespace ews

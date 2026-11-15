@@ -337,10 +337,12 @@ EWS_TEST(ServiceStatusHoldsTheSettingsInUse) {
     Rig rig("statussettings");
     rig.WriteIni("server_enabled=1\nserver_url=https://example.org:8443\ninterval_seconds=600\n"
                  "idle_threshold_seconds=120\nunused_threshold_seconds=900\ndevice_type=desktop\n");
+    // The server cannot be reached, so service.ini stays the starting value (server settings would win, SPEC 5.6).
+    rig.senders.settingsScript.push_back(FakeSenders::Reply(0, ""));
     StartOk(rig);
     CHECK(Has(rig.Status(), "\"server_url\":\"https://example.org:8443\",\"server_key_set\":true,\"server_enabled\":true,"
                             "\"device_type\":\"desktop\",\"interval_seconds\":600,\"idle_threshold_seconds\":120,"
-                            "\"unused_threshold_seconds\":900}"));
+                            "\"unused_threshold_seconds\":900,\"settings_source\":\"local\""));
     CHECK(!Has(rig.Status(), "test-key"));
 }
 

@@ -36,6 +36,10 @@ std::unique_ptr<ReportSender> WinHttpSenderFactory::Create(const std::string& ur
     return std::make_unique<WinHttpSender>(url, key);
 }
 
+std::unique_ptr<ServerApi> WinHttpSenderFactory::CreateApi(const std::string& url, const std::string& key) {
+    return std::make_unique<WinHttpServerApi>(url, key);
+}
+
 const char* StartResultWord(StartResult result) {
     switch (result) {
         case StartResult::Ok: return "ok";

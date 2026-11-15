@@ -45,7 +45,15 @@ enum class LogEvent {
     BatteryReplaced,   ///< numbers: how many impossible battery changes were replaced by a later possible one since the last report.
     BatterySplit,      ///< numbers: how many held minutes shared one battery fall in a history split (SPEC 7).
     SendOnNetwork,     ///< A send was tried because the network came back (SPEC 5.5).
-    SendRequested      ///< A send was tried because the pipe command `EWS1 send` arrived (SPEC 6).
+    SendRequested,     ///< A send was tried because the pipe command `EWS1 send` arrived (SPEC 6).
+    PingFailed,        ///< numbers: the result code (1 unauthorised, 2 rate_limited, 3 server_error, 4 network, 5 rejected), failures in a row.
+    SettingsApplied,   ///< numbers: the settings version now in force (0 when there is none).
+    SettingsIgnored,   ///< numbers: how many settings answers or files were ignored since the start (bad or missing value).
+    SettingsFailed,    ///< numbers: the result code of the call (as PingFailed).
+    CommandRun,        ///< numbers: command id, type (0 unknown, 1 set_interval, 2 report_now, 3 flush_buffer, 4 clear_buffer, 5 pull_settings), result (0 done, 1 failed, 2 unsupported).
+    BufferCleared,     ///< numbers: how many reports were in the queue when `clear_buffer` emptied it.
+    DeviceRegistered,  ///< numbers: the result code of `PUT /api/devices/{device_id}` (0 ok, 1 to 5 as PingFailed).
+    StateWriteFailed   ///< numbers: 1 server-settings.json, 2 commands-done.json could not be written.
 };
 
 /// @param event An event.

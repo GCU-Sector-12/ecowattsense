@@ -128,7 +128,110 @@ public:
         return std::make_unique<Forward>(*this);
     }
 
+    /// One call the service made to the fake server.
+    struct ApiCall {
+        std::string method;
+        std::string path;
+        std::string body;
+    };
+    std::vector<ApiCall> calls;                    ///< Every call, in order.
+    std::vector<ews::ApiAnswer> pingScript;        ///< Answers to POST /api/ping, used in order; then pingDefault.
+    std::vector<ews::ApiAnswer> settingsScript;    ///< Answers to GET /api/settings, used in order; then settingsDefault.
+    std::vector<ews::ApiAnswer> putScript;         ///< Answers to PUT /api/devices/..., used in order; then putDefault.
+    ews::ApiAnswer pingDefault = Reply(200, PingJson(1, true, ""));
+    ews::ApiAnswer settingsDefault = Reply(200, SettingsJson(1, 300, 60, 600, 3600));
+    ews::ApiAnswer putDefault = Reply(200, "{}");
+
+    /// Builds an answer. @param status The HTTP status (0 for no answer). @param body The body text. @param retryAfter Seconds of Retry-After.
+    static ews::ApiAnswer Reply(int status, const std::string& body, int retryAfter = 0) {
+        ews::ApiAnswer answer;
+        answer.status = status;
+        answer.body = body;
+        answer.retryAfterSeconds = retryAfter;
+        return answer;
+    }
+
+    /// @return The text of GET /api/settings with these values.
+    static std::string SettingsJson(int version, int report, int ping, int idle, int unused) {
+        return "{\"settings_version\":" + std::to_string(version) + ",\"report_interval_seconds\":" + std::to_string(report) +
+               ",\"ping_interval_seconds\":" + std::to_string(ping) + ",\"idle_threshold_seconds\":" + std::to_string(idle) +
+               ",\"unused_threshold_seconds\":" + std::to_string(unused) + ",\"no_data_after_cycles\":3,\"price_gbp_per_kwh\":0.25}";
+    }
+
+    /// @param commands The commands as JSON list items, comma separated (empty for none).
+    /// @return The text of the answer to POST /api/ping.
+    static std::string PingJson(int version, bool registered, const std::string& commands) {
+        return "{\"settings_version\":" + std::to_string(version) + ",\"registered\":" + (registered ? "true" : "false") +
+               ",\"commands\":[" + commands + "]}";
+    }
+
+    /// @param params The params object text, for example `{}`.
+    /// @param expires The expiry time text.
+    /// @return One command as a JSON object.
+    static std::string CommandJson(int id, const std::string& type, const std::string& params = "{}",
+                                   const std::string& expires = "2099-01-01T00:00:00Z") {
+        return "{\"id\":" + std::to_string(id) + ",\"type\":\"" + type + "\",\"params\":" + params + ",\"expires_at\":\"" + expires + "\"}";
+    }
+
+    /// Makes one call: records it and gives the next scripted answer, or the default one.
+    ews::ApiAnswer NextApi(const std::string& method, const std::string& path, const std::string& body) {
+        calls.push_back(ApiCall{method, path, body});
+        bool ping = path == "/api/ping";
+        bool settings = path == "/api/settings";
+        std::vector<ews::ApiAnswer>& source = ping ? pingScript : (settings ? settingsScript : putScript);
+        ews::ApiAnswer fallback = ping ? pingDefault : (settings ? settingsDefault : putDefault);
+        ews::ApiAnswer answer = source.empty() ? fallback : source.front();
+        source.erase(source.begin(), source.begin() + (source.empty() ? 0 : 1));
+        return answer;
+    }
+
+    /// @return The calls to one path (any method).
+    std::vector<ApiCall> CallsTo(const std::string& path) const {
+        std::vector<ApiCall> found;
+        for (const ApiCall& call : calls) {
+            AddIf(found, call, call.path == path);
+        }
+        return found;
+    }
+
+    /// @return The body of the call `index` to a path, or "" when there is none.
+    std::string BodyOf(const std::string& path, std::size_t index) const {
+        std::vector<ApiCall> found = CallsTo(path);
+        return index < found.size() ? found[index].body : std::string();
+    }
+
+    /// @return The method of the call `index` to a path, or "" when there is none.
+    std::string MethodOf(const std::string& path, std::size_t index) const {
+        std::vector<ApiCall> found = CallsTo(path);
+        return index < found.size() ? found[index].method : std::string();
+    }
+
+    std::unique_ptr<ews::ServerApi> CreateApi(const std::string&, const std::string&) override {
+        ++apiCreated;
+        return std::make_unique<ApiForward>(*this);
+    }
+    int apiCreated = 0;
+
 private:
+    /// Adds the call to the list when the condition holds.
+    static void AddIf(std::vector<ApiCall>& list, const ApiCall& call, bool condition) {
+        if (condition) {
+            list.push_back(call);
+        }
+    }
+
+    /// A server caller that hands every call to the factory.
+    class ApiForward final : public ews::ServerApi {
+    public:
+        explicit ApiForward(FakeSenders& owner) : owner_(owner) {}
+        ews::ApiAnswer Call(const std::string& method, const std::string& path, const std::string& body) override {
+            return owner_.NextApi(method, path, body);
+        }
+
+    private:
+        FakeSenders& owner_;
+    };
+
     /// A sender that hands every batch to the factory.
     class Forward final : public ews::ReportSender {
     public:

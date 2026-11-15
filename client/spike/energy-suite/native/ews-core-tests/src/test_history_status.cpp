@@ -76,13 +76,20 @@ EWS_TEST(StatusJsonAllValues) {
     s.intervalSeconds = 300;
     s.idleThresholdSeconds = 600;
     s.unusedThresholdSeconds = 3600;
+    s.settingsFromServer = true;
+    s.settingsVersion = 8;
+    s.lastSettingsUnix = ews_test::kTestTime - 60;
+    s.lastPingUnix = ews_test::kTestTime + 2;
+    s.lastPingResult = ews::LastPing::RateLimited;
     CHECK(BuildStatusJson(s) ==
           "{\"schema\":1,\"service_version\":\"0.1.0\",\"level\":\"L2\",\"model_generated_utc\":\"2026-11-12T17:08:31Z\","
           "\"last_report_utc\":\"2026-11-14T10:05:00Z\",\"last_send_utc\":\"2026-11-14T10:05:01Z\","
           "\"last_send_result\":\"ok\",\"queued\":0,"
           "\"server_url\":\"https://example.org:8443\",\"server_key_set\":true,\"server_enabled\":true,"
           "\"device_type\":\"laptop\",\"interval_seconds\":300,\"idle_threshold_seconds\":600,"
-          "\"unused_threshold_seconds\":3600}\n");
+          "\"unused_threshold_seconds\":3600,\"settings_source\":\"server\",\"settings_version\":8,"
+          "\"last_settings_utc\":\"2026-11-14T10:04:00Z\",\"last_ping_utc\":\"2026-11-14T10:05:02Z\","
+          "\"last_ping_result\":\"rate_limited\"}\n");
 }
 
 EWS_TEST(StatusJsonUnknownValuesAreLeftOut) {
@@ -93,7 +100,21 @@ EWS_TEST(StatusJsonUnknownValuesAreLeftOut) {
     CHECK(BuildStatusJson(s) ==
           "{\"schema\":1,\"service_version\":\"0.1.0\",\"last_send_result\":\"never\",\"queued\":3,"
           "\"server_url\":\"\",\"server_key_set\":false,\"server_enabled\":false,\"device_type\":\"\","
-          "\"interval_seconds\":0,\"idle_threshold_seconds\":0,\"unused_threshold_seconds\":0}\n");
+          "\"interval_seconds\":0,\"idle_threshold_seconds\":0,\"unused_threshold_seconds\":0,"
+          "\"settings_source\":\"local\",\"last_ping_result\":\"never\"}\n");
+}
+
+EWS_TEST(StatusJsonLeavesOutTheVersionOfLocalSettings) {
+    StatusFields s;
+    s.serviceVersion = "0.1.0";
+    s.settingsVersion = 4;
+    CHECK(BuildStatusJson(s).find("settings_version") == std::string::npos);
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::Ok)) == "ok");
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::Unauthorised)) == "unauthorised");
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::ServerError)) == "server_error");
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::Network)) == "network");
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::Rejected)) == "rejected");
+    CHECK(std::string(ews::PingResultWord(ews::LastPing::Never)) == "never");
 }
 
 EWS_TEST(StatusJsonEscapesTheUrl) {
