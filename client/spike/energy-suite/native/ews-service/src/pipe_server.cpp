@@ -71,7 +71,7 @@ void PipeServer::BeginReading() {
     readingSince_ = GetTickCount64();
     overlapped_ = OVERLAPPED{};
     overlapped_.hEvent = event_.get();
-    // The buffer holds one byte more than the longest valid message, so a message that is too long can be seen.
+    // The buffer holds one byte more than the longest valid message (the name message, 256 bytes), so a message that is too long can be seen.
     ReadFile(pipe_.get(), buffer_, sizeof(buffer_), nullptr, &overlapped_);
 }
 
@@ -84,7 +84,7 @@ void PipeServer::Restart() {
 std::optional<PipeInput> PipeServer::CompleteRead() {
     DWORD bytes = 0;
     BOOL done = GetOverlappedResult(pipe_.get(), &overlapped_, &bytes, FALSE);
-    // ERROR_MORE_DATA: the message did not fit in 129 bytes. The cut text is passed on and the core refuses it.
+    // ERROR_MORE_DATA: the message did not fit in 257 bytes. The cut text is passed on and the core refuses it.
     bool usable = done || GetLastError() == ERROR_MORE_DATA;
     if (!usable) {
         return std::nullopt;

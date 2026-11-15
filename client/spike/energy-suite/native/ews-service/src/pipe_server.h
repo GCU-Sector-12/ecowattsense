@@ -16,7 +16,7 @@ namespace ews_service {
 
 /// One message read from a client.
 struct PipeInput {
-    std::string text;                  ///< The bytes (at most 129: a longer message is cut, and the core refuses it).
+    std::string text;                  ///< The bytes (at most 257: a longer message is cut, and the core refuses it).
     bool senderSessionActive = false;  ///< The session of the client is in the state active.
     unsigned long senderSession = 0;   ///< The session id of the client.
 };
@@ -59,7 +59,7 @@ private:
     ews::UniqueHandle event_;
     ews::UniqueHandle pipe_;
     OVERLAPPED overlapped_{};
-    char buffer_[129] = {};
+    char buffer_[257] = {};
     State state_ = State::Idle;
     ULONGLONG readingSince_ = 0;
     unsigned long error_ = 0;

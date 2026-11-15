@@ -16,6 +16,7 @@
 #include "ews/battery.h"
 #include "ews/config.h"
 #include "ews/cpu_times.h"
+#include "ews/device_name.h"
 #include "ews/display.h"
 #include "ews/emi.h"
 #include "ews/energy.h"
@@ -274,7 +275,28 @@ private:
     CommandResult CommandClearBuffer();
     CommandResult CommandPullSettings();
     void SaveDoneCommands();
-    void RegisterDevice();
+    /// Sends the computer name when the ping said registered false, at most once an hour.
+    /// @return True when a PUT was sent.
+    bool RegisterDevice();
+    /// Handles `EWS1 name=<base64>`: checks the name and the 10 second limit, stores the name file, then sends it.
+    /// A bad or too early message is dropped and counted.
+    /// @param text The bytes of the message (untrusted).
+    void NameRequested(std::string_view text);
+    /// @return The first line of `<data>\Client\device-name.txt` as a name, or nothing when there is none.
+    std::optional<std::string> ReadLocalName();
+    /// Writes (or, for no name, deletes) `<data>\Client\device-name.txt`.
+    /// @param name The checked name, or nothing.
+    /// @return True when the file now holds the name (or is gone).
+    bool StoreLocalName(const std::optional<std::string>& name);
+    /// Sends PUT /api/devices/{device_id} with the local name and notes the answer (server name, name_sync, back-off).
+    void PutName();
+    /// Sends the PUT again when the name is pending, no PUT went out in this ping, and no Retry-After hold runs.
+    /// @param putSent True when a PUT was already sent in this ping.
+    void RetryNameSync(bool putSent);
+    /// Notes the answer of a PUT: the server name, the name_sync state and the log line.
+    void NoteNameAnswer(const ApiAnswer& answer);
+    /// Sets name_sync and writes `<data>\status\name-sync.json` when it changed.
+    void SetNameSync(NameSync state);
     /// Keeps the next ping back for the `Retry-After` of a 429 or 503 answer.
     void Hold(const ApiAnswer& answer);
     int PingTicks() const;
@@ -353,6 +375,10 @@ private:
     std::optional<std::int64_t> lastReportUnix_;
     std::optional<std::int64_t> lastSendRequestUnix_;  ///< When the last `EWS1 send` caused a send.
     int droppedPipeMessages_ = 0;
+    NameSync nameSync_ = NameSync::None;                ///< Where the name stands with the server (name-sync.json).
+    bool serverNameKnown_ = false;                      ///< True after a PUT answer that named the server side.
+    std::optional<std::string> serverName_;             ///< The name the PUT answer said the server holds; empty for null.
+    std::optional<std::int64_t> lastNameRequestUnix_;   ///< When the last good `EWS1 name=` message was taken.
     int skippedReports_ = 0;
     std::uint32_t lastQueued_ = 0;
 };
