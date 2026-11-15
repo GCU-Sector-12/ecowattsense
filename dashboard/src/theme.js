@@ -65,8 +65,8 @@ export const theme = createTheme({
   // Font sizes from the tokens (xs 13, sm 15, md 17, lg 22, xl 28).
   fontSizes: { xs: '13px', sm: '15px', md: '17px', lg: '22px', xl: '28px' },
 
-  // Spacing in multiples of the 8px base unit.
-  spacing: { xs: '8px', sm: '12px', md: '16px', lg: '24px', xl: '32px' },
+  // Spacing values stay on the 8px grid. md is 16px for the mockup's card gap.
+  spacing: { xs: '8px', sm: '16px', md: '16px', lg: '24px', xl: '32px' },
 
   // Radius: md = 8px (default), lg = 12px (cards).
   defaultRadius: 'md',
