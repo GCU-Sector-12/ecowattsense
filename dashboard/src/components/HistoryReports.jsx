@@ -1,8 +1,8 @@
 // Timeline and report table for HistoryPage, using the history API report fields.
-import { Box, Card, Group, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { Box, Card, Group, Pagination, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core'
 import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
-import { formatDuration, historyState, reportTime } from '../data/historyView.js'
+import { formatDuration, historyState, rangeText, reportTime, timelinePlace } from '../data/historyView.js'
 import { ujToKwh } from '../data/units.js'
 import classes from './HistoryReports.module.css'
 
@@ -17,7 +17,7 @@ function TimelineBlock({ report }) {
   return (
     <Tooltip label={label} events={{ hover: true, focus: true, touch: true }}>
       <Box component="li" tabIndex={0} aria-label={label} className={classes.block}
-        style={{ backgroundColor: stateColors[state] }} />
+        style={{ backgroundColor: stateColors[state], ...timelinePlace(report) }} />
     </Tooltip>
   )
 }
@@ -40,12 +40,48 @@ function ReportRow({ report }) {
   )
 }
 
+const PAGE_SIZES = ['25', '50', '75', '100']
+const CONTROL_LABELS = { first: 'First page', previous: 'Previous page', next: 'Next page', last: 'Last page' }
+
+/**
+ * Names the arrow buttons of the pager for screen readers.
+ * @param {string} control - first, previous, next, last or pages.
+ * @returns {object} Props for the button; empty for numbered pages.
+ */
+function controlProps(control) {
+  const label = CONTROL_LABELS[control]
+  return label ? { 'aria-label': label } : {}
+}
+
+/**
+ * Page size selector and page buttons under the reports table.
+ * @param {object} props - Controlled paging state: page, pageSize, total and the two callbacks.
+ * @returns {JSX.Element} Range text, size selector and page controls.
+ */
+function TablePaging({ page, pageSize, total, onPage, onPageSize }) {
+  return (
+    <Group justify="space-between" mt="md" gap="md">
+      <Text size="sm" c="var(--ews-text-muted)">{rangeText(page, pageSize, total)}</Text>
+      <SegmentedControl aria-label="Rows per page" size="xs" data={PAGE_SIZES}
+        value={String(pageSize)} onChange={value => onPageSize(Number(value))} />
+      <Pagination getControlProps={controlProps} value={page} onChange={onPage} total={Math.max(1, Math.ceil(total / pageSize))} size="sm" />
+    </Group>
+  )
+}
+
 /**
  * Renders the daily timeline, a state legend and the reports beneath it.
+ * The table is paged only when onPage is given; the timeline always shows every report.
  * @param {object} props - Ordered history reports; one block is drawn for each report.
+ * @param {number} [props.page] - 1-based table page.
+ * @param {number} [props.pageSize] - Rows per page.
+ * @param {Function} [props.onPage] - Receives the new page.
+ * @param {Function} [props.onPageSize] - Receives the new page size.
  * @returns {JSX.Element} Scrollable, labelled timeline and table.
  */
-export default function HistoryReports({ reports }) {
+export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize }) {
+  const paged = Boolean(onPage)
+  const rows = paged ? reports.slice((page - 1) * pageSize, page * pageSize) : reports
   return (
     <Stack gap="md">
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
@@ -73,9 +109,11 @@ export default function HistoryReports({ reports }) {
               <Table.Th>Time (UTC)</Table.Th><Table.Th>State</Table.Th><Table.Th>CPU</Table.Th>
               <Table.Th>Idle time</Table.Th><Table.Th>On battery</Table.Th><Table.Th>Energy</Table.Th>
             </Table.Tr></Table.Thead>
-            <Table.Tbody>{reports.map(report => <ReportRow key={report.timestamp} report={report} />)}</Table.Tbody>
+            <Table.Tbody>{rows.map(report => <ReportRow key={report.timestamp} report={report} />)}</Table.Tbody>
           </Table>
         </Table.ScrollContainer>
+        {paged ? <TablePaging page={page} pageSize={pageSize} total={reports.length}
+          onPage={onPage} onPageSize={onPageSize} /> : null}
       </Card>
     </Stack>
   )
