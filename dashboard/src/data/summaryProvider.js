@@ -24,6 +24,7 @@ export async function loadSummary(date) {
  * @returns {object} Fresh daily response, or empty values outside the sample window.
  */
 function loadSampleSummary(date = sample.date) {
+  if (date === sample.date) return structuredClone(sample)
   const daysBeforeSample = (Date.parse(sample.date + 'T00:00:00Z') - Date.parse(date + 'T00:00:00Z')) / 86400000
   if (!Number.isInteger(daysBeforeSample) || daysBeforeSample < 0 || daysBeforeSample >= 30) {
     return structuredClone({ ...sample, date, energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [] })
