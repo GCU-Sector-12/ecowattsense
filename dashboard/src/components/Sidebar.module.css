@@ -4,7 +4,7 @@
 .link.link {
   color: var(--ews-text-on-dark);
   border-radius: var(--ews-radius);
-  padding: 14px 16px;
+  padding: 16px;
 }
 
 /* Hover on a normal item: a soft green between the sidebar and the selected item. */
