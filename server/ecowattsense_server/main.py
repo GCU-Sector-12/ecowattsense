@@ -1,10 +1,10 @@
-# ecowattsense_server/main.py
+"""FastAPI application and endpoint registration used by the server entry point."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from . import models  # noqa: F401  (the import makes create_all see the tables)
-from .api import auth, contract, devices, health, history, ping, reports, settings, summary
+from .api import admin_settings, auth, contract, devices, health, history, ping, reports, settings, summary
 from .db import init_db
 
 
@@ -32,3 +32,4 @@ app.include_router(devices.router)
 app.include_router(summary.router)
 app.include_router(history.router)
 app.include_router(reports.router)
+app.include_router(admin_settings.router)
