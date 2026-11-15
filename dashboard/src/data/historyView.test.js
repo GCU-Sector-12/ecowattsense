@@ -1,7 +1,7 @@
 // Unit checks for history durations, numeric states and calendar dates used by HistoryPage.
 import { describe, expect, it } from 'vitest'
 import {
-  calendarDay, dayRange, energyByHalfHour, formatDuration, historyDate, historyState, reportTime,
+  calendarDay, dayRange, energyByHalfHour, formatDuration, historyDate, historyState, reportTime, shiftDay,
 } from './historyView.js'
 
 describe('history display values', () => {
@@ -56,5 +56,13 @@ describe('real history helpers', () => {
     const buckets = energyByHalfHour(reports)
     expect(buckets).toHaveLength(48)
     expect(buckets.every(bucket => bucket.energy_uj === 6)).toBe(true)
+  })
+})
+
+describe('shiftDay', () => {
+  it('moves a calendar day by whole days across month and year ends', () => {
+    expect(shiftDay('2026-11-15', -1)).toBe('2026-11-14')
+    expect(shiftDay('2026-12-31', 1)).toBe('2027-01-01')
+    expect(shiftDay('2026-03-01', -1)).toBe('2026-02-28')
   })
 })

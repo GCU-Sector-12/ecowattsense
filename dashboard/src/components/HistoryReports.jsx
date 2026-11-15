@@ -1,8 +1,9 @@
 // Timeline and report table for HistoryPage, using the history API report fields.
-import { Box, Card, Group, Pagination, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Box, Card, Group, Pagination, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
-import { formatDuration, historyState, rangeText, reportTime, timelinePlace } from '../data/historyView.js'
+import { formatDuration, historyState, rangeText, reportTime, shortDay, timelinePlace } from '../data/historyView.js'
 import { ujToKwh } from '../data/units.js'
 import classes from './HistoryReports.module.css'
 
@@ -70,6 +71,25 @@ function TablePaging({ page, pageSize, total, onPage, onPageSize }) {
 }
 
 /**
+ * Previous day, the selected day and Next day, shown in the timeline card header.
+ * @param {object} props - Selected day, the shift callback and whether Next day is allowed.
+ * @returns {JSX.Element} Day switcher.
+ */
+function DaySwitcher({ day, onShiftDay, canNext }) {
+  return (
+    <Group gap="xs" wrap="nowrap">
+      <ActionIcon variant="default" aria-label="Previous day" onClick={() => onShiftDay(-1)}>
+        <ChevronLeft size={16} aria-hidden="true" />
+      </ActionIcon>
+      <Text component="time" dateTime={day} size="sm" fw={600}>{shortDay(day)}</Text>
+      <ActionIcon variant="default" aria-label="Next day" disabled={!canNext} onClick={() => onShiftDay(1)}>
+        <ChevronRight size={16} aria-hidden="true" />
+      </ActionIcon>
+    </Group>
+  )
+}
+
+/**
  * Renders the daily timeline, a state legend and the reports beneath it.
  * The table is paged only when onPage is given; the timeline always shows every report.
  * @param {object} props - Ordered history reports; one block is drawn for each report.
@@ -77,15 +97,21 @@ function TablePaging({ page, pageSize, total, onPage, onPageSize }) {
  * @param {number} [props.pageSize] - Rows per page.
  * @param {Function} [props.onPage] - Receives the new page.
  * @param {Function} [props.onPageSize] - Receives the new page size.
+ * @param {string} [props.day] - Selected YYYY-MM-DD; with onShiftDay it shows the day switcher.
+ * @param {Function} [props.onShiftDay] - Receives -1 or 1.
+ * @param {boolean} [props.canNext] - Whether Next day is enabled.
  * @returns {JSX.Element} Scrollable, labelled timeline and table.
  */
-export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize }) {
+export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize, day, onShiftDay, canNext }) {
   const paged = Boolean(onPage)
   const rows = paged ? reports.slice((page - 1) * pageSize, page * pageSize) : reports
   return (
     <Stack gap="md">
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
-        <Text component="h2" fz="lg" fw={700} m={0}>Daily timeline</Text>
+        <Group justify="space-between" gap="md">
+          <Text component="h2" fz="lg" fw={700} m={0}>Daily timeline</Text>
+          {onShiftDay ? <DaySwitcher day={day} onShiftDay={onShiftDay} canNext={canNext} /> : null}
+        </Group>
         <Text c="var(--ews-text-muted)" size="sm" mb="md">{reports.length} reports · Times shown in UTC</Text>
         <Box className={classes.timelineScroll} role="region" aria-label="Scrollable daily timeline" tabIndex={0}>
           <Box component="ul" aria-label="Daily activity reports" className={classes.timeline}>
@@ -102,6 +128,8 @@ export default function HistoryReports({ reports, page = 1, pageSize = 25, onPag
       </Card>
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
         <Text component="h2" fz="lg" fw={700} m={0} mb="md">Reports</Text>
+        {paged ? <TablePaging page={page} pageSize={pageSize} total={reports.length}
+          onPage={onPage} onPageSize={onPageSize} /> : null}
         <Table.ScrollContainer minWidth={650} type="native" role="region" aria-label="Scrollable history reports" tabIndex={0}>
           <Table aria-label="History reports" verticalSpacing="sm" horizontalSpacing="sm"
             styles={{ th: { color: 'var(--ews-text-muted)' }, tr: { borderColor: 'var(--ews-border)' } }}>

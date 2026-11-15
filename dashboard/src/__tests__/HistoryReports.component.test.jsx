@@ -33,7 +33,7 @@ function paging(extra = {}) {
 it('shows 25 rows by default with the range text', () => {
   renderWithMantine(<HistoryReports reports={sixty()} {...paging()} />)
   expect(within(screen.getByRole('table', { name: 'History reports' })).getAllByRole('row')).toHaveLength(26)
-  expect(screen.getByText('Showing 1 to 25 of 60 reports')).toBeInTheDocument()
+  expect(screen.getAllByText('Showing 1 to 25 of 60 reports')).toHaveLength(2)
 })
 
 it('shows 50 rows for page size 50 and the second page rows on page 2', () => {
@@ -41,15 +41,15 @@ it('shows 50 rows for page size 50 and the second page rows on page 2', () => {
   expect(within(screen.getByRole('table', { name: 'History reports' })).getAllByRole('row')).toHaveLength(51)
   unmount()
   renderWithMantine(<HistoryReports reports={sixty()} {...paging({ page: 3 })} />)
-  expect(screen.getByText('Showing 51 to 60 of 60 reports')).toBeInTheDocument()
+  expect(screen.getAllByText('Showing 51 to 60 of 60 reports')).toHaveLength(2)
   expect(within(screen.getByRole('table', { name: 'History reports' })).getAllByRole('row')).toHaveLength(11)
 })
 
 it('reports page and size changes', async () => {
   const props = paging()
   renderWithMantine(<HistoryReports reports={sixty()} {...props} />)
-  await userEvent.click(screen.getByRole('button', { name: /next page/i }))
+  await userEvent.click(screen.getAllByRole('button', { name: /next page/i })[0])
   expect(props.onPage).toHaveBeenCalledWith(2)
-  await userEvent.click(screen.getByRole('radio', { name: '50' }))
+  await userEvent.click(screen.getAllByRole('radio', { name: '50' })[0])
   expect(props.onPageSize).toHaveBeenCalledWith(50)
 })
