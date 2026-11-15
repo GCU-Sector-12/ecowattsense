@@ -26,6 +26,8 @@
 #include "ews/model.h"
 #include "ews/report_json.h"
 #include "ews/report_queue.h"
+#include "ews/server_api.h"
+#include "ews/server_sync.h"
 #include "ews/scan.h"
 #include "ews/service_log.h"
 #include "ews/service_snapshot.h"
@@ -90,12 +92,18 @@ public:
     /// @param key A key that passed IsValidServerKey.
     /// @return The sender.
     virtual std::unique_ptr<ReportSender> Create(const std::string& url, const std::string& key) = 0;
+
+    /// @param url A URL that passed IsValidServerUrl.
+    /// @param key A key that passed IsValidServerKey.
+    /// @return The caller of the server for the ping, the settings and the device registration.
+    virtual std::unique_ptr<ServerApi> CreateApi(const std::string& url, const std::string& key) = 0;
 };
 
 /// The real factory: WinHttpSender.
 class WinHttpSenderFactory final : public ISenderFactory {
 public:
     std::unique_ptr<ReportSender> Create(const std::string& url, const std::string& key) override;
+    std::unique_ptr<ServerApi> CreateApi(const std::string& url, const std::string& key) override;
 };
 
 /// The sources and helpers of the core. The caller owns them; they must outlive the core.
@@ -143,7 +151,9 @@ public:
 
     /// One tick: reads the counters, calculates the minute, appends a history row. At the end of an interval
     /// (every `interval_seconds / 60` ticks) it also builds the report, queues it, sends when allowed, reloads the
-    /// model when its file time changed and writes status.json. Ignored while suspended or after Stop.
+    /// model when its file time changed and writes status.json. Then, when a server is set and the ping interval
+    /// has passed, it pings the server and runs what the answer asks (settings, commands, registration; SPEC 5.5).
+    /// Ignored while suspended or after Stop.
     void Tick();
 
     /// The power source changed: one read at once, the interval ends early and its report is queued and sent.
@@ -188,6 +198,7 @@ private:
     void WriteScanFiles(const ScanResult& scan);
 
     // Reading and calculating.
+    void TickMeasure();
     Snapshot TakeSnapshot();
     void BeginInterval(const Snapshot& at);
     Snapshot CloseEarly(bool trySend);
@@ -235,12 +246,47 @@ private:
     std::int64_t NowUnix();
     void Log(LogEvent event, std::initializer_list<long long> numbers = {});
 
+    // Server sync (service_sync.cpp): settings from the server, the ping, the commands and the registration.
+    enum class PullResult { Applied, Ignored, Failed };
+    /// Reads `<data>\status\server-settings.json` and `commands-done.json` at start; the settings win over service.ini.
+    void LoadSyncFiles();
+    /// Reads GET /api/settings once at start, when a server is set.
+    void PullSettingsAtStart();
+    /// Counts the tick for the ping and pings when it is due and no `Retry-After` hold is running.
+    void PingTick();
+    /// Sends POST /api/ping and handles the answer.
+    void Ping();
+    /// Reads GET /api/settings and applies a good answer at once.
+    /// @return Applied; Ignored when a value was bad or missing (the old settings stay); Failed when there was no good answer.
+    PullResult PullSettings();
+    /// Puts the settings in force: the report interval, the thresholds, the ping interval.
+    void ApplySettings(const ServerSettings& settings);
+    void SaveSettingsFile();
+    void NotePing(ApiWord word, const ApiAnswer& answer);
+    void HandlePing(const PingAnswer& answer, const std::vector<DoneCommand>& sentAcks);
+    void CheckSettingsVersion(std::int64_t version);
+    void RunCommands(const std::vector<ServerCommand>& commands);
+    void RunOneCommand(const ServerCommand& command);
+    CommandResult Execute(const ServerCommand& command);
+    CommandResult CommandSetInterval(const ServerCommand& command);
+    CommandResult CommandReportNow();
+    CommandResult CommandFlushBuffer();
+    CommandResult CommandClearBuffer();
+    CommandResult CommandPullSettings();
+    void SaveDoneCommands();
+    void RegisterDevice();
+    /// Keeps the next ping back for the `Retry-After` of a 429 or 503 answer.
+    void Hold(const ApiAnswer& answer);
+    int PingTicks() const;
+    int UnsentCount();
+
     ServiceDeps deps_;
     ServiceSettings settings_;
     InstanceLock lock_;
     ServiceConfig config_;
     std::string deviceId_;
     std::unique_ptr<ReportSender> sender_;
+    std::unique_ptr<ServerApi> api_;  ///< Set with sender_: a server URL and a key are known.
     bool keySet_ = false;  ///< True when key.bin was read and decrypted at start (shown in status.json, never the key).
     std::vector<EmiChannel> channels_;
     std::optional<CalibrationModel> model_;
@@ -284,6 +330,20 @@ private:
     HeldTotals SummariseHeld() const;
     int batteryJumps_ = 0;     ///< Impossible battery changes since the last report.
     int batteryReplaced_ = 0;  ///< Replacements since the last report.
+
+    std::optional<ServerSettings> serverSettings_;  ///< The settings that came from the server; empty while service.ini rules.
+    std::optional<std::int64_t> ignoredVersion_;    ///< A settings version whose answer was bad: not read again until the version changes.
+    std::optional<std::int64_t> lastSettingsUnix_;
+    std::optional<std::int64_t> lastPingUnix_;
+    std::optional<std::int64_t> lastRegisterUnix_;
+    LastPing lastPing_ = LastPing::Never;
+    std::vector<DoneCommand> doneCommands_;
+    bool doneDirty_ = false;
+    int pingIntervalSeconds_ = 60;
+    int ticksSincePing_ = 1 << 20;  ///< Large at start, so the first tick pings.
+    int pingHold_ = 0;              ///< Ticks to wait for a `Retry-After`.
+    int pingFailures_ = 0;
+    int settingsIgnored_ = 0;
 
     int sendFailures_ = 0;
     int waitIntervals_ = 0;

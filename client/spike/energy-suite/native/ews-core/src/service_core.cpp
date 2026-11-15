@@ -97,6 +97,7 @@ StartResult ServiceCore::Start() {
     KeepOldStatus();
     LoadSetup();
     BeginRun();
+    PullSettingsAtStart();
     return StartResult::Ok;
 }
 
@@ -141,6 +142,7 @@ void ServiceCore::LoadSetup() {
         Log(LogEvent::ConfigBadValues, {config_.badValues});
     }
     LoadSending();
+    LoadSyncFiles();
     LoadModel();
 }
 
@@ -167,8 +169,10 @@ void ServiceCore::LoadSending() {
     if (!keySet_) {
         return;
     }
+    api_.reset();
     if (config_.SendingOn()) {
         sender_ = deps_.senders.Create(config_.serverUrl, key.value);
+        api_ = deps_.senders.CreateApi(config_.serverUrl, key.value);
     }
     SecureZeroMemory(key.value.data(), key.value.size());
 }
@@ -402,6 +406,12 @@ void ServiceCore::Tick() {
     if (!running_ || suspended_) {
         return;
     }
+    TickMeasure();
+    PingTick();
+}
+
+/// Reads the counters, calculates the minute and ends the report interval when its length is reached.
+void ServiceCore::TickMeasure() {
     Snapshot current = TakeSnapshot();
     if (IsGap(current)) {
         HandleGap(current);
@@ -495,6 +505,7 @@ void ServiceCore::Stop() {
     Log(LogEvent::ServiceStop);
     running_ = false;
     sender_.reset();
+    api_.reset();
     lock_.Release();
 }
 

@@ -16,6 +16,13 @@ enum class LastSend { Ok, Disabled, Unauthorised, Rejected, ServerError, Network
 /// @return "ok", "disabled", "unauthorised", "rejected", "server_error", "network" or "never".
 const char* SendResultWord(LastSend result);
 
+/// The result of the last ping (SPEC 5.7): the words of `last_ping_result`.
+enum class LastPing { Ok, Unauthorised, RateLimited, ServerError, Network, Rejected, Never };
+
+/// @param result A ping result.
+/// @return "ok", "unauthorised", "rate_limited", "server_error", "network", "rejected" or "never".
+const char* PingResultWord(LastPing result);
+
 /// The values of status.json.
 struct StatusFields {
     std::string serviceVersion;                   ///< For example "0.1.0".
@@ -32,11 +39,18 @@ struct StatusFields {
     int intervalSeconds = 0;                      ///< `interval_seconds` in use.
     int idleThresholdSeconds = 0;                 ///< `idle_threshold_seconds` in use.
     int unusedThresholdSeconds = 0;               ///< `unused_threshold_seconds` in use.
+    bool settingsFromServer = false;              ///< True when the settings in force come from the server file.
+    std::optional<std::int64_t> settingsVersion;  ///< `settings_version` in force; written only when the source is the server.
+    std::optional<std::int64_t> lastSettingsUnix; ///< The time of the last good settings read.
+    std::optional<std::int64_t> lastPingUnix;     ///< The time of the last ping attempt.
+    LastPing lastPingResult = LastPing::Never;
 };
 
 /// Builds the text: one line, keys in the order schema, service_version, level, model_generated_utc,
 /// last_report_utc, last_send_utc, last_send_result, queued, server_url, server_key_set, server_enabled,
-/// device_type, interval_seconds, idle_threshold_seconds, unused_threshold_seconds, ending with a line feed.
+/// device_type, interval_seconds, idle_threshold_seconds, unused_threshold_seconds, settings_source ("server" or
+/// "local"), settings_version (only for the server source and when known), last_settings_utc, last_ping_utc (both only
+/// when known), last_ping_result, ending with a line feed.
 /// The settings fields are always written, so the client can show them without reading config (closed to users).
 /// @param fields The values.
 /// @return The JSON text.

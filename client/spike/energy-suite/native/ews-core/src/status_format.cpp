@@ -38,6 +38,18 @@ const char* SendResultWord(LastSend result) {
     }
 }
 
+const char* PingResultWord(LastPing result) {
+    switch (result) {
+        case LastPing::Ok: return "ok";
+        case LastPing::Unauthorised: return "unauthorised";
+        case LastPing::RateLimited: return "rate_limited";
+        case LastPing::ServerError: return "server_error";
+        case LastPing::Network: return "network";
+        case LastPing::Rejected: return "rejected";
+        default: return "never";
+    }
+}
+
 std::string BuildStatusJson(const StatusFields& fields) {
     std::string out = "{\"schema\":1,\"service_version\":" + JsonQuote(fields.serviceVersion);
     AppendOptionalText(out, "level", fields.level);
@@ -52,7 +64,13 @@ std::string BuildStatusJson(const StatusFields& fields) {
     out += ",\"device_type\":" + JsonQuote(fields.deviceType);
     out += ",\"interval_seconds\":" + std::to_string(fields.intervalSeconds);
     out += ",\"idle_threshold_seconds\":" + std::to_string(fields.idleThresholdSeconds);
-    out += ",\"unused_threshold_seconds\":" + std::to_string(fields.unusedThresholdSeconds) + "}\n";
+    out += ",\"unused_threshold_seconds\":" + std::to_string(fields.unusedThresholdSeconds);
+    out += std::string(",\"settings_source\":\"") + (fields.settingsFromServer ? "server" : "local") + "\"";
+    bool showVersion = fields.settingsFromServer && fields.settingsVersion.has_value();
+    out += showVersion ? ",\"settings_version\":" + std::to_string(*fields.settingsVersion) : "";
+    AppendOptionalTime(out, "last_settings_utc", fields.lastSettingsUnix);
+    AppendOptionalTime(out, "last_ping_utc", fields.lastPingUnix);
+    out += std::string(",\"last_ping_result\":\"") + PingResultWord(fields.lastPingResult) + "\"}\n";
     return out;
 }
 
