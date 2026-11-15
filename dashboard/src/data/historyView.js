@@ -122,6 +122,17 @@ export function historyDate(timestamp) {
 }
 
 /**
+ * Moves a calendar day by whole days.
+ * @param {string} day - YYYY-MM-DD.
+ * @param {number} delta - Days to add; negative goes back.
+ * @returns {string} The new YYYY-MM-DD day.
+ */
+export function shiftDay(day, delta) {
+  const moved = new Date(Date.parse(day + 'T00:00:00Z') + delta * 24 * 60 * 60 * 1000)
+  return moved.toISOString().slice(0, 10)
+}
+
+/**
  * Gives a selected UTC day a short readable form for the chart title.
  * @param {string} day - YYYY-MM-DD.
  * @returns {string} Date such as 14 Nov 2026.

@@ -10,7 +10,7 @@ import { sampleScreen } from '../data/ui.js'
 import { formatGbp, timeAgo, ujToKwh } from '../data/units.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import {
-  calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shortDay,
+  calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shiftDay, shortDay,
 } from '../data/historyView.js'
 
 /**
@@ -142,8 +142,16 @@ export default function HistoryPage({ deviceId }) {
     setPageSize(size)
     setPage(1)
   }
-  // Only real mode pages the table; the sample day has 48 rows and shows them all.
-  const paging = isRealHistory() ? { page, pageSize, onPage: setPage, onPageSize: changePageSize } : {}
+  /** @param {number} delta - -1 or 1. @returns {void} Moves the selected day and returns to page 1. */
+  function shiftSelectedDay(delta) {
+    setDay(shiftDay(day, delta))
+    setPage(1)
+  }
+  // Only real mode pages the table and switches days; the sample day has 48 rows and shows them all.
+  const paging = isRealHistory() ? {
+    page, pageSize, onPage: setPage, onPageSize: changePageSize,
+    day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(),
+  } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
 
   return (
