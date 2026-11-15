@@ -25,6 +25,7 @@ public partial class MainWindow
 
     private SettingsInfo settingsInfo = SettingsInfo.Unknown;
     private bool settingsPageShown;
+    private string? currentComputerName;
 
     /// <summary>Shows the Settings item in the sidebar and fills the values that never change.</summary>
     private void StartSettings()
@@ -69,7 +70,7 @@ public partial class MainWindow
         SettingsAddress.Text = SettingsText.Address(info.ServerUrl);
         SettingsKey.Text = SettingsText.Key(info.KeySet);
         SettingsSending.Text = SettingsText.Sending(info.ServerEnabled);
-        SettingsComputerName.Text = SettingsText.ComputerName(SettingsReader.ReadComputerName(ViewerSources.DeviceNameFile));
+        ShowComputerName(info);
         SettingsDeviceType.Text = SettingsText.Device(info.DeviceType);
         SettingsInterval.Text = SettingsText.Minutes(info.IntervalSeconds);
         SettingsIdle.Text = SettingsText.Minutes(info.IdleSeconds);
@@ -77,6 +78,28 @@ public partial class MainWindow
         SettingsSourceLine.Text = SettingsText.SettingsSourceLines(info, TimeZoneInfo.Local);
         SettingsVersion.Text = SettingsText.Version(info.ServiceVersion);
         ShowSetupButton();
+    }
+
+    /// <summary>Shows the computer name and the line under it. A new status ends the "Saving..." text.</summary>
+    /// <param name="info">The checked status.json fields; the name comes from device_name, or from device-name.txt for an older service.</param>
+    private void ShowComputerName(SettingsInfo info)
+    {
+        currentComputerName = info.DeviceName ?? SettingsReader.ReadComputerName(ViewerSources.DeviceNameFile);
+        SettingsComputerName.Text = SettingsText.ComputerName(currentComputerName);
+        SettingsNameSaving.Visibility = Visibility.Collapsed;
+        string line = DeviceNameLines.Line(info.DeviceName, info.ServerDeviceName, info.NameSync);
+        SettingsNameNote.Text = line;
+        SettingsNameNote.Visibility = line.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Opens the rename dialog and shows "Saving..." after the service took the new name.</summary>
+    /// <param name="sender">Not used.</param>
+    /// <param name="e">Not used.</param>
+    private void OnRenameClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new RenameDialog(currentComputerName) { Owner = this };
+        if (dialog.ShowDialog() != true) return;
+        SettingsNameSaving.Visibility = Visibility.Visible;
     }
 
     /// <summary>Enables the Change... button when Setup.exe is found, and says so when it is not.</summary>

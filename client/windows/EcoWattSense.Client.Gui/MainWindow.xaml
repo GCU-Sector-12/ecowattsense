@@ -377,7 +377,20 @@
                         <StackPanel>
                             <TextBlock Text="This computer" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,16"/>
                             <TextBlock Text="Computer name" Style="{StaticResource Label}" Margin="0,0,0,4"/>
-                            <TextBlock x:Name="SettingsComputerName" Text="Not set" Margin="0,0,0,14"/>
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="SettingsComputerName" Text="Not set" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SettingsNameSaving" Grid.Column="1" Text="Saving..." Foreground="#52685D"
+                                           Visibility="Collapsed" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                <Button x:Name="RenameButton" Grid.Column="2" Content="Rename..." Padding="16,6"
+                                        HorizontalAlignment="Left" Margin="14,0,0,0" Click="OnRenameClick"/>
+                            </Grid>
+                            <TextBlock x:Name="SettingsNameNote" FontSize="12" Foreground="#52685D" TextWrapping="Wrap"
+                                       Visibility="Collapsed" Margin="0,-8,0,14"/>
                             <TextBlock Text="Device type" Style="{StaticResource Label}" Margin="0,0,0,4"/>
                             <TextBlock x:Name="SettingsDeviceType" Text="unknown" Margin="0,0,0,14"/>
                             <TextBlock Text="Report interval" Style="{StaticResource Label}" Margin="0,0,0,4"/>

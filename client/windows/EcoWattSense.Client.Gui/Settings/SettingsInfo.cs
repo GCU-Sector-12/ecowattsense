@@ -24,10 +24,14 @@ namespace EcoWattSense.Client.Gui.Settings;
 /// <param name="LastSettingsUtc">When the settings were last checked on the server (UTC), or null.</param>
 /// <param name="LastPingUtc">When the server was last asked (UTC), or null.</param>
 /// <param name="LastPingResult">The result word of the last ask, "ok" when it worked, or null.</param>
+/// <param name="DeviceName">The computer name the service holds ("" means none), or null (an older service).</param>
+/// <param name="ServerDeviceName">The name the server keeps, or null when none or unknown.</param>
+/// <param name="NameSync">"ok", "pending" or "failed", or null (an older service).</param>
 public sealed record SettingsInfo(string? ServiceVersion, string? ServerUrl, bool? KeySet, bool? ServerEnabled,
     string? DeviceType, int? IntervalSeconds, int? IdleSeconds, int? UnusedSeconds,
     string? SettingsSource = null, int? SettingsVersion = null, DateTime? LastSettingsUtc = null,
-    DateTime? LastPingUtc = null, string? LastPingResult = null)
+    DateTime? LastPingUtc = null, string? LastPingResult = null,
+    string? DeviceName = null, string? ServerDeviceName = null, string? NameSync = null)
 {
     /// <summary>The value for a file that is missing, broken or has none of the fields.</summary>
     public static readonly SettingsInfo Unknown = new(null, null, null, null, null, null, null, null);
@@ -107,7 +111,32 @@ public static class SettingsReader
             GetVersionNumber(root, "settings_version"),
             GetUtcTime(root, "last_settings_utc"),
             GetUtcTime(root, "last_ping_utc"),
-            GetText(root, "last_ping_result", MaxVersionLength));
+            GetText(root, "last_ping_result", MaxVersionLength),
+            GetName(root, "device_name"),
+            GetName(root, "server_device_name"),
+            GetNameSync(root));
+    }
+
+    /// <summary>Reads a computer name field. The file is untrusted, so the length and the characters are checked.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <param name="name">The property name.</param>
+    /// <returns>The name (may be empty), or null when the property is missing, JSON null, not a string, longer than <see cref="MaxNameLength"/> characters or has control characters.</returns>
+    private static string? GetName(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out JsonElement value)) return null;
+        if (value.ValueKind != JsonValueKind.String) return null;
+        string text = value.GetString() ?? "";
+        bool usable = text.EnumerateRunes().Count() <= MaxNameLength && !text.EnumerateRunes().Any(System.Text.Rune.IsControl);
+        return usable ? text : null;
+    }
+
+    /// <summary>Reads the name_sync word.</summary>
+    /// <param name="root">The JSON object.</param>
+    /// <returns>"ok", "pending" or "failed", otherwise null.</returns>
+    private static string? GetNameSync(JsonElement root)
+    {
+        string? word = GetText(root, "name_sync", MaxVersionLength);
+        return word is "ok" or "pending" or "failed" ? word : null;
     }
 
     /// <summary>Reads a whole, non-negative version number.</summary>
