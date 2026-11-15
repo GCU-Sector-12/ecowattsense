@@ -23,7 +23,7 @@ info:
 
     * A version in the path (`/api/v1`) before the first client ships.
     * When the server answers 429 and 503, and with which `Retry-After`.
-    * Endpoints for the admin to change settings, energy rates, tariffs and locations, to rename or archive a computer and to queue commands. They come in the next version.
+    * Endpoints for the admin to change energy rates and locations, to rename or archive a computer and to queue commands. They come in the next version.
 
 servers:
   - url: "/"
@@ -66,7 +66,7 @@ paths:
 
         The defaults are placeholders. The admin changes them in the dashboard. The tariff here is the one in force now. Cost and CO2 of an old report use the tariff that was valid at the `timestamp` of that report.
 
-        The endpoints for the admin to change the settings are not in this version of the contract. The admin can also push a change at once with the command `set_interval` (see `POST /api/ping`).
+        The admin reads and saves settings through /api/admin/settings. The admin can also push a change at once with the command `set_interval` (see `POST /api/ping`).
       security:
         - clientKey: []
       responses:
@@ -78,6 +78,62 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: Read current settings and tariff
+      description: Same fields and current values as the client settings endpoint, authenticated with the admin cookie.
+      security:
+        - adminSession: []
+      responses:
+        '200':
+          $ref: '#/components/responses/SettingsOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+    put:
+      operationId: putAdminSettings
+      tags: [admin]
+      summary: Save settings and a tariff atomically
+      description: |
+        Send the full settings object with the version read by the admin.
+        Unused threshold must be above idle. A stale version gives 409 with no changes.
+        A successful save raises the version by one and returns the submitted values.
+        Tariff instants are normalized to UTC. A matching instant updates that tariff.
+        A future tariff is returned by PUT; GET continues to return the tariff in force.
+      security:
+        - adminSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSettingsIn'
+      responses:
+        '200':
+          description: Saved settings, new version and submitted tariff, including future tariffs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '409':
+          description: Settings changed; reload before saving again. No changes were applied.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+        '422':
+          description: Invalid fields, threshold order or content type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 
   /api/devices/{device_id}:
     put:
@@ -918,6 +974,64 @@ components:
             $ref: '#/components/schemas/HTTPValidationError'
 
   schemas:
+    AdminSettingsIn:
+      additionalProperties: false
+      description: Complete settings save, including the version read by the admin.
+      properties:
+        settings_version:
+          exclusiveMinimum: 0
+          maximum: 2147483647
+          title: Settings Version
+          type: integer
+        report_interval_seconds:
+          maximum: 3600
+          minimum: 60
+          title: Report Interval Seconds
+          type: integer
+        ping_interval_seconds:
+          exclusiveMinimum: 0
+          maximum: 2147483647
+          title: Ping Interval Seconds
+          type: integer
+        idle_threshold_seconds:
+          exclusiveMinimum: 0
+          maximum: 2147483647
+          title: Idle Threshold Seconds
+          type: integer
+        unused_threshold_seconds:
+          exclusiveMinimum: 0
+          maximum: 2147483647
+          title: Unused Threshold Seconds
+          type: integer
+        no_data_after_cycles:
+          exclusiveMinimum: 0
+          maximum: 2147483647
+          title: No Data After Cycles
+          type: integer
+        tariff_valid_from:
+          format: date-time
+          title: Tariff Valid From
+          type: string
+        price_gbp_per_kwh:
+          minimum: 0
+          title: Price Gbp Per Kwh
+          type: number
+        co2_kg_per_kwh:
+          minimum: 0
+          title: Co2 Kg Per Kwh
+          type: number
+      required:
+      - settings_version
+      - report_interval_seconds
+      - ping_interval_seconds
+      - idle_threshold_seconds
+      - unused_threshold_seconds
+      - no_data_after_cycles
+      - tariff_valid_from
+      - price_gbp_per_kwh
+      - co2_kg_per_kwh
+      title: AdminSettingsIn
+      type: object
 
     # Small shared pieces
 

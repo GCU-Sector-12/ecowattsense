@@ -1,6 +1,7 @@
 // Data providers used by dashboard pages to load API responses and sample data.
 import { loadSummary } from './summaryProvider.js'
 import { loadDevices } from './devicesProvider.js'
+import { isRealHistory, loadDeviceHistory } from './historyProvider.js'
 import history from './history.json'
 import settings from './settings.json'
 import { applyDevelopmentControls } from './developmentControls.js'
@@ -29,16 +30,20 @@ export async function getDevices(options) {
 }
 
 /**
- * Returns sample reports in the inclusive-from, exclusive-to range and recomputes totals.
+ * Loads one computer's history. Real mode calls the API and uses its totals unchanged;
+ * sample mode returns sample reports in the inclusive-from, exclusive-to range and recomputes totals.
  * @param {string} device_id - Device identifier; unknown devices return null.
- * @param {string} [from=history.from] - Inclusive ISO timestamp.
- * @param {string} [to=history.to] - Exclusive ISO timestamp.
- * @returns {Promise<object|null>} Filtered history or null for an unknown device.
- * @throws {Error} When the development failure switch is enabled.
+ * @param {string} [from] - Inclusive ISO timestamp; the sample day when omitted in sample mode.
+ * @param {string} [to] - Exclusive ISO timestamp; the sample day when omitted in sample mode.
+ * @returns {Promise<object|null>} History or null for an unknown device.
+ * @throws {Error} When the development failure switch is enabled, or the API request fails in real mode.
  * @throws {RangeError} If the range is invalid or exceeds 31 days.
  */
-export async function getDeviceHistory(device_id, from = history.from, to = history.to) {
+export async function getDeviceHistory(device_id, from, to) {
+  if (isRealHistory()) return loadDeviceHistory(device_id, from, to)
   await applyDevelopmentControls()
+  from ??= history.from
+  to ??= history.to
   if (device_id !== history.device_id) return null
   const start = Date.parse(from)
   const end = Date.parse(to)

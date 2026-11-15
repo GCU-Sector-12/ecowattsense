@@ -68,9 +68,10 @@ function EnergyTooltip({ active, payload, label }) {
 /**
  * Plots sample half-hour energy buckets as average power.
  * @param {object} props - Contract series points with timestamp and energy_uj.
+ * @param {string} [props.title] - Card title; defaults to the Dashboard title.
  * @returns {JSX.Element} Rendered content.
  */
-export default function EnergyChart({ points }) {
+export default function EnergyChart({ points, title = 'Energy Usage (Today)' }) {
   const theme = useMantineTheme()
   const data = toEnergyChartData(points)
   const xTicks = data.length ? getFourHourTicks(data) : []
@@ -79,7 +80,7 @@ export default function EnergyChart({ points }) {
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)" h="100%">
       <Text fz="lg" fw={700} mb="md">
-        Energy Usage (Today)
+        {title}
       </Text>
       {data.length === 0 ? <Text>No data for this day</Text> : <AreaChart
         h={240}

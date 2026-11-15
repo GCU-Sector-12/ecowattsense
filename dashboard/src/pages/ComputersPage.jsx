@@ -8,6 +8,7 @@ import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import ComputerTable from '../components/ComputerTable.jsx'
 import { getDevices } from '../data/index.js'
+import { computerLabel } from '../data/computerLabel.js'
 
 const STATE_OPTIONS = [
   { value: 'all', label: 'All states' },
@@ -16,16 +17,6 @@ const STATE_OPTIONS = [
   { value: 'unused', label: 'Unused' },
   { value: 'no_data', label: 'No data' },
 ]
-
-// Match the same fallback text that the table displays for unnamed devices.
-/**
- * Gives the name the table shows for a device.
- * @param {object} computer - Device from the device-list contract.
- * @returns {string} display_name, or the first eight characters of device_id.
- */
-function displayedName(computer) {
-  return computer.display_name ?? computer.device_id.slice(0, 8)
-}
 
 /**
  * Full computer list with search, state filter, archive switch and sortable headers.
@@ -100,7 +91,7 @@ function selectVisibleDevices(devices, search, stateFilter, showArchived, sortBy
   return devices
     .filter(computer => showArchived || !computer.archived)
     .filter(computer => stateFilter === 'all' || computer.state_name === stateFilter)
-    .filter(computer => displayedName(computer).toLocaleLowerCase().includes(query))
+    .filter(computer => computerLabel(computer).toLocaleLowerCase().includes(query))
     .sort((left, right) => compareComputers(left, right, sortBy, sortDirection))
 }
 
@@ -113,8 +104,8 @@ function selectVisibleDevices(devices, search, stateFilter, showArchived, sortBy
  * @returns {number} Locale comparison in the requested direction.
  */
 function compareComputers(left, right, sortBy, direction) {
-  const leftValue = sortBy === 'name' ? displayedName(left) : left.state_name
-  const rightValue = sortBy === 'name' ? displayedName(right) : right.state_name
+  const leftValue = sortBy === 'name' ? computerLabel(left) : left.state_name
+  const rightValue = sortBy === 'name' ? computerLabel(right) : right.state_name
   const comparison = leftValue.localeCompare(rightValue, 'en', { sensitivity: 'base' })
   return direction === 'ascending' ? comparison : -comparison
 }

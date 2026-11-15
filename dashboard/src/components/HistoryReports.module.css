@@ -1,0 +1,30 @@
+/* HistoryPage timeline: preserve distinct half-hour blocks and scroll within small screens. */
+.timelineScroll {
+  overflow-x: auto;
+}
+
+.timeline {
+  /* Blocks sit at their time of day (left and width in percent), so missing reports stay empty.
+     The minimum width keeps 5 minute blocks readable; narrower screens scroll. */
+  position: relative;
+  min-width: 960px;
+  height: 36px;
+  list-style: none;
+  padding: 0;
+  margin: 3px 0;
+  background: var(--ews-border);
+  border-radius: 3px;
+}
+
+.block {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 0.5px var(--ews-card);
+}
+
+.block:focus-visible {
+  outline: 2px solid var(--ews-text);
+  outline-offset: 1px;
+}

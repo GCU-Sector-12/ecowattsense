@@ -20,15 +20,31 @@ afterEach(restore)
 /** @returns {Promise<void>} Checks recorded-day semantics and independent copies. */
 async function checkSample() {
   const first = await getSummary()
+  const second = await getSummary(sample.date)
   expect(first).toEqual(sample)
+  expect(second).toEqual(sample)
+  expect(first.date).toBe(sample.date)
+  expect(first.series).toHaveLength(sample.series.length)
   first.series[0].energy_uj = -1
-  expect(await getSummary()).toEqual(sample)
+  expect((await getSummary()).series[0].energy_uj).toBe(sample.series[0].energy_uj)
   expect(await getSummary('2026-10-19')).toMatchObject({
     date: '2026-10-19', energy_uj: 0, cost_gbp: 0, co2_kg: 0, series: [],
   })
   expect(fetch).not.toHaveBeenCalled()
 }
 it('keeps the recorded sample day by default', checkSample)
+
+/** @returns {Promise<void>} Checks generated days vary and preserve the 30-day window. */
+async function checkGeneratedDays() {
+  const first = await getSummary('2025-03-09')
+  const second = await getSummary('2025-03-08')
+  expect(first.date).toBe('2025-03-09')
+  expect(first.energy_uj).toBeGreaterThan(0)
+  expect(first.energy_uj).not.toBe(second.energy_uj)
+  expect(first.series).toHaveLength(48)
+  expect(await getSummary('2025-02-08')).toMatchObject({ energy_uj: 0, series: [] })
+}
+it('generates varied summaries for the 30 sample days', checkGeneratedDays)
 
 /** @returns {Promise<void>} Checks the server chooses the current UK day. */
 async function checkDefaultDate() {

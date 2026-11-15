@@ -4,12 +4,14 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# Data source of the dashboard, fixed at build time. "real" calls /api/devices and /api/summary;
-# empty keeps the sample data. Staging sets both in deploy/staging.env (EWS_API-19).
+# Data source of the dashboard, fixed at build time. "real" calls /api/devices, /api/summary and /api/devices/{id}/history;
+# empty keeps the sample data. Staging sets all three in deploy/staging.env (EWS_API-19, EWS_WEB-58).
 ARG VITE_DEVICES_DATA_SOURCE=""
 ARG VITE_SUMMARY_DATA_SOURCE=""
+ARG VITE_HISTORY_DATA_SOURCE=""
 ENV VITE_DEVICES_DATA_SOURCE=$VITE_DEVICES_DATA_SOURCE \
-    VITE_SUMMARY_DATA_SOURCE=$VITE_SUMMARY_DATA_SOURCE
+    VITE_SUMMARY_DATA_SOURCE=$VITE_SUMMARY_DATA_SOURCE \
+    VITE_HISTORY_DATA_SOURCE=$VITE_HISTORY_DATA_SOURCE
 RUN npm run build
 
 # Stage 2: serve the built files with nginx

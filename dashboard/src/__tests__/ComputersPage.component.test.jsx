@@ -81,3 +81,15 @@ it('sorts by status and filters the No data state', async () => {
   expect(screen.getByRole('cell', { name: 'No Report PC' })).toBeInTheDocument()
   expect(screen.getAllByRole('row')).toHaveLength(2)
 })
+
+it('finds an unnamed computer by Unnamed and by its short id', async () => {
+  const unnamed = { ...devicesFixture.devices[0], device_id: 'abcd1234-0000', display_name: '  ' }
+  getDevices.mockResolvedValue({ devices: [unnamed] })
+  renderWithMantine(<ComputersPage />)
+  const search = await screen.findByLabelText('Search computers')
+  await userEvent.type(search, 'unnamed')
+  expect(screen.getByRole('cell', { name: 'Unnamed computer (abcd1234)' })).toBeInTheDocument()
+  await userEvent.clear(search)
+  await userEvent.type(search, 'abcd1234')
+  expect(screen.getByRole('cell', { name: 'Unnamed computer (abcd1234)' })).toBeInTheDocument()
+})
