@@ -3,12 +3,14 @@ import { useCallback, useState } from 'react'
 import { Anchor, Box, Card, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import DataState from '../components/DataState.jsx'
+import EnergyChart from '../components/EnergyChart.jsx'
 import HistoryReports from '../components/HistoryReports.jsx'
 import useSampleData from '../useSampleData.js'
 import { sampleScreen } from '../data/ui.js'
 import { formatGbp, timeAgo, ujToKwh } from '../data/units.js'
+import { isRealHistory } from '../data/historyProvider.js'
 import {
-  calendarDay, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM,
+  calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM,
 } from '../data/historyView.js'
 
 /**
@@ -27,10 +29,10 @@ function DeviceDetail({ label, value }) {
 
 /**
  * Shows identity fields from the device provider, rather than borrowing another device's details.
- * @param {object} props - Loaded device.
+ * @param {object} props - Loaded device and the time that Last seen is measured against.
  * @returns {JSX.Element} Computer identity card.
  */
-function DeviceDetails({ device }) {
+function DeviceDetails({ device, referenceTime }) {
   const location = [device.location_name, device.building].filter(Boolean).join(', ') || 'Not set'
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
@@ -41,7 +43,7 @@ function DeviceDetails({ device }) {
         <DeviceDetail label="Device type" value={device.device_type} />
         <DeviceDetail label="Location" value={location} />
         <DeviceDetail label="Last seen" value={<time dateTime={device.last_seen_at} title={device.last_seen_at}>
-          {timeAgo(device.last_seen_at, sampleScreen.generated_at)}
+          {timeAgo(device.last_seen_at, referenceTime)}
         </time>} />
       </SimpleGrid>
     </Card>
@@ -88,10 +90,10 @@ function HistoryContent({ data }) {
   )
   return (
     <Stack gap="md">
-      <DeviceDetails device={data.device} />
+      <DeviceDetails device={data.device} referenceTime={isRealHistory() ? new Date() : sampleScreen.generated_at} />
       {data.history ? <AvailableHistory history={data.history} /> : (
         <Card radius="lg" padding="lg" bg="var(--ews-card)" role="status">
-          <Text>No sample history available for this computer.</Text>
+          <Text>{isRealHistory() ? 'No history available for this computer.' : 'No sample history available for this computer.'}</Text>
         </Card>
       )}
     </Stack>
@@ -107,21 +109,26 @@ function AvailableHistory({ history }) {
   return (
     <Stack gap="md">
       <HistoryTotals totals={history.totals} />
+      {history.reports.length ? <Box component="section" aria-label="Energy for this computer">
+        <EnergyChart points={energyByHalfHour(history.reports)} />
+      </Box> : null}
       {history.reports.length ? <HistoryReports reports={history.reports} /> : <DataState empty label="History reports" />}
     </Stack>
   )
 }
 
 /**
- * Loads one computer's sample history and defaults the date input to today.
- * Date selection deliberately leaves the fixed sample readings unchanged.
+ * Loads one computer's history and defaults the date input to today.
+ * Real mode loads the selected UTC day; sample mode keeps the fixed sample readings whatever the date.
  * @param {object} props - Route parameters supplied by App.
  * @param {string} props.deviceId - Requested computer identifier.
  * @returns {JSX.Element} History page with loading, retry, missing and populated states.
  */
 export default function HistoryPage({ deviceId }) {
   const [day, setDay] = useState(calendarDay)
-  const loader = useCallback(() => loadComputerHistory(deviceId), [deviceId])
+  // Sample readings do not depend on the date, so only real mode reloads when it changes.
+  const loadDay = isRealHistory() ? day : undefined
+  const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
   const { data, error, retry } = useSampleData(loader)
 
   /** @param {Event} event - Native date change. @returns {void} Stores the selected sample date. */
@@ -135,9 +142,9 @@ export default function HistoryPage({ deviceId }) {
         generatedAt={sampleScreen.generated_at} userName={sampleScreen.user_name} />
       <Anchor href="#computers">Back to computers</Anchor>
       <TextInput type="date" label="History date" value={day} onChange={changeDay} maw={240} />
-      <Text size="sm" c="var(--ews-text-muted)">
+      {isRealHistory() ? null : <Text size="sm" c="var(--ews-text-muted)">
         Sample history from {historyDate(SAMPLE_HISTORY_FROM)}. Date selection does not change these sample readings.
-      </Text>
+      </Text>}
       {data ? <HistoryContent data={data} /> : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
     </Stack>
   )

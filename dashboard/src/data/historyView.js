@@ -1,23 +1,72 @@
 // Sample history loading and display helpers used by HistoryPage and its tests.
 import { getDeviceHistory, getDevices } from './index.js'
+import { isRealHistory } from './historyProvider.js'
 import sampleHistory from './history.json'
 
 export const SAMPLE_HISTORY_FROM = sampleHistory.from
 const STATE_NAMES = ['unused', 'idle', 'active']
 
 /**
- * Loads device details and the fixed sample day without changing the shared range provider.
- * The selected UI date deliberately does not filter sample history (EWS_WEB-30).
+ * Loads device details and one computer's history. Sample mode returns the fixed sample day
+ * whatever the date (EWS_WEB-30); real mode loads the selected UTC day from the API.
  * @param {string} deviceId - Requested computer identifier.
+ * @param {string} [day] - YYYY-MM-DD day to load in real mode.
  * @returns {Promise<{device: object|null, history: object|null}>} Details and available history.
+ *   In real mode a 404 from the history endpoint gives device null.
  * @throws {Error} When either provider fails.
  */
-export async function loadComputerHistory(deviceId) {
+export async function loadComputerHistory(deviceId, day) {
+  const range = isRealHistory() ? dayRange(day) : { from: sampleHistory.from, to: sampleHistory.to }
   const [response, history] = await Promise.all([
-    getDevices(), getDeviceHistory(deviceId, sampleHistory.from, sampleHistory.to),
+    getDevices(), getDeviceHistory(deviceId, range.from, range.to),
   ])
-  const device = response.devices.find(item => item.device_id === deviceId) ?? null
+  const found = response.devices.find(item => item.device_id === deviceId) ?? null
+  const device = isRealHistory() && !history ? null : found
   return { device, history }
+}
+
+/**
+ * Turns a calendar day into the UTC range the history endpoint expects.
+ * @param {string} day - YYYY-MM-DD.
+ * @returns {{from: string, to: string}} 00:00Z of the day and 00:00Z of the next day (exclusive).
+ */
+export function dayRange(day) {
+  const start = Date.parse(day + 'T00:00:00Z')
+  const next = new Date(start + 24 * 60 * 60 * 1000)
+  return { from: day + 'T00:00:00Z', to: next.toISOString().slice(0, 19) + 'Z' }
+}
+
+/**
+ * Sums report energy into half-hour UTC buckets, in the shape EnergyChart takes.
+ * Buckets without reports are left out. Reports on battery carry 0 and add 0.
+ * @param {object[]} reports - History reports with timestamp and energy_uj.
+ * @returns {{timestamp: string, energy_uj: number}[]} Buckets in time order.
+ */
+export function energyByHalfHour(reports) {
+  const sums = new Map()
+  for (const report of reports) addToBucket(sums, report)
+  return [...sums.entries()].sort(([a], [b]) => a - b).map(toBucket)
+}
+
+/**
+ * Adds one report to its half-hour bucket.
+ * @param {Map<number, number>} sums - Bucket start in epoch milliseconds to energy_uj.
+ * @param {object} report - Report with timestamp and energy_uj.
+ * @returns {void}
+ */
+function addToBucket(sums, report) {
+  const half = 30 * 60 * 1000
+  const start = Math.floor(Date.parse(report.timestamp) / half) * half
+  sums.set(start, (sums.get(start) ?? 0) + report.energy_uj)
+}
+
+/**
+ * Converts one bucket entry to a chart point.
+ * @param {[number, number]} entry - Bucket start in epoch milliseconds and its energy_uj.
+ * @returns {{timestamp: string, energy_uj: number}} Chart point with a UTC timestamp.
+ */
+function toBucket([start, energy_uj]) {
+  return { timestamp: new Date(start).toISOString().slice(0, 19) + 'Z', energy_uj }
 }
 
 /**
