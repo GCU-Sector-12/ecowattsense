@@ -3,6 +3,7 @@
 import { Anchor, Button, Card, Group, Table, Text } from '@mantine/core'
 import StateBadge from '../StateBadge.jsx'
 import { timeAgo } from '../data/units.js'
+import { computerLabel, computerLabelParts } from '../data/computerLabel.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -16,12 +17,13 @@ const headerStyle = {
  * @returns {JSX.Element} Rendered content.
  */
 function ComputerRow({ computer, referenceTime }) {
-  const name = computer.display_name ?? computer.device_id.slice(0, 8)
+  const name = computerLabel(computer)
+  const parts = computerLabelParts(computer)
   const location = [computer.location_name, computer.building].filter(Boolean).join(', ') || 'not set'
 
   return (
     <Table.Tr>
-      <Table.Td>{name}</Table.Td>
+      <Table.Td>{parts.text}{parts.shortId !== null && <>{' '}<Text span c="var(--ews-text-muted)">({parts.shortId})</Text></>}</Table.Td>
       <Table.Td><StateBadge state={computer.state_name} /></Table.Td>
       <Table.Td>
         <Text span title={computer.last_seen_at}>

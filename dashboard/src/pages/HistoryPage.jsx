@@ -8,6 +8,7 @@ import HistoryReports from '../components/HistoryReports.jsx'
 import useSampleData from '../useSampleData.js'
 import { sampleScreen } from '../data/ui.js'
 import { formatGbp, timeAgo, ujToKwh } from '../data/units.js'
+import { computerLabelParts } from '../data/computerLabel.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import {
   calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shiftDay, shortDay,
@@ -34,9 +35,13 @@ function DeviceDetail({ label, value }) {
  */
 function DeviceDetails({ device, referenceTime }) {
   const location = [device.location_name, device.building].filter(Boolean).join(', ') || 'Not set'
+  const parts = computerLabelParts(device)
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
-      <Text component="h2" fz="lg" fw={700} m={0}>{device.display_name ?? device.device_id}</Text>
+      <Text component="h2" fz="lg" fw={700} m={0}>{parts.text}{parts.shortId !== null && <>{' '}<Text span c="var(--ews-text-muted)">({parts.shortId})</Text></>}</Text>
+      {parts.shortId !== null && <Text fz="sm" c="var(--ews-text-muted)" mt={4}>
+        Set the name in the client Setup, or edit the computer when editing is available.
+      </Text>}
       <SimpleGrid component="dl" cols={{ base: 1, sm: 2, lg: 3 }} mb={0}>
         <DeviceDetail label="Device ID" value={device.device_id} />
         <DeviceDetail label="Operating system" value={device.os} />
