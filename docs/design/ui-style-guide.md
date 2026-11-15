@@ -57,7 +57,9 @@ The mockup uses a clean sans-serif (Roboto). Use **Roboto** with Inter and syste
 - Dashboard row 2: energy usage chart and computer status donut. They stack below 1024px.
 - Dashboard row 3: Computer List table with computer name, status (dot plus word), last seen, location, OS/type and View action. Location and OS/type columns hide below 768px; the table scrolls horizontally on small screens.
 - Cards: white (or dark-scheme surface), 12px radius, no border, very light shadow or none. Use spacing values that are multiples of the 8px base unit. The dashboard grid gap is 16px.
-- Below 1024px the sidebar collapses to icons; below 768px it is behind a burger menu and stat cards stack two per row, then one on narrow phones.
+- AppShell content padding is 16px below 768px and 32px from 768px upwards.
+- Dashboard stat cards use one column below 768px, two columns from 768px to 1199px, and four columns from 1200px upwards.
+- Below 1024px the sidebar collapses to icons; below 768px it is behind a burger menu.
 - Use the token spacing scale in `dashboard/src/theme.js`: 8, 16, 16, 24 and 32px. Do not introduce off-grid spacing for layout.
 
 ## Status definitions in the mockup
@@ -74,6 +76,7 @@ These thresholds come from the mockup and still need to be confirmed against the
 
 - **Dark mode exists.** The Settings page has Light, Dark and Auto appearance choices. Dark mode changes the page, card, text, border, track and chart-fill tokens; brand and status meanings stay consistent.
 - **No data state exists.** The shared `DataState` component presents a neutral “No data” message for empty data regions, separate from loading skeletons and error/retry feedback.
+- **Remaining loading, error, session and empty-state gaps are tracked in [EWS_WEB-52](https://sector12.youtrack.cloud/issue/EWS_WEB-52).** This end-of-project task covers the page-by-page review and redesign, including keeping page headers available during content errors, redirecting expired sessions to Login, distinguishing empty-list states, and reviewing loading skeletons in both themes.
 - **Pages outside the original dashboard mock-up:** Computers adds search, state filtering, archive visibility and sorting; Energy Usage provides daily energy data; History provides per-computer daily details and reports; Login provides authenticated entry; Settings provides appearance controls and report interval; Not Found handles unknown routes.
 - The original mock-up's sample figures are fixtures, not measured energy data. Use the API contract and energy model for real values.
 
