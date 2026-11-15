@@ -84,7 +84,7 @@
 
 .link.link[data-collapsed] {
   justify-content: center;
-  padding: 14px 0;
+  padding: 16px 0;
 }
 
 .link[data-collapsed] .section {
