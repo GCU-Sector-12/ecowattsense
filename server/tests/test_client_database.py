@@ -71,10 +71,10 @@ def test_second_put_for_the_same_device(client, engine):
     changed = {"device_name": "Lab 2 PC 01", "os": "linux", "device_type": "laptop"}
     response = client.put(DEVICE_PATH, json=changed)
     assert response.status_code == 200
-    # The name is stored only while it is empty (contract 5.3), so the first name stays.
-    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 1 PC 03", "created": False}
+    # A name set by a client can be changed by a client (contract 5.3, EWS_API-24).
+    assert response.json() == {"device_id": DEVICE_ID, "device_name": "Lab 2 PC 01", "created": False}
     (device,) = devices_in(engine)
-    assert (device.display_name, device.os, device.device_type) == ("Lab 1 PC 03", "linux", "laptop")
+    assert (device.display_name, device.os, device.device_type) == ("Lab 2 PC 01", "linux", "laptop")
     assert device.first_seen_at == first_seen
 
 

@@ -4,6 +4,7 @@ import { loadDevices } from './devicesProvider.js'
 import { isRealHistory, loadDeviceHistory } from './historyProvider.js'
 import history from './history.json'
 import settings from './settings.json'
+import { loadSettings, saveSettings as storeSettings } from './settingsProvider.js'
 import { applyDevelopmentControls } from './developmentControls.js'
 import { ujToKwh } from './units.js'
 
@@ -75,13 +76,23 @@ export async function getDeviceHistory(device_id, from, to) {
 }
 
 /**
- * Returns an independent copy of the sample tariff and threshold settings.
- * @throws {Error} When the development failure switch is enabled.
+ * Loads the settings from the selected sample or authenticated admin API provider.
+ * @throws {Error} When the development failure switch is enabled, or the API request fails in real mode.
  * @returns {Promise<object>} Settings using API contract field names.
  */
 export async function getSettings() {
-  await applyDevelopmentControls()
-  return structuredClone(settings)
+  if (import.meta.env.VITE_SETTINGS_DATA_SOURCE !== 'real') await applyDevelopmentControls()
+  return loadSettings()
+}
+
+/**
+ * Saves all nine settings fields; real mode calls PUT /api/admin/settings, sample mode keeps them in memory.
+ * @param {object} body - Settings with the settings_version that was read.
+ * @throws {Error} With status 409 (stale version), 422 (invalid values, message from the server) or another failure.
+ * @returns {Promise<object>} The saved settings with the new settings_version.
+ */
+export async function saveSettings(body) {
+  return storeSettings(body)
 }
 
 /**

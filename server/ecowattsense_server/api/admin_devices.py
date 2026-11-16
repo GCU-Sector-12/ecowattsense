@@ -65,12 +65,17 @@ def require_known_room(session: Session, location_id: int | None) -> None:
 def apply_change(device: Device, body: AdminDeviceChange) -> None:
     """Copy the fields that the body sent onto the computer. Other fields stay as they were.
 
+    A name set here counts as set by the admin (name_source "admin"). Clearing the name clears
+    name_source too.
+
     Args:
         device: The stored computer.
         body: The change. Its model_fields_set names the fields that were sent.
     """
     for name in body.model_fields_set:
         setattr(device, name, getattr(body, name))
+    if "display_name" in body.model_fields_set:
+        device.name_source = None if body.display_name is None else "admin"
 
 
 def read_changed_device(session: Session, device_id: UUID) -> DashboardDevice:

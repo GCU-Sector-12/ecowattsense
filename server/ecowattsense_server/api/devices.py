@@ -1,6 +1,6 @@
 """The devices endpoints: PUT /api/devices/{device_id} for the clients, GET /api/devices for the dashboard.
 
-PUT (contract 5.3) registers a computer or sets its name (only while it has none), os and device_type. The clients call
+PUT (contract 5.3) registers a computer or sets its name (see update_device), os and device_type. The clients call
 it with the header X-EWS-Key when they first connect and when the user changes the name. The
 call can be repeated: created is true only for the call that adds the computer.
 GET lists the computers for the admin dashboard.
@@ -37,6 +37,20 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def name_source_of(name: str | None) -> str | None:
+    """Say who set a name that came from a client call.
+
+    Args:
+        name: The stored name, or None.
+
+    Returns:
+        "client" when there is a name, else None.
+    """
+    if name is None:
+        return None
+    return "client"
+
+
 def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
     """Make the row of a computer that registers before its first report.
 
@@ -51,6 +65,7 @@ def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
     return Device(
         id=device_id,
         display_name=body.device_name,
+        name_source=name_source_of(body.device_name),
         os=body.os,
         device_type=body.device_type,
         first_seen_at=now,
@@ -61,15 +76,18 @@ def new_device(device_id: UUID, body: DeviceIn, now: datetime) -> Device:
 def update_device(device: Device, body: DeviceIn) -> None:
     """Set the name, os and device_type of a known computer (contract 5.3).
 
-    The name is stored only while the stored display_name is empty. A name set by the admin is
-    never overwritten by the client. os and device_type are always set.
+    The name is stored when the stored display_name is empty or was set by a client. A name set
+    by the admin is never overwritten by the client. A call without a name keeps the stored name,
+    so a failed read of the name on the client never deletes it. os and device_type are always set.
 
     Args:
         device: The stored computer.
         body: The registration: device_name, os and device_type.
     """
-    if device.display_name is None:
+    client_may_set = device.display_name is None or device.name_source == "client"
+    if client_may_set and body.device_name is not None:
         device.display_name = body.device_name
+        device.name_source = name_source_of(body.device_name)
     device.os = body.os
     device.device_type = body.device_type
 

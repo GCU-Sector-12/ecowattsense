@@ -27,7 +27,7 @@ afterEach(restore)
 const pages = [
   { Page: DashboardPage, label: 'dashboard', content: 'Welcome to EcoWattSense!' },
   { Page: ComputersPage, label: 'computers', content: 'PC-01' },
-  { Page: SettingsPage, label: 'settings', content: /Report interval:/ },
+  { Page: SettingsPage, label: 'settings', content: 'Report interval (seconds)' },
 ]
 
 /**
