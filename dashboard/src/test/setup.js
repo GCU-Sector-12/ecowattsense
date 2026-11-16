@@ -1,3 +1,4 @@
+// Shared setup for every Vitest file (see vite.config.js): browser stubs and a clean start per test.
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, vi } from 'vitest'
 
@@ -20,10 +21,10 @@ class ResizeObserverStub {
 window.ResizeObserver = ResizeObserverStub
 window.scrollTo = vi.fn()
 
-// Each test starts clean: no saved theme and no page hash.
+// Each test starts clean: no saved theme, and the address is the start address "/".
 afterEach(() => {
   localStorage.clear()
-  window.location.hash = ''
+  window.history.replaceState(null, '', '/')
 })
 
 // No test reaches the real network: the sidebar reads the release manifest, so fetch fails unless a test replaces it.

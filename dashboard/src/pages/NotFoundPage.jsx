@@ -2,6 +2,7 @@
 import { Anchor, Stack } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
+import { followLink } from '../usePath.js'
 
 /**
  * Page for an unknown address, with a link back to the Dashboard.
@@ -17,7 +18,7 @@ export default function NotFoundPage() {
         generatedAt={sampleScreen.generated_at}
         userName={sampleScreen.user_name}
       />
-      <Anchor href="#dashboard">Back to the Dashboard</Anchor>
+      <Anchor href="/dashboard" onClick={followLink}>Back to the Dashboard</Anchor>
     </Stack>
   )
 }

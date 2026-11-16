@@ -1,4 +1,4 @@
-// Daily computer history, opened from the computer table through #computers/<device_id>.
+// Daily computer history, opened from the computer table through /computers/<device_id>.
 import { useCallback, useRef, useState } from 'react'
 import { Anchor, Box, Card, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
@@ -13,6 +13,7 @@ import { isRealHistory } from '../data/historyProvider.js'
 import {
   calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shiftDay, shortDay,
 } from '../data/historyView.js'
+import { followLink } from '../usePath.js'
 
 /**
  * Shows one labelled computer detail using description-list semantics.
@@ -180,7 +181,7 @@ export default function HistoryPage({ deviceId }) {
     <Stack gap="md">
       <Header title="Computer history" subtitle={`Computer ${deviceId}`}
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
-      <Anchor href="#computers">Back to computers</Anchor>
+      <Anchor href="/computers" onClick={followLink}>Back to computers</Anchor>
       <TextInput type="date" label="History date" value={day} onChange={changeDay} maw={240} />
       {isRealHistory() ? null : <Text size="sm" c="var(--ews-text-muted)">
         Sample history from {historyDate(SAMPLE_HISTORY_FROM)}. Date selection does not change these sample readings.

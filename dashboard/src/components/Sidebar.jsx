@@ -4,6 +4,7 @@ import { ActionIcon, Group, NavLink, Stack, Text, Tooltip } from '@mantine/core'
 import { useRef } from 'react'
 import classes from './Sidebar.module.css'
 import InstallerBlock from './InstallerBlock.jsx'
+import { followLink } from '../usePath.js'
 import { Home, Monitor, BarChart3, FileText, Settings, Leaf, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // Icon names from the navigation list in data/ui.js mapped to lucide icons.
@@ -17,16 +18,28 @@ const ICONS = {
 
 /**
  * One menu entry: icon and label, or icon only with the label in a tooltip when the sidebar is collapsed.
- * @param {object} props - item (key, label, icon name), active flag and collapsed flag.
+ * @param {object} props - item (key, label, icon name), active flag, collapsed flag and
+ *   onNavigate() for the mobile drawer.
  * @returns {JSX.Element} Rendered content.
  */
 function SidebarLink({ item, active, collapsed, onNavigate }) {
   const Icon = ICONS[item.icon]
+
+  /**
+   * Opens the page of this entry without a reload, then tells the mobile drawer to close.
+   * @param {import('react').MouseEvent<HTMLAnchorElement>} event - The click on the link.
+   * @returns {void}
+   */
+  function openPage(event) {
+    followLink(event)
+    onNavigate?.(event)
+  }
+
   return (
     <Tooltip label={item.label} position="right" disabled={!collapsed} events={{ hover: true, focus: true, touch: false }}>
       <NavLink
-        href={`#${item.key}`}
-        onClick={onNavigate}
+        href={`/${item.key}`}
+        onClick={openPage}
         aria-label={collapsed ? item.label : undefined}
         label={collapsed ? undefined : item.label}
         leftSection={<Icon size={22} aria-hidden="true" />}
