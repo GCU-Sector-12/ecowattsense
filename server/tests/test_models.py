@@ -41,7 +41,7 @@ def test_columns_match_the_brief(engine):
     columns = lambda table: [column["name"] for column in inspect(engine).get_columns(table)]
     assert columns("devices") == [
         "id", "display_name", "location_id", "machine_hash", "os", "device_type",
-        "first_seen_at", "last_seen_at", "archived",
+        "first_seen_at", "last_seen_at", "archived", "name_source",
     ]
     assert columns("reports") == [
         "id", "device_id", "timestamp", "received_at", "interval_seconds", "state",

@@ -112,6 +112,7 @@ This is the list for the ERD. The types are general types for the diagram. SQLit
 | `first_seen_at` | datetime | required | Time of the first report |
 | `last_seen_at` | datetime | required | Time of the last report |
 | `archived` | boolean | required, default false | Hidden in the list. The history stays |
+| `name_source` | text | optional | Who set `display_name`: `client` or `admin`. Null when there is no name |
 
 ### 5.3 `reports` (one row per report from a client)
 
