@@ -1,0 +1,7 @@
+/* Keep the existing Appearance controls reachable within the Settings page on narrow screens. */
+@media (max-width: 47.99em) {
+  .appearance :global(.mantine-Group-root) {
+    flex-wrap: wrap;
+    gap: calc(var(--ews-space) * 2);
+  }
+}

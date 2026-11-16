@@ -11,6 +11,9 @@ const SECONDS_PER_MINUTE = 60
 export function toFormValues(settings) {
   return {
     report_interval_seconds: settings.report_interval_seconds,
+    ping_interval_seconds: settings.ping_interval_seconds,
+    no_data_after_cycles: settings.no_data_after_cycles,
+    tariff_valid_from: new Date(settings.tariff_valid_from).toISOString().slice(0, 19),
     idle_minutes: settings.idle_threshold_seconds / SECONDS_PER_MINUTE,
     unused_minutes: settings.unused_threshold_seconds / SECONDS_PER_MINUTE,
     price_gbp_per_kwh: settings.price_gbp_per_kwh,
@@ -26,6 +29,9 @@ export function toFormValues(settings) {
 export function validateForm(values) {
   return {
     ...checkInterval(values),
+    ...checkPositiveInteger(values, 'ping_interval_seconds'),
+    ...checkPositiveInteger(values, 'no_data_after_cycles'),
+    ...checkTariffDate(values.tariff_valid_from),
     ...checkThresholds(values),
     ...checkNotNegative(values, 'price_gbp_per_kwh'),
     ...checkNotNegative(values, 'co2_kg_per_kwh'),
@@ -95,18 +101,22 @@ export function isChanged(values, base) {
  * @param {object} values - Valid form values.
  * @param {object} base - Last settings from GET (or from the last save).
  * @param {Date} [now] - Current time.
+ * @param {boolean} [sampleMode=false] - Allow an explicit tariff date only for in-memory sample settings.
  * @returns {object} The nine fields.
  */
-export function buildPayload(values, base, now = new Date()) {
+export function buildPayload(values, base, now = new Date(), sampleMode = false) {
   const before = toFormValues(base)
   return {
     ...base,
     report_interval_seconds: values.report_interval_seconds,
+    ping_interval_seconds: values.ping_interval_seconds,
+    no_data_after_cycles: values.no_data_after_cycles,
     idle_threshold_seconds: toSeconds(values.idle_minutes, before.idle_minutes, base.idle_threshold_seconds),
     unused_threshold_seconds: toSeconds(values.unused_minutes, before.unused_minutes, base.unused_threshold_seconds),
     price_gbp_per_kwh: values.price_gbp_per_kwh,
     co2_kg_per_kwh: values.co2_kg_per_kwh,
-    tariff_valid_from: isTariffChanged(values, before) ? tariffStart(now) : base.tariff_valid_from,
+    tariff_valid_from: sampleMode ? new Date(values.tariff_valid_from + 'Z').toISOString()
+      : isTariffChanged(values, before) ? tariffStart(now) : base.tariff_valid_from,
   }
 }
 
@@ -139,4 +149,26 @@ function isTariffChanged(values, before) {
 function tariffStart(now) {
   const minute = Math.floor(now.getTime() / 60000) * 60000
   return new Date(minute).toISOString().replace('.000Z', 'Z')
+}
+
+/**
+ * Checks positive integer settings against the existing admin API limits.
+ * @param {object} values - Form values.
+ * @param {string} name - Ping interval or missed-report cycles.
+ * @returns {object} Field error or an empty object.
+ */
+function checkPositiveInteger(values, name) {
+  const value = values[name]
+  const valid = Number.isSafeInteger(value) && value > 0 && value <= 2147483647
+  return valid ? {} : { [name]: 'Enter a whole number from 1 to 2147483647.' }
+}
+
+/**
+ * Checks the sample UTC date input; real mode keeps this value read-only.
+ * @param {string} value - Native datetime-local text interpreted as UTC.
+ * @returns {object} Date error or an empty object.
+ */
+function checkTariffDate(value) {
+  const valid = typeof value === 'string' && value.length > 0 && Number.isFinite(Date.parse(value + 'Z'))
+  return valid ? {} : { tariff_valid_from: 'Enter a valid UTC date and time.' }
 }

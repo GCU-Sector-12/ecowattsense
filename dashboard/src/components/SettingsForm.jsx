@@ -2,9 +2,10 @@
 // Reads the last settings from props and saves with PUT /api/admin/settings through saveSettings.
 // Rules and the request body are in settingsForm.js.
 import { useEffect, useState } from 'react'
-import { Alert, Button, Card, Group, NumberInput, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Alert, Button, Card, Group, NumberInput, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import { getSettings, saveSettings } from '../data/index.js'
 import { buildPayload, isChanged, toFormValues, validateForm } from './settingsForm.js'
+import { isRealSettings } from '../data/settingsProvider.js'
 
 const SAVED_MILLISECONDS = 3000
 const CONFLICT_TEXT = 'Settings were changed by someone else. Reload to see them.'
@@ -85,23 +86,36 @@ export default function SettingsForm({ settings }) {
   }
 
   return (
-    <Card radius="lg" padding="lg" bg="var(--ews-card)">
+    <Card radius="lg" padding="lg" bg="var(--ews-card)" style={{ '--mantine-color-error': 'var(--ews-text-muted)' }}>
       <Stack gap="md">
-        <Text fz="lg" fw={700}>Settings</Text>
+        <Text component="h2" fz="lg" fw={700} m={0}>Reporting</Text>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <NumberInput label="Report interval (seconds)" value={values.report_interval_seconds}
             onChange={change('report_interval_seconds')} error={errors.report_interval_seconds}
             allowDecimal={false} hideControls />
-          <div />
+          <NumberInput label="Ping interval (seconds)" value={values.ping_interval_seconds}
+            onChange={change('ping_interval_seconds')} error={errors.ping_interval_seconds}
+            allowDecimal={false} hideControls />
+          <NumberInput label="Missed report cycles before no data" value={values.no_data_after_cycles}
+            onChange={change('no_data_after_cycles')} error={errors.no_data_after_cycles}
+            allowDecimal={false} hideControls />
+        </SimpleGrid>
+        <Text component="h2" fz="lg" fw={700} m={0}>Thresholds</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <NumberInput label="Idle after (minutes)" value={values.idle_minutes}
             onChange={change('idle_minutes')} error={errors.idle_minutes} hideControls />
           <NumberInput label="Unused after (minutes)" value={values.unused_minutes}
             onChange={change('unused_minutes')} error={errors.unused_minutes} hideControls />
+        </SimpleGrid>
+        <Text component="h2" fz="lg" fw={700} m={0}>Tariff</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
           <NumberInput label="Electricity price (GBP per kWh)" value={values.price_gbp_per_kwh}
             onChange={change('price_gbp_per_kwh')} error={errors.price_gbp_per_kwh} hideControls />
           <NumberInput label="CO2 (kg per kWh)" value={values.co2_kg_per_kwh}
             onChange={change('co2_kg_per_kwh')} error={errors.co2_kg_per_kwh} hideControls />
         </SimpleGrid>
+        <TariffDate value={values.tariff_valid_from} current={base.tariff_valid_from}
+          error={errors.tariff_valid_from} onChange={change('tariff_valid_from')} />
         <SaveStatus status={status} onReload={reload} onRetry={save} />
         <Group>
           <Button onClick={save} disabled={!canSave} loading={status.kind === 'saving'}>Save</Button>
@@ -132,7 +146,7 @@ function hideSavedLater(kind, setStatus) {
  */
 function saveForm(values, base, setters) {
   setters.setStatus({ kind: 'saving', message: '' })
-  return saveSettings(buildPayload(values, base))
+  return saveSettings(buildPayload(values, base, new Date(), !isRealSettings()))
     .then(saved => showSettings(saved, { kind: 'saved', message: '' }, setters))
     .catch(error => setters.setStatus(failureStatus(error)))
 }
@@ -159,4 +173,22 @@ function showSettings(settings, status, setters) {
   setters.setBase(settings)
   setters.setValues(toFormValues(settings))
   setters.setStatus(status)
+}
+
+/**
+ * Allows sample tariff dates while preserving automatic real tariff periods from EWS_WEB-55.
+ * @param {object} props - Draft date, current API timestamp, field error and text change handler.
+ * @returns {JSX.Element} Sample input or a read-only explanation of the real tariff policy.
+ */
+function TariffDate({ value, current, error, onChange }) {
+  if (isRealSettings()) return (
+    <Stack gap="xs">
+      <Text size="sm">Tariff valid from (UTC): {current}</Text>
+      <Text size="sm" c="var(--ews-text-muted)">
+        Saving a new price or CO2 factor starts a tariff period at the current UTC minute. Earlier periods are preserved.
+      </Text>
+    </Stack>
+  )
+  return <TextInput type="datetime-local" step={1} label="Tariff valid from (UTC)" value={value}
+    onChange={event => onChange(event.currentTarget.value)} error={error} />
 }
