@@ -5,6 +5,7 @@ import { ChevronDown, LogOut, User } from 'lucide-react'
 import { logout } from '../auth/logout.js'
 import { clearSampleSession, getSampleSession } from '../auth/sampleSession.js'
 import classes from './Header.module.css'
+import { navigate } from '../usePath.js'
 
 /**
  * Formats an ISO date as a UTC date and time for the dashboard header.
@@ -49,7 +50,7 @@ function UserMenu({ userName }) {
     try {
       await logout()
       clearSampleSession()
-      window.location.hash = '#login'
+      navigate('/login')
     } catch (error) {
       setLogoutError(error.message || 'Could not log out. Try again.')
     } finally {

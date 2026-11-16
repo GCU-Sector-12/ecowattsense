@@ -1,4 +1,4 @@
-// Energy Usage page (#energy). Opened from the sidebar by App.jsx.
+// Energy Usage page (/energy). Opened from the sidebar by App.jsx.
 import { useEffect, useState } from 'react'
 import { Alert, Card, Group, SegmentedControl, SimpleGrid, Stack, Table, Text, useMantineTheme } from '@mantine/core'
 import { BarChart } from '@mantine/charts'

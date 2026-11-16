@@ -1,4 +1,4 @@
-// Full computer-list page, rendered by App.jsx for #computers.
+// Full computer-list page, rendered by App.jsx for /computers.
 // Loads devices through the shared provider hook, then filters and sorts them in memory.
 import { useMemo, useState } from 'react'
 import DataState from '../components/DataState.jsx'

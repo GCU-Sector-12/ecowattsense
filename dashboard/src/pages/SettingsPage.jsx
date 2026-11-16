@@ -1,4 +1,4 @@
-// Settings page, rendered by App.jsx for #settings.
+// Settings page, rendered by App.jsx for /settings.
 // Shows the settings form (real admin settings or sample data) and the appearance controls.
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'

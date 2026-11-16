@@ -73,7 +73,7 @@ it('shows Device not found for an unknown identifier without showing another com
   renderWithMantine(<HistoryPage deviceId="unknown-device" />)
   expect(await screen.findByRole('heading', { name: 'Device not found' })).toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Back to computers' })).toHaveAttribute('href', '#computers')
+  expect(screen.getByRole('link', { name: 'Back to computers' })).toHaveAttribute('href', '/computers')
 })
 
 it('distinguishes a known computer with no fixture from a missing computer', async () => {
