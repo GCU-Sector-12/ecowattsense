@@ -17,7 +17,7 @@ async function prepare() {
   await saveSettings(sample)
   resetSampleRates()
   createSampleSession('admin')
-  window.location.hash = '#settings'
+  window.history.replaceState(null, '', '/settings')
 }
 /** @returns {void} Restores request globals, modes and sample rate state. */
 function restore() {
