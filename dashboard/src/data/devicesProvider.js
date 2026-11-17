@@ -76,13 +76,29 @@ function filterSampleDevices(location_id, include_archived) {
  */
 function sampleLocations() {
   const rooms = new Map()
-  for (const device of sampleDevices) {
-    if (device.location_id === null || device.location_name === null) continue
-    rooms.set(device.location_id, {
-      id: device.location_id, name: device.location_name, building: device.building,
-    })
-  }
+  sampleDevices.filter(hasRoom).forEach(addSampleRoom.bind(null, rooms))
   return { locations: [...rooms.values()].sort((left, right) => left.name.localeCompare(right.name)) }
+}
+
+/**
+ * Checks whether a sample computer has a room to offer in the editor.
+ * @param {object} device - Sample computer.
+ * @returns {boolean} True when both room id and name are present.
+ */
+function hasRoom(device) {
+  return device.location_id !== null && device.location_name !== null
+}
+
+/**
+ * Adds one sample computer's room to the distinct room map.
+ * @param {Map<number, object>} rooms - Room id to room response.
+ * @param {object} device - Sample computer with room details.
+ * @returns {void}
+ */
+function addSampleRoom(rooms, device) {
+  rooms.set(device.location_id, {
+    id: device.location_id, name: device.location_name, building: device.building,
+  })
 }
 
 /**
