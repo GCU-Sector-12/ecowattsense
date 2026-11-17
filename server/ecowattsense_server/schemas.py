@@ -16,6 +16,7 @@ from pydantic import (
     Field,
     StrictBool,
     StrictInt,
+    StringConstraints,
     SecretStr,
     model_validator,
     field_validator,
@@ -197,6 +198,76 @@ class AdminDeviceChange(BaseModel):
         if not self.model_fields_set:
             raise ValueError("send at least one of display_name, location_id and archived")
         return self
+
+
+class LocationIn(BaseModel):
+    """The body of POST /api/admin/locations (contract 5.13).
+
+    The name and the building are trimmed. A blank building becomes null, so the table
+    never holds an empty string that looks like a building.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    building: str | None = None
+
+    @field_validator("building")
+    @classmethod
+    def clean_building(cls, value: str | None) -> str | None:
+        """Trim the building, turn blank into null and check the length.
+
+        Args:
+            value: The building as sent, or None.
+
+        Returns:
+            The trimmed building, or None.
+
+        Raises:
+            ValueError: The trimmed building is longer than 60 characters.
+        """
+        if value is None:
+            return None
+        value = value.strip()
+        if len(value) > 60:
+            raise ValueError("building must be at most 60 characters")
+        return value or None
+
+
+class LocationChange(LocationIn):
+    """The body of PATCH /api/admin/locations/{location_id} (contract 5.14).
+
+    Same rules as LocationIn, but every field is optional and at least one must be sent.
+    Null is not allowed for name. The route reads model_fields_set to see what was sent.
+    """
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] = ""
+
+    @model_validator(mode="after")
+    def require_a_field(self):
+        """Reject an empty body, because a call that changes nothing is a mistake.
+
+        Returns:
+            The model, when at least one field was sent.
+
+        Raises:
+            ValueError: No field was sent.
+        """
+        if not self.model_fields_set:
+            raise ValueError("send at least one of name and building")
+        return self
+
+
+class LocationOut(BaseModel):
+    """One room, as GET /api/locations lists it (contract 5.12)."""
+
+    id: int
+    name: str
+    building: str | None
+
+
+class LocationsOut(BaseModel):
+    locations: list[LocationOut]
 
 
 class DeviceOut(BaseModel):
