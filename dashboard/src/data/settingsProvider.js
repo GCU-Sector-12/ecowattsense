@@ -2,6 +2,7 @@
 // Real failures stay visible to the caller; there is no fallback to sample data.
 // Sample mode keeps the settings in memory only, so a save is lost on reload.
 import sample from './settings.json'
+import { endSessionOn401 } from '../auth/unauthorized.js'
 
 const FIELDS = [
   'settings_version', 'report_interval_seconds', 'ping_interval_seconds', 'idle_threshold_seconds',
@@ -27,6 +28,7 @@ export function isRealSettings() {
 export async function loadSettings() {
   if (!isRealSettings()) return structuredClone(sampleState)
   const response = await fetch('/api/admin/settings', { method: 'GET', credentials: 'include' })
+  endSessionOn401(response)
   if (!response.ok) throw Object.assign(new Error('Could not load settings (' + response.status + ').'), { status: response.status })
   return validateSettings(await response.json())
 }
@@ -42,6 +44,7 @@ export async function saveSettings(body) {
   const response = await fetch('/api/admin/settings', {
     method: 'PUT', credentials: 'include', headers: JSON_HEADERS, body: JSON.stringify(body),
   })
+  endSessionOn401(response)
   if (!response.ok) throw await failure(response)
   return validateSettings(await response.json())
 }

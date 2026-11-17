@@ -1,6 +1,7 @@
 // Device data provider used by getDevices. Select real mode with VITE_DEVICES_DATA_SOURCE.
 // Both modes return API-shaped data; real failures remain visible to the caller.
 import sample from './devices.json'
+import { endSessionOn401 } from '../auth/unauthorized.js'
 
 /**
  * Loads sample devices or calls the authenticated devices endpoint.
@@ -17,6 +18,7 @@ export async function loadDevices(options = {}) {
   const query = new URLSearchParams({ include_archived: String(include_archived) })
   if (location_id !== undefined && location_id !== null) query.set('location_id', String(location_id))
   const response = await fetch('/api/devices?' + query, { method: 'GET', credentials: 'include' })
+  endSessionOn401(response)
   if (!response.ok) throw Object.assign(new Error('Could not load devices (' + response.status + ').'), { status: response.status })
   return validateDevices(await response.json())
 }

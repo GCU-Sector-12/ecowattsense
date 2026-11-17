@@ -1,6 +1,7 @@
 // Summary provider used by getSummary. Select real mode with VITE_SUMMARY_DATA_SOURCE.
 // Keep microjoules and UTC timestamps intact so display components own unit conversion.
 import sample from './summary.json'
+import { endSessionOn401 } from '../auth/unauthorized.js'
 
 /**
  * Loads a summary without assuming that every UK day contains 48 buckets.
@@ -14,6 +15,7 @@ export async function loadSummary(date) {
   if (date !== undefined) query.set('date', date)
   const suffix = query.size ? '?' + query : ''
   const response = await fetch('/api/summary' + suffix, { method: 'GET', credentials: 'include' })
+  endSessionOn401(response)
   if (!response.ok) throw Object.assign(new Error('Could not load summary (' + response.status + ').'), { status: response.status })
   return validateSummary(await response.json())
 }
