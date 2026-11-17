@@ -111,7 +111,19 @@ function updateSampleDevice(device_id, changes) {
   const index = sampleDevices.findIndex(device => device.device_id === device_id)
   if (index < 0) throw httpError('Computer not found', 404)
   sampleDevices[index] = { ...sampleDevices[index], ...changes }
+  if (Object.hasOwn(changes, 'location_id')) applySampleLocation(sampleDevices[index])
   return structuredClone(sampleDevices[index])
+}
+
+/**
+ * Keeps the sample room label in sync with the selected room id.
+ * @param {object} device - Sample computer being edited.
+ * @returns {void} Updates its room name and building.
+ */
+function applySampleLocation(device) {
+  const room = sampleLocations().locations.find(location => location.id === device.location_id)
+  device.location_name = room?.name ?? null
+  device.building = room?.building ?? null
 }
 
 /**
