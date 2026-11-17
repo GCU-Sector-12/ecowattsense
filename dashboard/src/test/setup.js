@@ -20,6 +20,8 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub
 window.scrollTo = vi.fn()
+// Mantine's combobox keyboard navigation scrolls the active option into view.
+Element.prototype.scrollIntoView = vi.fn()
 
 // Each test starts clean: no saved theme, and the address is the start address "/".
 afterEach(() => {
