@@ -57,6 +57,7 @@ async function savesComputer() {
   const location = screen.getByRole('combobox', { name: 'Location' })
   await waitFor(() => expect(location).toBeEnabled())
   await user.click(location)
+  await user.type(location, 'Lab 1')
   await user.click(await screen.findByRole('option', { name: 'Lab 1 — George Moore' }))
   await user.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(await screen.findByRole('cell', { name: 'Renamed PC' })).toBeInTheDocument()
