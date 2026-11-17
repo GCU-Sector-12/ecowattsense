@@ -9,7 +9,7 @@ import history from '../data/history.json'
 /** @returns {void} Starts an authenticated visit to the computers list. */
 function startComputerVisit() {
   createSampleSession('admin')
-  window.location.hash = '#computers'
+  window.history.replaceState(null, '', '/computers')
 }
 
 /** @returns {void} Removes the sample session after the integration case. */
@@ -23,7 +23,7 @@ it('opens totals, the timeline and reports through View PC-01', async () => {
   renderWithMantine(<App />)
   await userEvent.click(await screen.findByRole('link', { name: 'View PC-01' }))
   expect(await screen.findByRole('table', { name: 'History reports' })).toBeInTheDocument()
-  expect(window.location.hash).toBe(`#computers/${history.device_id}`)
+  expect(window.location.pathname).toBe(`/computers/${history.device_id}`)
   expect(screen.getByRole('heading', { name: 'PC-01' })).toBeInTheDocument()
   expect(within(screen.getByRole('list', { name: 'Daily activity reports' })).getAllByRole('listitem')).toHaveLength(48)
   expect(screen.getByText('18.330 kWh')).toBeInTheDocument()

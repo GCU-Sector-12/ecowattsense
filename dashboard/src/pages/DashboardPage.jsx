@@ -1,5 +1,5 @@
 // Dashboard page built from docs/design/dashboard-mockup.png with sample data.
-// App.jsx renders this page for #dashboard; providers supply counts, energy, devices and settings.
+// App.jsx renders this page for /dashboard; providers supply counts, energy, devices and settings.
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
 import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'

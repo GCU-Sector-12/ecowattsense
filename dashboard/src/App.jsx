@@ -1,8 +1,8 @@
-// App entry used by main.jsx. Mount <App /> to show hash-based pages and navigation.
+// App entry used by main.jsx. Mount <App /> to show path-based pages and navigation.
 import { AppShell, Burger, Drawer, Group, Text } from '@mantine/core'
 import { useDisclosure, useMediaQuery } from '@mantine/hooks'
 import { useEffect, useState } from 'react'
-import useHash, { resolveRoute } from './useHash.js'
+import usePath, { navigate, resolveRoute } from './usePath.js'
 import Sidebar from './components/Sidebar.jsx'
 import sidebarClasses from './components/Sidebar.module.css'
 import DashboardPage from './pages/DashboardPage.jsx'
@@ -22,6 +22,7 @@ const MAX_WIDTH = 360
 const SIDEBAR_STORAGE_KEY = 'ews-sidebar'
 const PHONE_WIDTH = 768
 const DESKTOP_WIDTH = 1024
+const RETURN_ROUTE_KEY = 'ews-return-route'
 
 /**
  * Reads the raw sidebar preference from browser storage.
@@ -103,25 +104,46 @@ function resizedSidebar(current, width, finished) {
 }
 
 /**
+ * Gives the page the address shows right now. The guard reads the address itself, not the page
+ * of the last render: React StrictMode runs the guard twice on the dev server, and the first run
+ * has already moved the address (EWS_WEB-51).
+ * @returns {string} The page key, for example "login".
+ */
+function currentPage() {
+  return resolveRoute(window.location.pathname.slice(1), Object.keys(PAGES)).page
+}
+
+/**
+ * Takes the saved path out of sessionStorage. Only a path of this app ("/...") is accepted, so
+ * an old "#computers" saved before EWS_WEB-57 opens the Dashboard instead of staying on Login.
+ * @returns {string} The saved path, or "/dashboard".
+ * @throws {DOMException} If sessionStorage is unavailable or access is denied.
+ */
+function takeReturnPath() {
+  const saved = sessionStorage.getItem(RETURN_ROUTE_KEY)
+  sessionStorage.removeItem(RETURN_ROUTE_KEY)
+  return saved?.startsWith('/') ? saved : '/dashboard'
+}
+
+/**
  * Applies the sample-session route guard and marks the decision as ready.
- * Unauthenticated users are sent to Login; authenticated users return to their saved route.
+ * Unauthenticated users are sent to /login; authenticated users return to their saved path.
  * @param {{username: string}|null} session - Current sample session.
- * @param {string} page - Resolved page key.
  * @param {(ready: boolean) => void} setGuardReady - Updates the guard rendering state.
  * @returns {void}
  * @throws {DOMException} If sessionStorage is unavailable or access is denied.
  */
-function applyRouteGuard(session, page, setGuardReady) {
+function applyRouteGuard(session, setGuardReady) {
+  const page = currentPage()
   if (!session && page !== 'login') {
-    sessionStorage.setItem('ews-return-route', window.location.hash || '#dashboard')
-    window.location.hash = '#login'
+    const path = window.location.pathname
+    sessionStorage.setItem(RETURN_ROUTE_KEY, path === '/' ? '/dashboard' : path)
+    navigate('/login', { replace: true })
     setGuardReady(true)
     return
   }
   if (session && page === 'login') {
-    const returnRoute = sessionStorage.getItem('ews-return-route') || '#dashboard'
-    sessionStorage.removeItem('ews-return-route')
-    window.location.hash = returnRoute
+    navigate(takeReturnPath(), { replace: true })
     setGuardReady(true)
     return
   }
@@ -142,20 +164,20 @@ export const PAGES = {
 }
 
 /**
- * Shows the sidebar and the page selected by the browser hash.
+ * Shows the sidebar and the page selected by the address path.
  * @returns {JSX.Element} The whole app.
  */
 export default function App() {
-  const hash = useHash()
-  const route = resolveRoute(hash, Object.keys(PAGES))
+  const path = usePath()
+  const route = resolveRoute(path, Object.keys(PAGES))
   const [session, setSession] = useState(getSampleSession)
   const [guardReady, setGuardReady] = useState(false)
 
   useEffect(() => subscribeToSession(setSession), [])
 
   useEffect(() => {
-    applyRouteGuard(session, route.page, setGuardReady)
-  }, [hash, route.page, session])
+    applyRouteGuard(session, setGuardReady)
+  }, [path, session])
 
   const Page = PAGES[route.page]
   const [sidebar, setSidebar] = useState(readSidebar)

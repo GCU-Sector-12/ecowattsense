@@ -4,6 +4,7 @@ import { Anchor, Button, Card, Group, Table, Text } from '@mantine/core'
 import StateBadge from '../StateBadge.jsx'
 import { timeAgo } from '../data/units.js'
 import { computerLabel, computerLabelParts } from '../data/computerLabel.js'
+import { followLink } from '../usePath.js'
 
 const headerStyle = {
   color: 'var(--ews-text-muted)',
@@ -33,7 +34,7 @@ function ComputerRow({ computer, referenceTime }) {
       <Table.Td visibleFrom="sm">{location}</Table.Td>
       <Table.Td visibleFrom="sm">{computer.os} / {computer.device_type}</Table.Td>
       <Table.Td>
-        <Button component="a" href={`#computers/${computer.device_id}`}
+        <Button component="a" href={`/computers/${computer.device_id}`} onClick={followLink}
           aria-label={`View ${name}`} variant="default" size="xs"
           bg="var(--ews-button)" fw={500}>
           View
@@ -76,7 +77,7 @@ export default function ComputerTable({
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
       <Group justify="space-between" mb="sm">
         <Text fz="lg" fw={700}>{title}</Text>
-        {showAllLink && <Anchor href="#computers" fz="sm">All computers</Anchor>}
+        {showAllLink && <Anchor href="/computers" onClick={followLink} fz="sm">All computers</Anchor>}
       </Group>
       <Table.ScrollContainer minWidth={520} type="native" role="region" aria-label={title} tabIndex={0}>
         <Table

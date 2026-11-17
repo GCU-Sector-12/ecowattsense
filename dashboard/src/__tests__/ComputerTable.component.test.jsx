@@ -42,7 +42,7 @@ it('labels a device without a name as Unnamed computer with the short id', () =>
   renderWithMantine(<ComputerTable computers={[device({ display_name: null })]} />)
   expect(screen.getByRole('cell', { name: 'Unnamed computer (12345678)' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'View Unnamed computer (12345678)' }))
-    .toHaveAttribute('href', '#computers/12345678-1234-4234-8234-123456789abc')
+    .toHaveAttribute('href', '/computers/12345678-1234-4234-8234-123456789abc')
 })
 
 it('shows all four state words, including No data', () => {
@@ -96,7 +96,7 @@ it('takes the first five non-archived devices and links to the full list', () =>
   renderWithMantine(<ComputerTable computers={rows} limit={5} showAllLink />)
   expect(screen.getAllByRole('row')).toHaveLength(6)
   expect(screen.queryByRole('cell', { name: 'PC 5' })).not.toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'All computers' })).toHaveAttribute('href', '#computers')
+  expect(screen.getByRole('link', { name: 'All computers' })).toHaveAttribute('href', '/computers')
   const first = screen.getAllByRole('row')[1]
-  expect(within(first).getByRole('link', { name: 'View PC 0' })).toHaveAttribute('href', '#computers/0')
+  expect(within(first).getByRole('link', { name: 'View PC 0' })).toHaveAttribute('href', '/computers/0')
 })

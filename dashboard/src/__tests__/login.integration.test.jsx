@@ -1,4 +1,5 @@
 // Integration tests for dashboard API login, route guarding and logout.
+import { StrictMode } from 'react'
 import { screen, waitFor } from '@testing-library/react'
 import { vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
@@ -20,7 +21,7 @@ function setUpLoginTest() {
   }))
   clearSampleSession()
   sessionStorage.clear()
-  window.location.hash = '#computers'
+  window.history.replaceState(null, '', '/computers')
 }
 
 /** Clears browser state after each login integration test. */
@@ -44,7 +45,7 @@ function expectSessionToBeCleared() {
  */
 function setActiveSession() {
   sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'admin' }))
-  window.location.hash = '#dashboard'
+  window.history.replaceState(null, '', '/dashboard')
 }
 
 /**
@@ -66,7 +67,7 @@ async function redirectsProtectedRouteAfterLogin() {
   renderWithMantine(<App />)
 
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
-  expect(window.location.hash).toBe('#login')
+  expect(window.location.pathname).toBe('/login')
 
   await user.type(screen.getByRole('textbox', { name: 'Username' }), 'admin')
   await user.type(screen.getByLabelText('Password'), 'admin12345')
@@ -80,6 +81,71 @@ async function redirectsProtectedRouteAfterLogin() {
   })
   expect(await screen.findByRole('heading', { name: 'Computers' })).toBeInTheDocument()
   expect(screen.getByText('admin')).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/computers')
+}
+
+/**
+ * Types the admin name and password into the login form and sends it.
+ * @param {ReturnType<typeof userEvent.setup>} user - The user-event session of the test.
+ * @returns {Promise<void>} Resolves after the Log in button is clicked.
+ */
+async function submitLogin(user) {
+  await user.type(await screen.findByRole('textbox', { name: 'Username' }), 'admin')
+  await user.type(screen.getByLabelText('Password'), 'admin12345')
+  await user.click(screen.getByRole('button', { name: 'Log in' }))
+}
+
+/**
+ * Checks the return path under React StrictMode, which runs the route guard twice as the dev
+ * server does (EWS_WEB-51): the second run must not save /login as the path to return to.
+ * @returns {Promise<void>} Resolves when the protected page is restored after login.
+ */
+async function returnsToProtectedRouteUnderStrictMode() {
+  const user = userEvent.setup()
+  renderWithMantine(<StrictMode><App /></StrictMode>)
+
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/login')
+  expect(sessionStorage.getItem('ews-return-route')).toBe('/computers')
+
+  await submitLogin(user)
+
+  expect(await screen.findByRole('heading', { name: 'Computers' })).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/computers')
+  expect(sessionStorage.getItem('ews-return-route')).toBeNull()
+}
+
+/**
+ * Checks that a return route saved as an old hash address, before EWS_WEB-57, opens the Dashboard.
+ * @returns {Promise<void>} Resolves when Dashboard is displayed at /dashboard.
+ */
+async function opensDashboardForOldSavedHashRoute() {
+  const user = userEvent.setup()
+  sessionStorage.setItem('ews-return-route', '#computers')
+  window.history.replaceState(null, '', '/login')
+  renderWithMantine(<App />)
+
+  await submitLogin(user)
+
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/dashboard')
+}
+
+/**
+ * Checks that the start address "/" is saved as /dashboard and opens the Dashboard after login.
+ * @returns {Promise<void>} Resolves when Dashboard is displayed at /dashboard.
+ */
+async function returnsToDashboardFromStartAddress() {
+  const user = userEvent.setup()
+  window.history.replaceState(null, '', '/')
+  renderWithMantine(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
+  expect(sessionStorage.getItem('ews-return-route')).toBe('/dashboard')
+  await submitLogin(user)
+
+  expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
+  expect(window.location.pathname).toBe('/dashboard')
 }
 
 /**
@@ -88,7 +154,7 @@ async function redirectsProtectedRouteAfterLogin() {
  */
 async function opensDashboardWithoutSavedRoute() {
   const user = userEvent.setup()
-  window.location.hash = '#login'
+  window.history.replaceState(null, '', '/login')
   renderWithMantine(<App />)
 
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
@@ -99,7 +165,7 @@ async function opensDashboardWithoutSavedRoute() {
   await user.click(screen.getByRole('button', { name: 'Log in' }))
 
   expect(await screen.findByRole('heading', { name: 'Welcome to EcoWattSense!' })).toBeInTheDocument()
-  expect(window.location.hash).toBe('#dashboard')
+  expect(window.location.pathname).toBe('/dashboard')
 }
 
 /**
@@ -120,7 +186,7 @@ async function showsIncorrectCredentialError() {
   await user.click(screen.getByRole('button', { name: 'Log in' }))
 
   expect(screen.getByRole('alert')).toHaveTextContent('Wrong username or password')
-  expect(window.location.hash).toBe('#login')
+  expect(window.location.pathname).toBe('/login')
 }
 
 /**
@@ -147,7 +213,7 @@ async function showsReadableValidationError() {
 
   expect(await screen.findByRole('alert')).toHaveTextContent('username: Field required; password: Field required')
   expect(screen.getByRole('alert')).not.toHaveTextContent('[object Object]')
-  expect(window.location.hash).toBe('#login')
+  expect(window.location.pathname).toBe('/login')
 }
 
 /**
@@ -175,7 +241,7 @@ async function logsOutAndClearsSession() {
 
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   await waitFor(expectSessionToBeCleared)
-  expect(window.location.hash).toBe('#login')
+  expect(window.location.pathname).toBe('/login')
   expect(fetch).toHaveBeenCalledWith('/api/logout', { method: 'POST', credentials: 'include' })
 }
 
@@ -194,7 +260,7 @@ async function showsHttpLogoutFailureAndKeepsSession() {
   expect(alert).toBeVisible()
   expect(alert).toHaveTextContent('Could not log out. Try again.')
   expect(sessionStorage.getItem('ews-sample-session')).toBe(JSON.stringify({ username: 'admin' }))
-  expect(window.location.hash).toBe('#dashboard')
+  expect(window.location.pathname).toBe('/dashboard')
 }
 
 /**
@@ -212,7 +278,7 @@ async function showsNetworkLogoutFailureAndKeepsSession() {
   expect(alert).toBeVisible()
   expect(alert).toHaveTextContent('Network unavailable')
   expect(sessionStorage.getItem('ews-sample-session')).toBe(JSON.stringify({ username: 'admin' }))
-  expect(window.location.hash).toBe('#dashboard')
+  expect(window.location.pathname).toBe('/dashboard')
 }
 
 
@@ -235,7 +301,7 @@ async function logsInAndOutThroughApi() {
 
   expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument()
   await waitFor(expectSessionToBeCleared)
-  expect(window.location.hash).toBe('#login')
+  expect(window.location.pathname).toBe('/login')
   expect(fetch).toHaveBeenCalledTimes(2)
   expect(fetch).toHaveBeenNthCalledWith(1, '/api/login', {
     method: 'POST', credentials: 'include',
@@ -252,6 +318,9 @@ afterEach(cleanUpLoginTest)
 
 it('redirects a protected route to login and returns there after a successful login', redirectsProtectedRouteAfterLogin)
 it('opens the Dashboard after a successful login when no return route is saved', opensDashboardWithoutSavedRoute)
+it('returns to the protected route when StrictMode runs the route guard twice', returnsToProtectedRouteUnderStrictMode)
+it('opens the Dashboard when the saved return route is an old hash address', opensDashboardForOldSavedHashRoute)
+it('saves the start address as /dashboard and opens the Dashboard after login', returnsToDashboardFromStartAddress)
 it('shows the required error for incorrect credentials', showsIncorrectCredentialError)
 it('shows readable validation errors for a 422 response', showsReadableValidationError)
 it('shows the login page without the dashboard sidebar', showsLoginWithoutSidebar)
