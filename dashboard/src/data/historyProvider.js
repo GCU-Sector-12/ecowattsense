@@ -1,5 +1,6 @@
 // History provider used by getDeviceHistory. Select real mode with VITE_HISTORY_DATA_SOURCE.
 // Real failures stay visible to the caller; there is no fallback to sample data.
+import { endSessionOn401 } from '../auth/unauthorized.js'
 
 /**
  * Tells whether the history page reads the API instead of the sample file.
@@ -24,6 +25,7 @@ export async function loadDeviceHistory(deviceId, from, to) {
   const suffix = query.size ? '?' + query : ''
   const url = '/api/devices/' + encodeURIComponent(deviceId) + '/history' + suffix
   const response = await fetch(url, { method: 'GET', credentials: 'include' })
+  endSessionOn401(response)
   if (response.status === 404) return null
   if (!response.ok) throw Object.assign(new Error('Could not load history (' + response.status + ').'), { status: response.status })
   return validateHistory(await response.json())
