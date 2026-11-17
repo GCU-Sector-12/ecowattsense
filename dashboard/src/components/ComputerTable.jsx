@@ -57,7 +57,7 @@ function ComputerRow({ computer, referenceTime, onEdit }) {
 export default function ComputerTable({
   computers, title = 'Computer List', referenceTime,
   showArchived = false, limit, showAllLink = false,
-  sortBy, sortDirection = 'ascending', onSort,
+  sortBy, sortDirection = 'ascending', onSort, onEdit,
 }) {
   const visible = computers.filter((computer) => showArchived || !computer.archived)
   const rows = limit === undefined ? visible : visible.slice(0, limit)
