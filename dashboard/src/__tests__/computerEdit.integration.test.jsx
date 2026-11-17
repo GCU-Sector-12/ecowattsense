@@ -35,7 +35,10 @@ afterEach(restore)
 /** @returns {Promise<void>} Edits the name and room and checks the table without reloading. */
 async function savesComputer() {
   const user = userEvent.setup()
-  const updated = { ...computer, display_name: 'Renamed PC' }
+  const updated = {
+    ...computer, display_name: 'Renamed PC', location_id: room.id,
+    location_name: room.name, building: room.building,
+  }
   fetch.mockImplementation((url, options = {}) => {
     if (url === '/api/devices?include_archived=true') {
       return Promise.resolve({ ok: true, json: async () => ({ devices: [computer] }) })
@@ -51,15 +54,19 @@ async function savesComputer() {
   const name = await screen.findByRole('textbox', { name: 'Computer name' })
   await user.clear(name)
   await user.type(name, 'Renamed PC')
+  const location = screen.getByRole('combobox', { name: 'Location' })
+  await waitFor(() => expect(location).toBeEnabled())
+  await user.click(location)
+  await user.click(await screen.findByRole('option', { name: 'Lab 1 — George Moore' }))
   await user.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(await screen.findByRole('cell', { name: 'Renamed PC' })).toBeInTheDocument()
   expect(fetch).toHaveBeenCalledWith('/api/admin/devices/' + computer.device_id, {
     method: 'PATCH', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ display_name: 'Renamed PC' }),
+    body: JSON.stringify({ display_name: 'Renamed PC', location_id: room.id }),
   })
 }
-it('saves a computer and updates the table without reloading', savesComputer)
+it('saves a computer name and location and updates the table without reloading', savesComputer)
 
 /** @param {number} status - Rejected update status. @returns {Promise<void>} Checks visible error. */
 async function showsSaveError(status) {
