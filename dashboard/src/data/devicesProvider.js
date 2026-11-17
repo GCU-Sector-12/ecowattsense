@@ -63,11 +63,10 @@ export async function updateDevice(device_id, changes) {
  * @returns {{devices: object[]}} Matching sample rows.
  */
 function filterSampleDevices(location_id, include_archived) {
-  const result = structuredClone(sampleDevices)
-  result.devices = result.devices
+  const devices = structuredClone(sampleDevices)
     .filter(device => location_id == null || device.location_id === location_id)
     .filter(device => include_archived || !device.archived)
-  return { devices: result.devices }
+  return { devices }
 }
 
 /**
