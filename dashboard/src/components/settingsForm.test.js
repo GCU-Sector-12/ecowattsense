@@ -11,7 +11,8 @@ const NOW = new Date('2026-11-15T10:42:37.123Z')
 
 it('shows thresholds in minutes', () => {
   expect(toFormValues(base)).toEqual({
-    report_interval_seconds: 300, idle_minutes: 10, unused_minutes: 60,
+    report_interval_seconds: 300, ping_interval_seconds: 60, no_data_after_cycles: 3,
+    tariff_valid_from: '2026-09-14T00:00:00', idle_minutes: 10, unused_minutes: 60,
     price_gbp_per_kwh: 0.25, co2_kg_per_kwh: 0.207,
   })
 })
@@ -77,4 +78,27 @@ it('starts a new tariff period when only CO2 changes', () => {
 it('keeps a threshold that is not whole minutes unchanged', () => {
   const odd = { ...base, idle_threshold_seconds: 90 }
   expect(buildPayload(toFormValues(odd), odd, NOW).idle_threshold_seconds).toBe(90)
+})
+
+/** @param {string} field - New reporting control. @param {*} value - Invalid input. @returns {void} Checks admin API integer limits. */
+function checkReportingInteger(field, value) {
+  expect(validateForm({ ...toFormValues(base), [field]: value })[field]).toBeDefined()
+}
+it.each([
+  ['ping_interval_seconds', 0], ['ping_interval_seconds', 1.5], ['ping_interval_seconds', ''],
+  ['ping_interval_seconds', 2147483648], ['no_data_after_cycles', 0], ['no_data_after_cycles', 1.5],
+  ['no_data_after_cycles', Infinity], ['no_data_after_cycles', ''],
+])('validates %s = %s against the admin contract', checkReportingInteger)
+
+it('sends changed ping interval and missed-report cycles with the original version', () => {
+  const payload = buildPayload({ ...toFormValues(base), ping_interval_seconds: 180, no_data_after_cycles: 5 }, base, NOW)
+  expect(payload).toMatchObject({ ping_interval_seconds: 180, no_data_after_cycles: 5, settings_version: 7 })
+  expect(Object.keys(payload)).toHaveLength(9)
+})
+
+it('allows an explicit UTC tariff date only for sample mode', () => {
+  const values = { ...toFormValues(base), tariff_valid_from: '2026-11-17T14:30:00', price_gbp_per_kwh: 0.3 }
+  expect(buildPayload(values, base, NOW, true).tariff_valid_from).toBe('2026-11-17T14:30:00.000Z')
+  expect(buildPayload(values, base, NOW, false).tariff_valid_from).toBe('2026-11-15T10:42:00Z')
+  expect(validateForm({ ...values, tariff_valid_from: '' }).tariff_valid_from).toBeDefined()
 })

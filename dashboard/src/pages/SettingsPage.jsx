@@ -2,13 +2,15 @@
 // Shows the settings form (real admin settings or sample data) and the appearance controls.
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
-import { Stack } from '@mantine/core'
+import { Stack, Text } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import AppearanceCard from '../components/AppearanceCard.jsx'
 import SettingsForm from '../components/SettingsForm.jsx'
 import { getSettings } from '../data/index.js'
 import { isRealSettings } from '../data/settingsProvider.js'
+import EnergyRatesSettings from '../components/EnergyRatesSettings.jsx'
+import classes from './SettingsPage.module.css'
 
 /**
  * Settings page with the settings form and appearance controls.
@@ -25,8 +27,12 @@ export default function SettingsPage() {
         subtitle="Change how the system works and how EcoWattSense looks."
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
       <DataState error={error} loading={!settings && !error} onRetry={retry} label="settings" />
+      {!isRealSettings() && <Text size="sm" c="var(--ews-text-muted)">
+        Sample settings are saved for this tab only. Refreshing restores defaults; no server settings are changed.
+      </Text>}
       {settings && <SettingsForm settings={settings} />}
-      <AppearanceCard />
+      {settings && <EnergyRatesSettings />}
+      <div className={classes.appearance}><AppearanceCard /></div>
     </Stack>
   )
 }
