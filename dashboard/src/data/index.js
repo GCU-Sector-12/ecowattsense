@@ -1,6 +1,6 @@
 // Data providers used by dashboard pages to load API responses and sample data.
 import { loadSummary } from './summaryProvider.js'
-import { loadDevices } from './devicesProvider.js'
+import { loadDevices, loadLocations, updateDevice } from './devicesProvider.js'
 import { isRealHistory, loadDeviceHistory } from './historyProvider.js'
 import history from './history.json'
 import settings from './settings.json'
@@ -28,6 +28,26 @@ export async function getSummary(date) {
 export async function getDevices(options) {
   if (import.meta.env.VITE_DEVICES_DATA_SOURCE !== 'real') await applyDevelopmentControls()
   return loadDevices(options)
+}
+
+/**
+ * Loads the available rooms for the computer editor.
+ * @returns {Promise<{locations: object[]}>} Rooms using the API response shape.
+ * @throws {Error} When the real endpoint fails or returns invalid data.
+ */
+export async function getLocations() {
+  return loadLocations()
+}
+
+/**
+ * Updates one computer through the admin API or the in-memory sample provider.
+ * @param {string} device_id - Computer identifier.
+ * @param {object} changes - Changed display_name, location_id and/or archived fields.
+ * @returns {Promise<object>} The updated device in device-list response shape.
+ * @throws {Error} With the HTTP status for validation, missing-device and other failures.
+ */
+export async function saveDevice(device_id, changes) {
+  return updateDevice(device_id, changes)
 }
 
 /**
