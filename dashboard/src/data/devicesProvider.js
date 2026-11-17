@@ -33,6 +33,7 @@ export async function loadDevices(options = {}) {
 export async function loadLocations() {
   if (import.meta.env.VITE_DEVICES_DATA_SOURCE !== 'real') return sampleLocations()
   const response = await fetch('/api/locations', { method: 'GET', credentials: 'include' })
+  endSessionOn401(response)
   if (!response.ok) throw httpError('Could not load locations', response.status)
   const data = await response.json()
   if (!data || !Array.isArray(data.locations)) throw new Error('Invalid locations response')
@@ -54,6 +55,7 @@ export async function updateDevice(device_id, changes) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(changes),
   })
+  endSessionOn401(response)
   if (!response.ok) throw httpError('Could not save computer', response.status)
   return response.json()
 }

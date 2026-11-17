@@ -31,3 +31,14 @@ async function rejectsMissingSampleDevice() {
   await expect(updateDevice('missing-device', { archived: true })).rejects.toMatchObject({ status: 404 })
 }
 it('returns 404 when a sample computer does not exist', rejectsMissingSampleDevice)
+
+/** @param {string} call - Provider call that must end the session on 401. @returns {Promise<void>} Checks the session is cleared. */
+async function endsSessionOn401(call) {
+  vi.stubEnv('VITE_DEVICES_DATA_SOURCE', 'real')
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) }))
+  sessionStorage.setItem('ews-sample-session', JSON.stringify({ username: 'daro' }))
+  const provider = await import('../data/devicesProvider.js')
+  await expect(provider[call]('device-1', {})).rejects.toMatchObject({ status: 401 })
+  expect(sessionStorage.getItem('ews-sample-session')).toBeNull()
+}
+it.each(['loadLocations', 'updateDevice'])('ends the session when %s gets 401', endsSessionOn401)
