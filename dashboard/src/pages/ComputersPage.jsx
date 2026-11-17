@@ -9,6 +9,7 @@ import { sampleScreen } from '../data/ui.js'
 import ComputerTable from '../components/ComputerTable.jsx'
 import { getDevices } from '../data/index.js'
 import { computerLabel } from '../data/computerLabel.js'
+import ComputerEditModal from '../components/ComputerEditModal.jsx'
 
 const STATE_OPTIONS = [
   { value: 'all', label: 'All states' },
@@ -24,7 +25,9 @@ const STATE_OPTIONS = [
  */
 export default function ComputersPage() {
   const { data, error, retry } = useSampleData(getDevices)
-  const devices = data?.devices ?? []
+  const [editedDevices, setEditedDevices] = useState({})
+  const [editingComputer, setEditingComputer] = useState(null)
+  const devices = (data?.devices ?? []).map(device => editedDevices[device.device_id] ?? device)
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('all')
   const [showArchived, setShowArchived] = useState(false)
@@ -34,6 +37,15 @@ export default function ComputersPage() {
   const visibleDevices = useMemo(() => selectVisibleDevices(
     devices, search, stateFilter, showArchived, sortBy, sortDirection,
   ), [devices, search, stateFilter, showArchived, sortBy, sortDirection])
+
+  /**
+   * Keeps a saved computer visible without reloading the list.
+   * @param {object} updated - Device returned by the update provider.
+   * @returns {void} Replaces the matching row in local page state.
+   */
+  function handleSaved(updated) {
+    setEditedDevices(current => ({ ...current, [updated.device_id]: updated }))
+  }
 
   /**
    * Changes the requested sort without losing filters.
@@ -71,7 +83,9 @@ export default function ComputersPage() {
       </Group>
       {visibleDevices.length ? <ComputerTable title="All Computers" computers={visibleDevices}
         referenceTime={referenceTime} showArchived={showArchived}
-        sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} /> : <DataState empty label="Computers" />}
+        sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} onEdit={setEditingComputer} /> : <DataState empty label="Computers" />}
+      <ComputerEditModal computer={editingComputer} opened={Boolean(editingComputer)}
+        onClose={() => setEditingComputer(null)} onSaved={handleSaved} />
     </Stack>
   )
 }

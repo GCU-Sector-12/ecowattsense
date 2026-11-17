@@ -1,6 +1,6 @@
 // Daily computer history, opened from the computer table through /computers/<device_id>.
 import { useCallback, useRef, useState } from 'react'
-import { Anchor, Box, Card, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
+import { Anchor, Box, Button, Card, Group, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import DataState from '../components/DataState.jsx'
 import EnergyChart from '../components/EnergyChart.jsx'
@@ -14,6 +14,7 @@ import {
   calendarDay, energyByHalfHour, formatDuration, historyDate, loadComputerHistory, SAMPLE_HISTORY_FROM, shiftDay, shortDay,
 } from '../data/historyView.js'
 import { followLink } from '../usePath.js'
+import ComputerEditModal from '../components/ComputerEditModal.jsx'
 
 /**
  * Shows one labelled computer detail using description-list semantics.
@@ -34,12 +35,15 @@ function DeviceDetail({ label, value }) {
  * @param {object} props - Loaded device and the time that Last seen is measured against.
  * @returns {JSX.Element} Computer identity card.
  */
-function DeviceDetails({ device, referenceTime }) {
+function DeviceDetails({ device, referenceTime, onEdit }) {
   const location = [device.location_name, device.building].filter(Boolean).join(', ') || 'Not set'
   const parts = computerLabelParts(device)
   return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
-      <Text component="h2" fz="lg" fw={700} m={0}>{parts.text}{parts.shortId !== null && <>{' '}<Text span c="var(--ews-text-muted)">({parts.shortId})</Text></>}</Text>
+      <Group justify="space-between" align="center">
+        <Text component="h2" fz="lg" fw={700} m={0}>{parts.text}{parts.shortId !== null && <>{' '}<Text span c="var(--ews-text-muted)">({parts.shortId})</Text></>}</Text>
+        <Button variant="default" onClick={onEdit}>Edit computer</Button>
+      </Group>
       {parts.shortId !== null && <Text fz="sm" c="var(--ews-text-muted)" mt={4}>
         Set the name in the client Setup, or edit the computer when editing is available.
       </Text>}
@@ -87,8 +91,8 @@ function HistoryTotals({ totals }) {
  * @param {object} props - Loaded device and optional history response.
  * @returns {JSX.Element} Details and history, or the appropriate empty state.
  */
-function HistoryContent({ data, day, paging }) {
-  if (!data.device) return (
+function HistoryContent({ data, day, paging, device, onEdit }) {
+  if (!device) return (
     <Card radius="lg" padding="lg" bg="var(--ews-card)">
       <Text component="h2" fz="lg" fw={700}>Device not found</Text>
       <Text>This computer is not in the device list.</Text>
@@ -96,7 +100,7 @@ function HistoryContent({ data, day, paging }) {
   )
   return (
     <Stack gap="md">
-      <DeviceDetails device={data.device} referenceTime={isRealHistory() ? new Date() : sampleScreen.generated_at} />
+      <DeviceDetails device={device} referenceTime={isRealHistory() ? new Date() : sampleScreen.generated_at} onEdit={onEdit} />
       {data.history ? <AvailableHistory history={data.history} day={day} paging={paging} /> : (
         <Card radius="lg" padding="lg" bg="var(--ews-card)" role="status">
           <Text>{isRealHistory() ? 'No history available for this computer.' : 'No sample history available for this computer.'}</Text>
@@ -147,6 +151,8 @@ export default function HistoryPage({ deviceId }) {
   const [day, setDay] = useState(calendarDay)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [editedDevice, setEditedDevice] = useState(null)
+  const [editingComputer, setEditingComputer] = useState(false)
   // Sample readings do not depend on the date, so only real mode reloads when it changes.
   const loadDay = isRealHistory() ? day : undefined
   const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
@@ -176,6 +182,7 @@ export default function HistoryPage({ deviceId }) {
     day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(), loading: loadingNext,
   } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
+  const currentDevice = editedDevice ?? shown?.data.device ?? null
 
   return (
     <Stack gap="md">
@@ -188,9 +195,12 @@ export default function HistoryPage({ deviceId }) {
       </Text>}
       {shown && !error ? (
         <Box data-testid="history-content" aria-busy={loadingNext} style={{ opacity: loadingNext ? 0.6 : 1 }}>
-          <HistoryContent data={shown.data} day={shown.day} paging={{ ...paging, day }} />
+          <HistoryContent data={shown.data} day={shown.day} paging={{ ...paging, day }}
+            device={currentDevice} onEdit={() => setEditingComputer(true)} />
         </Box>
       ) : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
+      <ComputerEditModal computer={currentDevice} opened={editingComputer && Boolean(currentDevice)}
+        onClose={() => setEditingComputer(false)} onSaved={setEditedDevice} />
     </Stack>
   )
 }
