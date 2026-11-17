@@ -17,7 +17,7 @@ const headerStyle = {
  * @param {object} props - Device and reference timestamp.
  * @returns {JSX.Element} Rendered content.
  */
-function ComputerRow({ computer, referenceTime }) {
+function ComputerRow({ computer, referenceTime, onEdit }) {
   const name = computerLabel(computer)
   const parts = computerLabelParts(computer)
   const location = [computer.location_name, computer.building].filter(Boolean).join(', ') || 'not set'
@@ -39,6 +39,8 @@ function ComputerRow({ computer, referenceTime }) {
           bg="var(--ews-button)" fw={500}>
           View
         </Button>
+        {onEdit && <Button variant="subtle" size="xs" aria-label={`Edit ${name}`}
+          onClick={() => onEdit(computer)}>Edit</Button>}
       </Table.Td>
     </Table.Tr>
   )
@@ -98,7 +100,7 @@ export default function ComputerTable({
           </Table.Thead>
           <Table.Tbody>
             {rows.length ? rows.map((computer) => (
-              <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} />
+              <ComputerRow key={computer.device_id} computer={computer} referenceTime={referenceTime} onEdit={onEdit} />
             )) : (
               <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center">No computers match these filters.</Text></Table.Td></Table.Tr>
             )}
