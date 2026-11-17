@@ -11,6 +11,7 @@ afterEach(() => {
 /** @returns {Promise<void>} Verifies sample edits survive provider reads in the same session. */
 async function keepsSampleEditInMemory() {
   vi.stubEnv('VITE_DEVICES_DATA_SOURCE', '')
+  vi.stubGlobal('fetch', vi.fn())
   const { loadDevices, updateDevice } = await import('../data/devicesProvider.js')
   const device = sample.devices[0]
   const updated = await updateDevice(device.device_id, { display_name: 'Session rename', archived: true })
@@ -19,7 +20,7 @@ async function keepsSampleEditInMemory() {
   expect((await loadDevices()).devices[0]).toMatchObject({
     device_id: device.device_id, display_name: 'Session rename', archived: true,
   })
-  expect(fetch).toBeUndefined()
+  expect(fetch).not.toHaveBeenCalled()
 }
 it('keeps sample computer edits in memory without a network request', keepsSampleEditInMemory)
 
