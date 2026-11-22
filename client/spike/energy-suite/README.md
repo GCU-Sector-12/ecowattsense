@@ -22,6 +22,8 @@ Windows 11, x64. Windows 10 and ARM64 are not supported. Administrator rights ar
 2. Unblock the ZIP (file properties, tick Unblock) and unpack it.
 3. Run `Setup.exe` as administrator and follow the steps.
 
+On the Server page you can click "Connect" instead of typing the server key: Setup shows a code, you approve the computer in the dashboard, and Setup receives the key (see section 10 of [docs/SPEC.md](docs/SPEC.md)).
+
 Releases from 0.1.2 on are signed with the team's self-signed certificate "EcoWattSense Code Signing". Trust it once per computer with the one-command script described in [docs/SIGNING.md](docs/SIGNING.md). Windows SmartScreen may still warn for a file downloaded from the internet (right-click, Properties, Unblock).
 
 ## Measurement levels
