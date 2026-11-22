@@ -11,8 +11,10 @@
 
 #include "ews/battery.h"
 #include "ews/display.h"
+#include "ews/display_layout.h"
 #include "ews/emi.h"
 #include "ews/gpu.h"
+#include "ews/gpu_use.h"
 #include "ews/intel_dtt.h"
 #include "ews/machine_info.h"
 #include "ews/pawnio.h"
@@ -71,6 +73,8 @@ struct BatteryResult {
     std::optional<BatteryUnit> unit;       ///< MilliwattHours when at least one battery reports mWh.
     std::optional<bool> rateKnown;         ///< True when at least one battery reports its rate.
     std::optional<std::uint32_t> fullMwh;  ///< Sum of the known full charged capacities of the mWh batteries.
+    std::optional<std::uint32_t> designMwh;   ///< Sum of the known designed capacities of the mWh batteries.
+    std::optional<std::uint32_t> cycleCount;  ///< The largest known cycle count; 0 (unknown) is left out.
     bool reportsMwh = false;               ///< At least one battery has unit mWh and a known full charged capacity.
 };
 
@@ -80,10 +84,22 @@ struct PowerMeterResult {
     std::optional<std::uint32_t> instances;
 };
 
-/// The display brightness.
+/// The display brightness and layout.
 struct DisplayResult {
     SourceCommon common;  ///< sample = brightness in percent, when known.
     std::optional<int> brightnessPercent;
+    std::optional<std::uint32_t> displays;          ///< Active displays.
+    std::optional<std::uint32_t> externalDisplays;  ///< Active displays that are not the built-in panel.
+    std::optional<std::uint32_t> refreshHz;         ///< Of the built-in panel, or of the first display.
+};
+
+/// One NVIDIA device of the list "nvml" of source gpu.
+struct NvmlEntry {
+    std::string name;
+    std::optional<std::size_t> adapter;  ///< Index in `adapters`; nothing when no adapter has the same PCI ids.
+    bool power = false;                  ///< The power read answered.
+    bool energy = false;                 ///< The total energy counter answered.
+    std::optional<double> sampleWatts;   ///< The power read in watts.
 };
 
 /// The graphics adapters and NVML.
@@ -92,6 +108,13 @@ struct GpuResult {
     std::vector<GpuAdapter> adapters;
     std::optional<NvmlState> nvml;
     std::optional<std::uint32_t> nvmlDevices;
+    std::vector<NvmlEntry> nvmlEntries;  ///< One entry per NVML device, in the order NVML lists them.
+};
+
+/// The use of the graphics adapters: the counter set "GPU Engine".
+struct GpuUseResult {
+    SourceCommon common;  ///< sample = the highest use of one adapter in percent, when known. live stays unknown.
+    std::optional<std::uint32_t> adapters;  ///< Count of different adapter ids seen in the instance names.
 };
 
 /// Intel DTT: only the common steps.
@@ -115,6 +138,7 @@ struct ScanResult {
     PowerMeterResult powerMeter;
     DisplayResult display;
     GpuResult gpu;
+    GpuUseResult gpuUse;
     IntelDttResult intelDtt;
     PawnIoResult pawnIo;
     MeasurementLevel level = MeasurementLevel::L4;
@@ -189,12 +213,32 @@ struct ScanSources {
     IBatterySource& battery;
     IPowerMeterSource& powerMeter;
     IDisplaySource& display;
+    IDisplayLayoutSource& displayLayout;
     IGpuSource& gpu;
+    IGpuUseSource& gpuUse;
     IIntelDttSource& intelDtt;
     IPawnIoSource& pawnIo;
     IScanWaiter& waiter;
     Reading<bool> (*onBattery)();  ///< The on-battery reading (ReadOnBattery in the real program).
 };
+
+/// Reads the machine facts. A failed read gives empty facts: every field unknown.
+/// @param source The machine source.
+/// @return The facts.
+MachineInfo ReadMachineFacts(IMachineInfoSource& source);
+
+/// Builds the battery result from one read of all batteries (SPEC 3.3, 3.5).
+/// @param reading The battery read.
+/// @return The result; a failed read gives unknown values, never "does not exist".
+BatteryResult BuildBatteryResult(const Reading<std::vector<BatteryState>>& reading);
+
+/// Builds the display result from the brightness, the power source and the layout.
+/// @param brightness The brightness read.
+/// @param onBattery The on-battery read.
+/// @param layout The display layout read. A failed layout leaves displays, external_displays and refresh_hz out.
+/// @return The result.
+DisplayResult BuildDisplayResult(const Reading<DisplayBrightness>& brightness, const Reading<bool>& onBattery,
+                                 const Reading<DisplayLayout>& layout);
 
 /// Runs the whole scan: tests every source with the four steps of SPEC 3.2 and decides level, calibration and device type.
 /// One failed source never stops the others. A failed read gives unknown, never "does not exist".

@@ -7,6 +7,7 @@
 #include <optional>
 #include <vector>
 
+#include "ews/gpu_link.h"
 #include "ews/scan.h"
 
 namespace ews {
@@ -162,8 +163,32 @@ std::uint64_t CountedFullMwh(std::uint64_t total, const BatteryState& battery) {
     return IsMwhWithFullCharge(battery) ? total + battery.fullCharged : total;
 }
 
+/// @return True when the battery has unit mWh and a known designed capacity.
+bool IsMwhWithDesign(const BatteryState& battery) { return IsMwh(battery) && battery.designedKnown; }
+
+/// @return The designed capacity in mWh when it counts (mWh unit, known), else the total unchanged.
+std::uint64_t CountedDesignMwh(std::uint64_t total, const BatteryState& battery) {
+    return IsMwhWithDesign(battery) ? total + battery.designed : total;
+}
+
+/// @return The larger of the accumulated cycle count and the cycle count of the battery.
+std::uint32_t LargerCycleCount(std::uint32_t largest, const BatteryState& battery) { return (std::max)(largest, battery.cycleCount); }
+
+/// Fills the designed capacity and the cycle count (SPEC 1.3). Unknown values are left out.
+void SummariseDesignAndCycles(const std::vector<BatteryState>& batteries, BatteryResult& result) {
+    if (std::any_of(batteries.begin(), batteries.end(), IsMwhWithDesign)) {
+        std::uint64_t design = std::accumulate(batteries.begin(), batteries.end(), std::uint64_t{0}, CountedDesignMwh);
+        result.designMwh = static_cast<std::uint32_t>((std::min<std::uint64_t>)(design, kMaxUint32));
+    }
+    std::uint32_t cycles = std::accumulate(batteries.begin(), batteries.end(), std::uint32_t{0}, LargerCycleCount);
+    if (cycles != 0) {
+        result.cycleCount = cycles;
+    }
+}
+
 /// Fills the summary of all batteries into the result.
 void SummariseBatteries(const std::vector<BatteryState>& batteries, BatteryResult& result) {
+    SummariseDesignAndCycles(batteries, result);
     result.count = static_cast<std::uint32_t>((std::min<std::size_t>)(batteries.size(), kMaxUint32));
     bool anyMwh = std::any_of(batteries.begin(), batteries.end(), IsMwh);
     if (anyMwh) {
@@ -274,6 +299,16 @@ DisplayResult BuildDisplay(const Reading<DisplayBrightness>& reading, const Read
     return result;
 }
 
+/// Copies the display layout into the result; a failed layout read leaves the three fields out.
+void ApplyLayout(const Reading<DisplayLayout>& layout, DisplayResult& result) {
+    if (!layout.ok()) {
+        return;
+    }
+    result.displays = layout.value.displays;
+    result.externalDisplays = layout.value.externalDisplays;
+    result.refreshHz = layout.value.refreshHz;
+}
+
 // ---- graphics ----
 
 /// @return The larger of the accumulated power and this device, in watts; an unknown device counts as nothing.
@@ -302,8 +337,33 @@ void ApplyNvml(const Reading<std::vector<NvmlPower>>& reading, GpuResult& result
     }
 }
 
-/// Builds the graphics result from the adapter list and the NVML power.
-GpuResult BuildGpu(const Reading<std::vector<GpuAdapter>>& adapters, const Reading<std::vector<NvmlPower>>& nvml) {
+/// Builds the list entry of one NVML device.
+NvmlEntry BuildNvmlEntry(const NvmlDeviceFacts& device, const std::optional<std::size_t>& adapter) {
+    NvmlEntry entry;
+    entry.name = device.name;
+    entry.adapter = adapter;
+    entry.power = device.powerAnswered;
+    entry.energy = device.energyAnswered;
+    if (device.powerAnswered && device.milliwatts.has_value()) {
+        entry.sampleWatts = FiniteOrNothing(*device.milliwatts / 1000.0);
+    }
+    return entry;
+}
+
+/// Fills the list of NVML devices (SPEC 1.5). A failed read leaves the list empty.
+void ApplyNvmlEntries(const Reading<std::vector<NvmlDeviceFacts>>& devices, GpuResult& result) {
+    if (!devices.ok()) {
+        return;
+    }
+    auto links = LinkNvmlToAdapters(devices.value, result.adapters);
+    for (std::size_t i = 0; i < devices.value.size(); ++i) {
+        result.nvmlEntries.push_back(BuildNvmlEntry(devices.value[i], links[i]));
+    }
+}
+
+/// Builds the graphics result from the adapter list, the NVML power and the NVML device facts.
+GpuResult BuildGpu(const Reading<std::vector<GpuAdapter>>& adapters, const Reading<std::vector<NvmlPower>>& nvml,
+                   const Reading<std::vector<NvmlDeviceFacts>>& devices) {
     GpuResult result;
     if (!adapters.ok()) {
         result.common = FailureCommon(adapters.status, adapters.error);
@@ -314,6 +374,40 @@ GpuResult BuildGpu(const Reading<std::vector<GpuAdapter>>& adapters, const Readi
         result.adapters = adapters.value;
     }
     ApplyNvml(nvml, result);
+    ApplyNvmlEntries(devices, result);
+    return result;
+}
+
+// ---- GPU use ----
+
+/// @return The larger of the accumulated use and the use of the adapter (an unknown use counts as nothing).
+double LargerUse(double largest, const AdapterUse& use) { return (std::max)(largest, use.percent.value_or(0.0)); }
+
+/// @return True when the adapter has a known use.
+bool UseKnown(const AdapterUse& use) { return use.percent.has_value(); }
+
+/// Fills the fields of the GPU use result from the instances of one read.
+void FillGpuUse(const MeterReading& reading, GpuUseResult& result) {
+    GpuUseSummary summary = SummariseGpuUse(reading.value);
+    result.common.present = Tri::True;
+    result.common.readable = Tri::True;
+    result.adapters = static_cast<std::uint32_t>((std::min<std::size_t>)(summary.adapters.size(), kMaxUint32));
+    if (std::any_of(summary.adapters.begin(), summary.adapters.end(), UseKnown)) {
+        result.common.sample = std::accumulate(summary.adapters.begin(), summary.adapters.end(), 0.0, LargerUse);
+    }
+}
+
+/// Builds the GPU use result (SPEC 1.5). The first read only primes a rate counter, so the second read gives the value;
+/// the first is used only when the second failed. live stays unknown (SPEC 3.2).
+GpuUseResult BuildGpuUse(const MeterReading& rawFirst, const MeterReading& rawSecond) {
+    GpuUseResult result;
+    MeterReading first = Normalised(rawFirst);
+    MeterReading second = Normalised(rawSecond);
+    if (!first.ok() && !second.ok()) {
+        result.common = FailureCommon(second.status, second.error);
+        return result;
+    }
+    FillGpuUse(second.ok() ? second : first, result);
     return result;
 }
 
@@ -403,6 +497,17 @@ void Decide(ScanResult& result) {
 
 }  // namespace
 
+MachineInfo ReadMachineFacts(IMachineInfoSource& source) { return ReadMachine(source); }
+
+BatteryResult BuildBatteryResult(const Reading<std::vector<BatteryState>>& reading) { return BuildBattery(reading); }
+
+DisplayResult BuildDisplayResult(const Reading<DisplayBrightness>& brightness, const Reading<bool>& onBattery,
+                                 const Reading<DisplayLayout>& layout) {
+    DisplayResult result = BuildDisplay(brightness, onBattery);
+    ApplyLayout(layout, result);
+    return result;
+}
+
 ScanResult RunScan(const ScanSources& sources, ScanContext context, const std::string& scannedUtc) {
     ScanResult result;
     result.scannedUtc = scannedUtc;
@@ -413,15 +518,18 @@ ScanResult RunScan(const ScanSources& sources, ScanContext context, const std::s
     auto emiOpen = sources.emi.Open();
     auto emiFirst = sources.emi.Read();
     auto meterFirst = sources.powerMeter.Read();
+    auto gpuUseFirst = sources.gpuUse.Read();
     sources.waiter.WaitWithLoad();
     auto emiSecond = sources.emi.Read();
     auto meterSecond = sources.powerMeter.Read();
+    auto gpuUseSecond = sources.gpuUse.Read();
 
     result.emi = BuildEmi(emiOpen, emiFirst, emiSecond);
     result.battery = BuildBattery(sources.battery.Read());
     result.powerMeter = BuildPowerMeter(meterFirst, meterSecond);
-    result.display = BuildDisplay(sources.display.Read(), sources.onBattery());
-    result.gpu = BuildGpu(sources.gpu.ListAdapters(), sources.gpu.ReadNvmlPower());
+    result.display = BuildDisplayResult(sources.display.Read(), sources.onBattery(), sources.displayLayout.Read());
+    result.gpu = BuildGpu(sources.gpu.ListAdapters(), sources.gpu.ReadNvmlPower(), sources.gpu.ReadNvmlDevices());
+    result.gpuUse = BuildGpuUse(gpuUseFirst, gpuUseSecond);
     result.intelDtt = BuildIntelDtt(sources.intelDtt.IsPresent());
     result.pawnIo = BuildPawnIo(sources.pawnIo.Read());
     Decide(result);

@@ -79,6 +79,7 @@ EWS_TEST(JsonExactTextOfASmallResult) {
         "    { \"id\": \"gpu\", \"present\": true, \"readable\": true, \"live\": null, \"error\": 0, "
         "\"adapters\": [ { \"name\": \"Test\", \"vendor_id\": 32902, \"memory_mb\": 128, \"software\": false } ], "
         "\"nvml\": \"unavailable\" },\n"
+        "    { \"id\": \"gpu_use\", \"live\": null, \"error\": 0 },\n"
         "    { \"id\": \"intel_dtt\", \"present\": false, \"readable\": true, \"live\": null, \"error\": 0 },\n"
         "    { \"id\": \"pawnio\", \"present\": true, \"readable\": false, \"live\": null, \"error\": 5, \"version\": \"2.1.0\" }\n"
         "  ],\n"
