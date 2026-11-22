@@ -10,20 +10,11 @@
 #include <string>
 #include <vector>
 
+#include "ews/emi_kind.h"
 #include "ews/handles.h"
 #include "ews/reading.h"
 
 namespace ews {
-
-/// What a channel measures (SPEC 3.3). Set from the channel name by ClassifyEmiChannel.
-enum class EmiKind {
-    System,      ///< The whole computer.
-    CpuPackage,  ///< The processor package.
-    Dram,        ///< Memory.
-    CpuCores,    ///< Processor cores; part of the package.
-    Igpu,        ///< Integrated graphics; part of the package.
-    Other        ///< Anything else.
-};
 
 /// The unit of a channel's energy counter. EMI defines only picowatt-hours.
 enum class EmiUnit {
@@ -91,19 +82,6 @@ private:
 ///         shorter than the header, the channel count is 0 or above 256, a name size is 0, odd or runs past the
 ///         buffer, a name has no terminator, the unit is unknown, or the version is not 1 or 2.
 Reading<std::vector<EmiChannelMeta>> ParseEmiMetadata(std::uint16_t version, std::span<const unsigned char> metadata);
-
-/// Sets the kind of a channel from its name (SPEC 3.3), case-insensitive.
-/// "system": PSYS, SYSTEM, PLATFORM or TOTAL is a whole word (words are split by '_' and ' ').
-/// "cpu_package": RAPL_Package<N>_PKG, or exactly CPU. "dram": RAPL_Package<N>_DRAM.
-/// "cpu_cores": RAPL_Package<N>_PP0, or a name starting with CPU_. "igpu": RAPL_Package<N>_PP1. Otherwise "other".
-/// The system rule is tested first.
-/// @param name The channel name (UTF-8).
-/// @return The kind.
-EmiKind ClassifyEmiChannel(const std::string& name);
-
-/// @param kind A channel kind.
-/// @return The fixed word of SPEC 3.3 (system, cpu_package, dram, cpu_cores, igpu, other).
-const char* EmiKindWord(EmiKind kind);
 
 /// Average power between two samples of one channel.
 /// @param previous The earlier sample.
