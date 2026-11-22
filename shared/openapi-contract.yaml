@@ -491,6 +491,96 @@ paths:
         '422':
           $ref: '#/components/responses/AdminLocationInvalid'
 
+  /api/connect/requests:
+    post:
+      operationId: postConnectRequest
+      tags: [public]
+      summary: A computer asks to be connected (C1)
+      description: |
+        Caller: the client, from Setup. Auth: none. No key and no cookie.
+
+        Setup on a computer needs the client key. The admin approves the computer in the dashboard, so nobody types the key. Setup sends this call and gets a secret `request_id` (only Setup keeps it) and a short `user_code`. It shows the code and opens `<server address>/connect?code=<user_code>` in the browser. Then it asks `POST /api/connect/claim` until the answer is `approved`.
+
+        The request lives in the memory of the server for `EWS_CONNECT_REQUEST_LIFETIME_SECONDS` seconds (default 600). At most 20 requests wait at the same time. The server never writes a `request_id`, a `user_code` or the key to its log. Every answer sends `Cache-Control: no-store`.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/ConnectRequestBody'
+      responses:
+        '201':
+          $ref: '#/components/responses/ConnectRequestCreated'
+        '422':
+          $ref: '#/components/responses/ConnectRequestInvalid'
+        '429':
+          $ref: '#/components/responses/ConnectTooManyRequests'
+        '503':
+          $ref: '#/components/responses/ConnectKeyMissing'
+
+  /api/admin/connect/requests/{user_code}:
+    get:
+      operationId: getAdminConnectRequest
+      tags: [admin]
+      summary: Read a connect request (C2)
+      description: |
+        Caller: the admin, from the dashboard page `/connect`. Auth: the cookie `ews_session`.
+
+        The code in the path is compared without the hyphen and without case: `abcdefgh`, `ABCD-EFGH` and `ABCDEFGH` are the same code. A code that is not 8 allowed characters after that is unknown. Every answer sends `Cache-Control: no-store`.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/UserCodePath'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectRequestOk'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '404':
+          $ref: '#/components/responses/ConnectRequestNotFound'
+
+  /api/admin/connect/requests/{user_code}/approve:
+    post:
+      operationId: postAdminConnectApprove
+      tags: [admin]
+      summary: Approve a connect request (C3)
+      description: |
+        Caller: the admin. Auth: the cookie `ews_session`.
+
+        No body. The code is compared as in `GET /api/admin/connect/requests/{user_code}`. Approving twice is safe and gives 204 again. Every answer sends `Cache-Control: no-store`.
+      security:
+        - adminSession: []
+      parameters:
+        - $ref: '#/components/parameters/UserCodePath'
+      responses:
+        '204':
+          $ref: '#/components/responses/ConnectApproved'
+        '401':
+          $ref: '#/components/responses/SessionInvalid'
+        '404':
+          $ref: '#/components/responses/ConnectRequestNotFound'
+
+  /api/connect/claim:
+    post:
+      operationId: postConnectClaim
+      tags: [public]
+      summary: Collect the client key after the approval (C4)
+      description: |
+        Caller: the client, from Setup. Auth: none. The secret `request_id` is the check.
+
+        The answer is `pending` while the admin has not approved. After the approval it is `approved` with the client key, once. The request is removed with that answer, so a second call gets 404. The secret is in the body and never in the address, because the server log holds addresses. Setup asks every 2 seconds in the first 30 seconds, then every 5 seconds.
+
+        When the key was removed from the server after the request was made, the answer is 503 and the request stays. Every answer sends `Cache-Control: no-store`.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/ConnectClaimBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectClaimOk'
+        '404':
+          $ref: '#/components/responses/ConnectRequestNotFound'
+        '422':
+          $ref: '#/components/responses/ConnectClaimInvalid'
+        '503':
+          $ref: '#/components/responses/ConnectKeyMissing'
+
 # Components. Everything that paths use more than once, or that would nest deep, lives here.
 
 components:
@@ -511,7 +601,7 @@ components:
       description: |
         The admin session. `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. A missing or expired cookie gives 401.
 
-        The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}`, `GET /api/locations`, `POST /api/admin/locations`, `PATCH /api/admin/locations/{location_id}` and `/api/logout`.
+        The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}`, `GET /api/locations`, `POST /api/admin/locations`, `PATCH /api/admin/locations/{location_id}`, `GET /api/admin/connect/requests/{user_code}`, `POST /api/admin/connect/requests/{user_code}/approve` and `/api/logout`.
 
   parameters:
     DeviceIdPath:
@@ -573,6 +663,15 @@ components:
         type: string
         format: date
       example: "2026-10-19"
+
+    UserCodePath:
+      name: user_code
+      in: path
+      required: true
+      description: 'The code that Setup shows, for example `ABCD-EFGH`. Case and the hyphen do not matter.'
+      schema:
+        type: string
+      example: "ABCD-EFGH"
 
   headers:
     RetryAfter:
@@ -704,6 +803,27 @@ components:
             $ref: '#/components/schemas/AdminLocationChange'
           example:
             building: "Cowcaddens"
+    ConnectRequestBody:
+      required: true
+      description: 'The computer that asks to be connected.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectRequestNew'
+          example:
+            device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+            device_name: "Lab 1 PC 03"
+            os: "windows"
+            device_type: "laptop"
+    ConnectClaimBody:
+      required: true
+      description: 'The secret `request_id` from `POST /api/connect/requests`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectClaimRequest'
+          example:
+            request_id: "u3dQ0w8Yb2vHk9mXrT5nLz7cA1eJf4sPoGiVhNyBtKq"
     ReportsBody:
       required: true
       description: 'One report object, or a list of 1 to 100 report objects.'
@@ -1048,6 +1168,84 @@ components:
             detail: "A room with this name exists"
     AdminLocationInvalid:
       description: 'A field has the wrong type, a field is unknown, the body is empty (PATCH), `name` is missing (POST), null, blank or longer than 60 characters, or `building` is longer than 60 characters.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    ConnectRequestCreated:
+      description: 'The request is stored. `request_id` is a secret for Setup only.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectRequestCreated'
+          example:
+            request_id: "u3dQ0w8Yb2vHk9mXrT5nLz7cA1eJf4sPoGiVhNyBtKq"
+            user_code: "ABCD-EFGH"
+            expires_in_seconds: 600
+    ConnectRequestInvalid:
+      description: 'A field has the wrong type or is missing, or a field is unknown.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPValidationError'
+    ConnectTooManyRequests:
+      description: '20 connect requests are waiting (not expired, not claimed).'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Too many connect requests"
+    ConnectKeyMissing:
+      description: 'The server has no client key to hand out.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Client key is not configured"
+    ConnectRequestOk:
+      description: 'The request, as the admin needs it to check the computer. It never holds `request_id`.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectRequestInfo'
+          example:
+            user_code: "ABCD-EFGH"
+            device_id: "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12"
+            device_name: "Lab 1 PC 03"
+            os: "windows"
+            device_type: "laptop"
+            approved: false
+            expires_in_seconds: 412
+    ConnectApproved:
+      description: 'The request is approved. No body.'
+    ConnectRequestNotFound:
+      description: 'The code or the request is unknown, malformed, expired or already claimed.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Connect request not found"
+    ConnectClaimOk:
+      description: '`pending` while the admin has not approved. `approved` with the client key, once.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ConnectClaimResult'
+          examples:
+            pending:
+              summary: The admin has not approved yet
+              value:
+                status: "pending"
+            approved:
+              summary: Approved. The key is given once
+              value:
+                status: "approved"
+                client_key: "<the client key>"
+    ConnectClaimInvalid:
+      description: 'The body is wrong, a field is unknown, or `request_id` is not 20 to 100 characters.'
       content:
         application/json:
           schema:
@@ -1618,6 +1816,84 @@ components:
           type: [string, "null"]
           maxLength: 60
           description: 'Trimmed. At most 60 characters. A blank string or null clears the building.'
+
+    # Connect: C1 to C4
+
+    ConnectRequestNew:
+      type: object
+      additionalProperties: false
+      required: [device_id, os, device_type]
+      properties:
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        device_name:
+          type: [string, "null"]
+          maxLength: 60
+          description: 'The same rules as `device_name` in `PUT /api/devices/{device_id}`.'
+        os:
+          $ref: '#/components/schemas/Os'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+
+    ConnectRequestCreated:
+      type: object
+      required: [request_id, user_code, expires_in_seconds]
+      properties:
+        request_id:
+          type: string
+          description: 'A random secret of 43 characters. Only Setup keeps it. It is used in `POST /api/connect/claim`.'
+        user_code:
+          type: string
+          pattern: '^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$'
+          description: '8 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` with a hyphen after the fourth. Unique among the waiting requests.'
+        expires_in_seconds:
+          type: integer
+          description: 'The lifetime of the request.'
+
+    ConnectRequestInfo:
+      type: object
+      required: [user_code, device_id, device_name, os, device_type, approved, expires_in_seconds]
+      properties:
+        user_code:
+          type: string
+          description: 'The code, written with the hyphen.'
+        device_id:
+          $ref: '#/components/schemas/DeviceId'
+        device_name:
+          type: [string, "null"]
+          description: 'The name that was typed in Setup, or null.'
+        os:
+          $ref: '#/components/schemas/Os'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        approved:
+          type: boolean
+          description: 'True after the admin approved the request.'
+        expires_in_seconds:
+          type: integer
+          description: 'The seconds that are left, rounded up.'
+
+    ConnectClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+          minLength: 20
+          maxLength: 100
+          description: 'The secret from `POST /api/connect/requests`.'
+
+    ConnectClaimResult:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, approved]
+        client_key:
+          type: string
+          description: 'Only when `status` is `approved`. The client key of the server. It is given once.'
 
     # GET /api/devices/{device_id}/history
 

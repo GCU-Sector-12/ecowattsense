@@ -36,9 +36,9 @@ Errors have these shapes:
 
 There are two mechanisms.
 
-**Client key.** The client sends the header `X-EWS-Key: <key>`. The value is the setting `EWS_CLIENT_KEY` in the server `.env` file. One key is used by all clients. A wrong or missing key gives 401. The client key is used by `GET /api/settings`, `PUT /api/devices/{device_id}`, `POST /api/reports` and `POST /api/ping`.
+**Client key.** The client sends the header `X-EWS-Key: <key>`. The value is the setting `EWS_CLIENT_KEY` in the server `.env` file. One key is used by all clients. A wrong or missing key gives 401. The client key is used by `GET /api/settings`, `PUT /api/devices/{device_id}`, `POST /api/reports` and `POST /api/ping`. The two Connect endpoints for Setup (section 5.16) need no key, because they are the way a computer gets the key.
 
-**Admin session.** `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. Every GET for the dashboard and every admin change needs the cookie. A missing or expired cookie gives 401. The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}` and `/api/logout`.
+**Admin session.** `POST /api/login` sets a cookie named `ews_session`. The cookie is `HttpOnly` and `SameSite=Lax`. It is `Secure` when the server is reached over HTTPS. Every GET for the dashboard and every admin change needs the cookie. A missing or expired cookie gives 401. The session is used by `GET /api/devices`, `/api/devices/{device_id}/history`, `/api/summary`, `PATCH /api/admin/devices/{device_id}`, the two admin Connect endpoints (section 5.16) and `/api/logout`.
 
 Names of settings in the `.env` file:
 
@@ -47,6 +47,7 @@ Names of settings in the `.env` file:
 | `EWS_CLIENT_KEY` | agreed | The client key for the four client endpoints |
 | `EWS_ADMIN_USERNAME` | proposed | The user name of the one admin |
 | `EWS_ADMIN_PASSWORD` | proposed | The password of the admin. Only in `.env`, never in the repository |
+| `EWS_CONNECT_REQUEST_LIFETIME_SECONDS` | agreed | How long a connect request lives. Default 600 (section 5.16) |
 
 The other server settings keep their current names for now. Whether they also get the prefix `EWS_` is an open point (see section 9).
 
@@ -68,6 +69,10 @@ The other server settings keep their current names for now. Whether they also ge
 | GET | `/api/locations` | admin | cookie | List the rooms |
 | POST | `/api/admin/locations` | admin | cookie | Add a room |
 | PATCH | `/api/admin/locations/{location_id}` | admin | cookie | Change the name or the building of a room |
+| POST | `/api/connect/requests` | client | none | A computer asks to be connected (section 5.16) |
+| GET | `/api/admin/connect/requests/{user_code}` | admin | cookie | Read a connect request |
+| POST | `/api/admin/connect/requests/{user_code}/approve` | admin | cookie | Approve a connect request |
+| POST | `/api/connect/claim` | client | none | Collect the client key after the approval |
 
 ## 5. Endpoints
 
@@ -761,6 +766,145 @@ Example response:
 
 ```json
 {"id": 3, "name": "Lab 3", "building": "Cowcaddens"}
+```
+
+### 5.16 Connect a computer without typing the key (C1 to C4)
+
+Setup on a computer needs the client key. These four endpoints let the admin approve the computer in the dashboard, so nobody types the key. The flow:
+
+1. Setup sends C1. The server answers a secret `request_id` (only Setup keeps it) and a short `user_code`.
+2. Setup shows the code and opens `<server address>/connect?code=<user_code>` in the browser.
+3. The admin is signed in to the dashboard. The page reads the request with C2, shows the computer name and the code, and the admin clicks Approve (C3).
+4. Setup asks with C4 until the answer is `approved`. That answer holds the client key, once.
+
+Rules for all four endpoints:
+
+- Every answer sends `Cache-Control: no-store`, the errors too.
+- Errors use the form `{"detail": "<text>"}`. A field that is not in a body table is an error (422).
+- The requests live in the memory of the server. A restart drops them. There is no database table.
+- A request lives `EWS_CONNECT_REQUEST_LIFETIME_SECONDS` seconds (default 600). At most 20 requests wait at the same time. A request that is expired or claimed is unknown (404).
+- The server never writes a `request_id`, a `user_code` or the key to its log. The secret is in a body and never in an address, because addresses are logged. The `user_code` is in the address of C2 and C3, but it is useless without the admin cookie.
+
+#### C1 POST /api/connect/requests
+
+- Caller: the client, from Setup. Auth: none (no key, no cookie).
+
+Request body (a JSON object):
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `device_id` | string, uuid | yes | The computer |
+| `device_name` | string or null | no | The same rules as `device_name` in section 5.3 |
+| `os` | string | yes | `windows`, `linux` or `macos` |
+| `device_type` | string | yes | The same rules as `device_type` in section 5.3 |
+
+Response 201:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `request_id` | string | A random secret of 43 characters. Only Setup keeps it. It is used in C4 |
+| `user_code` | string | 8 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0, 1), with a hyphen after the fourth, for example `ABCD-EFGH`. It is unique among the waiting requests |
+| `expires_in_seconds` | integer | The lifetime of the request |
+
+Status codes:
+
+- 201: The request is stored
+- 422: A field has the wrong type or is missing, or a field is unknown
+- 429: `{"detail": "Too many connect requests"}`. 20 requests are waiting (not expired, not claimed)
+- 503: `{"detail": "Client key is not configured"}`. The server has no client key to hand out
+
+Example request: `POST /api/connect/requests`
+
+```json
+{"device_id": "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12", "device_name": "Lab 1 PC 03", "os": "windows", "device_type": "laptop"}
+```
+
+Example response:
+
+```json
+{"request_id": "u3dQ0w8Yb2vHk9mXrT5nLz7cA1eJf4sPoGiVhNyBtKq", "user_code": "ABCD-EFGH", "expires_in_seconds": 600}
+```
+
+#### C2 GET /api/admin/connect/requests/{user_code}
+
+- Caller: the admin, from the dashboard page `/connect`. Auth: the cookie `ews_session`.
+- The code in the path is compared without the hyphen and without case: `abcdefgh`, `ABCD-EFGH` and `ABCDEFGH` are the same code. A code that is not 8 allowed characters after that is unknown.
+
+Response 200:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `user_code` | string | The code, written with the hyphen |
+| `device_id` | string, uuid | The computer |
+| `device_name` | string or null | The name that was typed in Setup, or null |
+| `os` | string | `windows`, `linux` or `macos` |
+| `device_type` | string | For example `laptop` |
+| `approved` | boolean | True after C3 |
+| `expires_in_seconds` | integer | The seconds that are left, rounded up |
+
+Status codes:
+
+- 200: The request
+- 401: There is no valid cookie
+- 404: `{"detail": "Connect request not found"}`. The code is unknown, malformed, expired or claimed
+
+Example response:
+
+```json
+{"user_code": "ABCD-EFGH", "device_id": "6f1c2a3e-9b4d-4c8e-a1f2-3d5e7b9c0a12", "device_name": "Lab 1 PC 03", "os": "windows", "device_type": "laptop", "approved": false, "expires_in_seconds": 412}
+```
+
+#### C3 POST /api/admin/connect/requests/{user_code}/approve
+
+- Caller: the admin. Auth: the cookie `ews_session`.
+- No body. The code is compared as in C2. Approving twice is safe.
+
+Status codes:
+
+- 204: The request is approved. No body
+- 401: There is no valid cookie
+- 404: `{"detail": "Connect request not found"}`
+
+#### C4 POST /api/connect/claim
+
+- Caller: the client, from Setup. Auth: none. The secret `request_id` is the check.
+
+Request body (a JSON object):
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `request_id` | string | yes | The secret from C1. 20 to 100 characters |
+
+Response 200:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `status` | string | `pending` while the admin has not approved, `approved` after |
+| `client_key` | string | Only when `status` is `approved`. The client key of the server |
+
+The answer `approved` is given once. The request is removed with it, so a second call gets 404.
+
+Status codes:
+
+- 200: `pending`, or `approved` with the key
+- 404: `{"detail": "Connect request not found"}`. The request is unknown, expired or already claimed. A request that expired after the approval is 404 too
+- 422: The body is wrong, or `request_id` is not 20 to 100 characters
+- 503: `{"detail": "Client key is not configured"}`. The key was removed after the request was made. The request stays, so a later call can succeed
+
+Example request: `POST /api/connect/claim`
+
+```json
+{"request_id": "u3dQ0w8Yb2vHk9mXrT5nLz7cA1eJf4sPoGiVhNyBtKq"}
+```
+
+Example responses:
+
+```json
+{"status": "pending"}
+```
+
+```json
+{"status": "approved", "client_key": "<the client key>"}
 ```
 
 ## 6. Values
