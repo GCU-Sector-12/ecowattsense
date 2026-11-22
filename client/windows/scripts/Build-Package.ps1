@@ -42,10 +42,7 @@ $nativeOut = Join-Path $repo 'client\windows\native\out\Release'
 $webSetupSource = Join-Path $nativeOut 'EcoWattSense-Web-Setup.exe'
 $stage = Join-Path $OutDir 'EcoWattSense'
 $zipPath = Join-Path $OutDir "EcoWattSense-$Version-win-x64.zip"
-$requiredFiles = 'ews-service.exe', 'ews-scan.exe', 'EcoWattSense.Client.Gui.exe', 'EnergyCalibrator.exe', 'Setup.exe'
-# Our own files only. The .NET runtime files in the same folder are Microsoft's and stay as they are.
-$ownFiles = 'ews-service.exe', 'ews-scan.exe', 'Setup.exe', 'EcoWattSense.Client.Gui.exe', 'EcoWattSense.Client.exe', 'EnergyCalibrator.exe',
-    'EcoWattSense.Client.Gui.dll', 'EcoWattSense.Client.dll', 'EnergyCalibrator.dll', 'EcoWattSense.Setup.dll'
+$binaries = Import-PowerShellDataFile -LiteralPath (Join-Path $PSScriptRoot 'PackageBinaries.psd1')
 $timestampUrl = 'http://timestamp.digicert.com'
 
 <#
@@ -191,15 +188,15 @@ Publish-Project $setupProject
 Copy-Item -LiteralPath (Join-Path $nativeOut 'ews-service.exe') -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $nativeOut 'ews-scan.exe') -Destination $stage -Force
 
-# Step 5: the folder must hold the five programs.
-$missing = $requiredFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $stage $_)) }
+# Step 5: every project binary must be present, including in unsigned builds.
+$signedFiles = $binaries.Own | ForEach-Object { Join-Path $stage $_ }
+$missing = $signedFiles | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }
 if ($missing) { Stop-Package "the package folder lacks: $($missing -join ', ')." }
 
 # Step 5b: the README of the suite goes next to Setup.exe.
 Copy-Item -LiteralPath (Join-Path $suite 'README.md') -Destination $stage -Force
 
 # Step 5c: signing, before the ZIP and the sums, so that they describe the signed files.
-$signedFiles = $ownFiles | ForEach-Object { Join-Path $stage $_ } | Where-Object { Test-Path -LiteralPath $_ }
 if ($Sign) {
     try { Invoke-SigningRun -Files $signedFiles -Pfx $PfxPath -PasswordText $env:ENERGY_SUITE_SIGNING_PASSWORD -TimestampUrl $timestampUrl }
     catch { Stop-Package "signing failed: $($_.Exception.Message)" 5 }
