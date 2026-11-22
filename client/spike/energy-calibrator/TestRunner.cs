@@ -31,13 +31,16 @@ internal sealed class TestRunner
     private string failureText = "";
     private readonly IntPtr windowHandle;
     private readonly PowerSettingsSession power;
+    private readonly WatchClient? watch;
 
     /// <summary>Creates a runner.</summary>
     /// <param name="sampling">The loop that delivers a sample every 2 seconds.</param>
     /// <param name="windowHandle">Handle of the main window; the display-off command is sent to it.</param>
     /// <param name="power">The session that changed the power settings for this run; the runner restores them in its clean-up.</param>
-    public TestRunner(SamplingLoop sampling, IntPtr windowHandle, PowerSettingsSession power)
+    /// <param name="watch">The energy stream of this run, or null when the calibrator reads the "Energy Meter" counter set. The window starts and stops it; the runner only reports its header in the outcome.</param>
+    public TestRunner(SamplingLoop sampling, IntPtr windowHandle, PowerSettingsSession power, WatchClient? watch = null)
     {
+        this.watch = watch;
         this.sampling = sampling;
         this.windowHandle = windowHandle;
         this.power = power;
@@ -420,6 +423,6 @@ internal sealed class TestRunner
     /// <returns>The outcome.</returns>
     private TestOutcome BuildOutcome()
     {
-        return new TestOutcome(startedAt, samples.ToList(), statuses.ToList(), notes.ToList(), abortReason, ReasonText(), restoreProblems.ToList());
+        return new TestOutcome(startedAt, samples.ToList(), statuses.ToList(), notes.ToList(), abortReason, ReasonText(), restoreProblems.ToList(), watch?.Header, watch?.BadLines ?? 0);
     }
 }

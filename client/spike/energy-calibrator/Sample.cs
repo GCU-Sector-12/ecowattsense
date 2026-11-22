@@ -139,7 +139,7 @@ internal sealed class Sample
     public DateTime Time { get; } = DateTime.Now;
 
     /// <summary>Monotonic seconds when the reading started; all timing in the analysis uses this value.</summary>
-    public double MonotonicSeconds { get; } = ProcessClock.Seconds;
+    public double MonotonicSeconds { get; init; } = ProcessClock.Seconds;
 
     /// <summary>Number of the phase this sample belongs to (1 to 7), or 0 when no phase was running.</summary>
     public int PhaseNumber { get; set; }
@@ -155,6 +155,9 @@ internal sealed class Sample
     /// It feeds the per-phase energy sum and is not a column of samples.csv.
     /// </summary>
     public double? EmiPackageDeltaPwh { get; set; }
+
+    /// <summary>The latest line of the energy stream that was fresh when this sample was taken; null when there was none (no stream, a stalled or ended stream).</summary>
+    public WatchSample? Watch { get; set; }
 
     /// <summary>Every value that could be read, by key. A missing key means "unknown".</summary>
     public Dictionary<string, double> Values { get; } = new();

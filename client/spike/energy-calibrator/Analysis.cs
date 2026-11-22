@@ -77,6 +77,9 @@ internal sealed class PhaseResult
     /// <summary>Share of the used samples (0 to 1) whose display state was "off"; samples with an unknown state are left out. Null when none is known.</summary>
     public double? DisplayOffShare { get; init; }
 
+    /// <summary>The numbers of the energy stream in this phase; null when the calibrator read the "Energy Meter" counter set.</summary>
+    public StreamPhase? Stream { get; init; }
+
     /// <summary>Warnings about this phase, joined with semicolons; empty when there are none.</summary>
     public string Warning { get; set; } = "";
 
@@ -122,6 +125,7 @@ internal static class PhaseAnalyser
         List<Sample> used = outcome.Samples
             .Where(sample => sample.PhaseNumber == phase.Number && sample.SecondsIntoPhase >= TestSettings.SettleSeconds)
             .ToList();
+        StreamPhase? stream = outcome.Stream == null ? null : StreamPhase.Measure(used, outcome.Stream);
         DropMeasurement ioctl = MeasureDrop(used, SampleKeys.BatteryMwh);
         DropMeasurement wmi = MeasureDrop(used, SampleKeys.WmiMwh);
         PhaseResult result = new()
@@ -137,11 +141,12 @@ internal static class PhaseAnalyser
             MeanCpuPercent = Mean(used, SampleKeys.CpuUtil),
             MeanCpuPerformance = Mean(used, SampleKeys.CpuPerformance),
             MeanCpuPackageWatts = Mean(used, SampleKeys.DttPackageWatts),
-            MeanEmiPackageWatts = Mean(used, SampleKeys.EmiPackageWatts),
-            MeanEmiCoresWatts = Mean(used, SampleKeys.EmiCoresWatts),
-            MeanEmiGpuWatts = Mean(used, SampleKeys.EmiGpuWatts),
-            MeanEmiDramWatts = Mean(used, SampleKeys.EmiDramWatts),
-            EmiPackageMwh = PackageMwh(used),
+            MeanEmiPackageWatts = stream != null ? stream.KindWatts(WatchKinds.Package) : Mean(used, SampleKeys.EmiPackageWatts),
+            MeanEmiCoresWatts = stream != null ? stream.KindWatts(WatchKinds.Cores) : Mean(used, SampleKeys.EmiCoresWatts),
+            MeanEmiGpuWatts = stream != null ? stream.KindWatts(WatchKinds.Igpu) : Mean(used, SampleKeys.EmiGpuWatts),
+            MeanEmiDramWatts = stream != null ? stream.KindWatts(WatchKinds.Dram) : Mean(used, SampleKeys.EmiDramWatts),
+            EmiPackageMwh = stream != null ? stream.PackageMwh : PackageMwh(used),
+            Stream = stream,
             MeanGpuPercent = Mean(used, SampleKeys.Gpu3D),
             MeanBrightness = Mean(used, SampleKeys.Brightness),
             MeanZoneTempC = Mean(used, SampleKeys.ThermalMax),
@@ -217,6 +222,7 @@ internal static class PhaseWarnings
         AddText(warnings, BrightnessWarning(result));
         AddText(warnings, LoadWarning(result));
         AddText(warnings, BoostWarning(result));
+        AddText(warnings, StreamWarning(result));
         return string.Join("; ", warnings);
     }
 
@@ -284,6 +290,15 @@ internal static class PhaseWarnings
         return $"the processor did not boost (mean processor performance {performance:0}%); power settings or the laptop maker's power limits held it back";
     }
 
+    /// <summary>Warns when the energy stream gave no usable energy value in a phase that ran (the program stopped, stalled or sent bad lines).</summary>
+    /// <param name="r">The result.</param>
+    /// <returns>A warning or an empty string.</returns>
+    private static string StreamWarning(PhaseResult r)
+    {
+        if (r.Status == PhaseStatus.NotRun || r.Stream == null || !r.Stream.NoEnergyData()) { return ""; }
+        return "the energy stream gave no usable data in this phase, so the processor power is unknown";
+    }
+
     /// <summary>Shows a percentage for a warning text.</summary>
     /// <param name="value">The value, or null.</param>
     /// <returns>For example "63%", or "unknown".</returns>
@@ -314,6 +329,18 @@ internal sealed class PowerModel
     /// <summary>The Energy Meter kinds read during the test, named as the service reads them ("cpu_package", "dram"). Empty when none.</summary>
     public IReadOnlyList<string> MeasuredParts { get; init; } = [];
 
+    /// <summary>Extra power for each percent of 3D use, from the Graphics phase against the reference phase, after the processor part is taken away. 0 when it cannot be trusted.</summary>
+    public double GpuWattsPerPercent { get; init; }
+
+    /// <summary>The same for the rest power (battery power minus the measured parts). 0 when no part is measured or the value cannot be trusted.</summary>
+    public double RestWattsPerGpuPercent { get; init; }
+
+    /// <summary>What the laptop was like during the test (from the stream header).</summary>
+    public RunConditions Conditions { get; init; } = RunConditions.CounterSet;
+
+    /// <summary>Warning words of the model (measured_above_battery, graphics_span_too_small, ...).</summary>
+    public IReadOnlyList<string> WarningWords { get; init; } = [];
+
     /// <summary>Rest power with the display off: battery power minus the measured parts. 0 when no part was measured; null when it cannot be worked out.</summary>
     public double? RestWatts { get; init; }
 
@@ -325,29 +352,55 @@ internal sealed class PowerModel
 
     /// <summary>Works out the model from the phase results.</summary>
     /// <param name="results">One result per phase, in phase order.</param>
+    /// <param name="stream">The header of the energy stream of the run, or null when the calibrator read the "Energy Meter" counter set (the model then carries the warning emi_stream_unavailable).</param>
     /// <returns>The model. Parts that need a missing or invalid phase are null.</returns>
-    public static PowerModel Build(IReadOnlyList<PhaseResult> results)
+    public static PowerModel Build(IReadOnlyList<PhaseResult> results, WatchHeader? stream = null)
     {
         double? screenOff = Power(results, PhaseCatalogue.ScreenOff);
         double? screenLow = Power(results, PhaseCatalogue.ScreenLow);
         double? screenHigh = Power(results, PhaseCatalogue.ScreenHigh);
         double? reference = Power(results, PhaseCatalogue.ScreenReference);
-        IReadOnlyList<string> parts = RestPower.MeasuredParts(results);
+        IReadOnlyList<string> known = RestPower.MeasuredParts(results);
+        bool above = RestPower.AboveBattery(results, known);
+        IReadOnlyList<string> parts = above ? [] : known;
         bool measured = parts.Count > 0;
         double? cpuSpan = CpuSpan(results, PhaseCatalogue.CpuFull);
-        double? restGrowth = RestPower.PerCpuPercent(results[PhaseCatalogue.CpuFull], results[PhaseCatalogue.ScreenReference], cpuSpan, parts);
+        double? cpuPerPercent = PerPercent(Power(results, PhaseCatalogue.CpuFull), reference, cpuSpan);
+        double restGrowth = measured ? RestPower.PerCpuPercent(results[PhaseCatalogue.CpuFull], results[PhaseCatalogue.ScreenReference], cpuSpan, parts) ?? 0 : 0;
+        GraphicsTerms graphics = GraphicsModel.Compute(results, cpuPerPercent, restGrowth, parts);
+        RunConditions conditions = RunConditions.From(stream);
         return new PowerModel
         {
             MeasuredParts = parts,
             RestWatts = measured ? RestPower.Rest(results[PhaseCatalogue.ScreenOff], parts) : 0,
-            RestWattsPerPercent = measured ? restGrowth ?? 0 : 0,
+            RestWattsPerPercent = restGrowth,
             BaseWatts = screenOff,
             ScreenWattsPerPercent = Subtract(screenHigh, screenLow) / 100.0,
             ScreenWattsAt50 = Subtract(reference, screenOff),
-            CpuWattsPerPercent = PerPercent(Power(results, PhaseCatalogue.CpuFull), reference, CpuSpan(results, PhaseCatalogue.CpuFull)),
+            CpuWattsPerPercent = cpuPerPercent,
             CpuWattsPerPercentFromHalf = PerPercent(Power(results, PhaseCatalogue.CpuHalf), reference, CpuSpan(results, PhaseCatalogue.CpuHalf)),
-            GraphicsWatts = Subtract(Power(results, PhaseCatalogue.Graphics), reference)
+            GraphicsWatts = Subtract(Power(results, PhaseCatalogue.Graphics), reference),
+            GpuWattsPerPercent = graphics.GpuWattsPerPercent,
+            RestWattsPerGpuPercent = graphics.RestWattsPerGpuPercent,
+            Conditions = conditions,
+            WarningWords = Words(stream, above, graphics, conditions)
         };
+    }
+
+    /// <summary>Collects the warning words of the model.</summary>
+    /// <param name="stream">The stream header, or null.</param>
+    /// <param name="above">True when the measured parts were above the battery power.</param>
+    /// <param name="graphics">The graphics numbers.</param>
+    /// <param name="conditions">The conditions of the run.</param>
+    /// <returns>The words, each once.</returns>
+    private static List<string> Words(WatchHeader? stream, bool above, GraphicsTerms graphics, RunConditions conditions)
+    {
+        List<string> words = new();
+        if (stream == null) { words.Add("emi_stream_unavailable"); }
+        if (above) { words.Add("measured_above_battery"); }
+        words.AddRange(graphics.Warnings);
+        words.AddRange(conditions.Warnings);
+        return words;
     }
 
     /// <summary>Gives the lines that describe the model in plain English, for the window and for summary.txt.</summary>
@@ -363,7 +416,9 @@ internal sealed class PowerModel
             $"CPU, from the CPU 50% phase: {Fmt.WithUnit(CpuWattsPerPercentFromHalf, "0.0000", "W")} for each 1% (close to the line above means the CPU power is linear)",
             $"Graphics: {Fmt.WithUnit(GraphicsWatts, "0.00", "W")} more than the reference phase at the same brightness",
             $"Rest (display off, battery power minus the measured parts [{string.Join(", ", MeasuredParts)}]): {Fmt.WithUnit(RestWatts, "0.00", "W")}",
-            $"Rest growth: {Fmt.WithUnit(RestWattsPerPercent, "0.0000", "W")} for each 1% of CPU use (CPU 100% phase against the reference phase)"
+            $"Rest growth: {Fmt.WithUnit(RestWattsPerPercent, "0.0000", "W")} for each 1% of CPU use (CPU 100% phase against the reference phase)",
+            $"Graphics: {Fmt.WithUnit(GpuWattsPerPercent, "0.0000", "W")} for each 1% of 3D use (Graphics phase against the reference phase, processor part taken away; 0 when it cannot be trusted)",
+            $"Graphics, rest part: {Fmt.WithUnit(RestWattsPerGpuPercent, "0.0000", "W")} for each 1% of 3D use (battery power minus the measured parts)"
         ];
     }
 
@@ -410,7 +465,7 @@ internal sealed class PowerModel
     /// <returns>One line per missing value.</returns>
     private List<string> BuildWarnings()
     {
-        List<string> warnings = new();
+        List<string> warnings = new(WarningWords);
         AddMissing(warnings, BaseWatts, "Base power needs phase 7 (Screen off) to be complete with a battery reading.");
         AddMissing(warnings, ScreenWattsPerPercent, "Screen power per percent needs phases 1 and 2 to be complete.");
         AddMissing(warnings, ScreenWattsAt50, "Screen power at 50% needs phases 3 and 7 to be complete.");

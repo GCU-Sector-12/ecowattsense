@@ -16,6 +16,11 @@ internal sealed class SampleCollector
     private readonly CounterReaders counters = new();
     private readonly BrightnessControl brightness = new();
     private readonly EnergyMeterReader energyMeter = new();
+    private WatchClient? watch;
+
+    /// <summary>Switches the energy values to the stream of "ews-scan.exe --watch", or back to the "Energy Meter" counter set. It can be called from any thread.</summary>
+    /// <param name="client">The stream client, or null for the counter set.</param>
+    public void UseWatch(WatchClient? client) => Volatile.Write(ref watch, client);
 
     /// <summary>Takes one sample of all sources. Call it from one thread at a time.</summary>
     /// <returns>The sample, with unknown values missing and failed sources listed.</returns>
@@ -35,9 +40,21 @@ internal sealed class SampleCollector
         Guard(SampleKeys.SourceDisk, counters.ReadDisk, sample);
         Guard(SampleKeys.SourceNetwork, counters.ReadNetwork, sample);
         Guard(SampleKeys.SourceBrightness, brightness.Read, sample);
-        Guard(SampleKeys.SourceEnergyMeter, energyMeter.Read, sample);
+        ReadEnergy(sample);
         Guard(SampleKeys.SourcePowerSettings, PowerSettingsReader.Read, sample);
         return sample;
+    }
+
+    /// <summary>
+    /// Reads the energy values: from the stream when there is one (the counter set is then not read), else from the "Energy Meter" counter set.
+    /// A sample takes the latest fresh stream line; a stalled or ended stream gives none, which means "unknown".
+    /// </summary>
+    /// <param name="sample">The sample to fill.</param>
+    private void ReadEnergy(Sample sample)
+    {
+        WatchClient? client = Volatile.Read(ref watch);
+        if (client == null) { Guard(SampleKeys.SourceEnergyMeter, energyMeter.Read, sample); return; }
+        sample.Watch = client.Latest(sample.MonotonicSeconds);
     }
 
     /// <summary>Runs one reader and turns any exception into an "unavailable" mark.</summary>
@@ -59,6 +76,10 @@ internal sealed class SamplingLoop
 
     /// <summary>Raised on the UI thread for every new sample. Handlers must not throw.</summary>
     public event EventHandler<Sample>? SampleReady;
+
+    /// <summary>Switches the energy values to a stream or back to the counter set. The next sample uses it.</summary>
+    /// <param name="client">The stream client, or null for the counter set.</param>
+    public void UseWatch(WatchClient? client) => collector.UseWatch(client);
 
     /// <summary>Starts the loop. Call it on the UI thread. The first sample is taken at once.</summary>
     public void Start()

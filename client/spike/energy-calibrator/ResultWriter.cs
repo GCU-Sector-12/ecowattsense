@@ -1,4 +1,4 @@
-// ResultWriter.cs: writes the four result files of a run: samples.csv, phases.csv, model.json and summary.txt.
+// ResultWriter.cs: writes the result files of a run: samples.csv, phases.csv, model.json, summary.txt, and channels.csv when the energy stream was read.
 // Who uses it: MainWindow, once, when a run ends (also when it was stopped, so no measurement is lost).
 // Privacy: the files hold the maker, model and processor name only. No computer name, user name, serial number or device id.
 // Numbers are written with the invariant culture (a dot as the decimal mark), so any program can read them.
@@ -51,6 +51,7 @@ internal static class ResultWriter
         if (writeSamples) { File.WriteAllText(Path.Combine(folder, "samples.csv"), SamplesCsv.Build(report.Outcome.Samples), Utf8); }
         File.WriteAllText(Path.Combine(folder, "phases.csv"), PhasesCsv.Build(report.Results), Utf8);
         File.WriteAllText(Path.Combine(folder, "model.json"), ModelJson.Build(report), Utf8);
+        if (report.Outcome.Stream != null) { File.WriteAllText(Path.Combine(folder, "channels.csv"), ChannelsCsv.Build(report.Outcome.Stream, report.Results), Utf8); }
         File.WriteAllText(Path.Combine(folder, "summary.txt"), SummaryText.Build(report), Utf8);
     }
 }
@@ -62,6 +63,11 @@ internal static class Csv
     /// <param name="value">The number, or null.</param>
     /// <returns>The shortest text that reads back to the same number.</returns>
     public static string Num(double? value) => value.HasValue ? value.Value.ToString("R", CultureInfo.InvariantCulture) : "";
+
+    /// <summary>Gives a text as a CSV field: in quotes only when it holds a comma, a quote or a line break.</summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The field text.</returns>
+    public static string Field(string text) => text.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? Quote(text) : text;
 
     /// <summary>Puts a text in quotes and doubles any quote inside it.</summary>
     /// <param name="text">The text.</param>
@@ -181,6 +187,53 @@ internal static class PhasesCsv
     }
 }
 
+/// <summary>Builds channels.csv: every channel of the stream header with its kind and its power in each phase.</summary>
+internal static class ChannelsCsv
+{
+    /// <summary>Builds the file text. Energy channels and NVML devices are in watts, adapters in percent. An unknown value is an empty field.</summary>
+    /// <param name="header">The stream header.</param>
+    /// <param name="results">One result per phase.</param>
+    /// <returns>The CSV text with a header row.</returns>
+    public static string Build(WatchHeader header, IReadOnlyList<PhaseResult> results)
+    {
+        List<string> rows = new() { "source,name,kind," + string.Join(",", Enumerable.Range(1, PhaseCatalogue.All.Count).Select(number => $"phase_{number}")) };
+        rows.AddRange(header.Emi.Select((channel, i) => Row("emi", channel.Name, channel.Kind, results, stream => Entry(stream.ChannelWatts, i))));
+        rows.AddRange(header.Nvml.Select((device, i) => Row("nvml", device.Name, "", results, stream => Entry(stream.NvmlWatts, i))));
+        rows.AddRange(header.GpuUse.Select((adapter, i) => Row("gpu_use", $"adapter {adapter.Adapter}", adapter.Role, results, stream => Entry(stream.GpuUsePercent, i))));
+        return string.Join(Environment.NewLine, rows) + Environment.NewLine;
+    }
+
+    /// <summary>Builds one row: the source, the name, the kind and one field for each phase.</summary>
+    /// <param name="source">The source word (emi, nvml or gpu_use).</param>
+    /// <param name="name">The channel name.</param>
+    /// <param name="kind">The kind or role.</param>
+    /// <param name="results">One result per phase.</param>
+    /// <param name="pick">Takes the value of this row from the stream numbers of a phase.</param>
+    /// <returns>The row text.</returns>
+    private static string Row(string source, string name, string kind, IReadOnlyList<PhaseResult> results, Func<StreamPhase, double?> pick)
+    {
+        IEnumerable<string> fields = Enumerable.Range(0, PhaseCatalogue.All.Count).Select(index => Csv.Num(Value(results, index, pick)));
+        return string.Join(",", new[] { source, Csv.Field(name), Csv.Field(kind) }.Concat(fields));
+    }
+
+    /// <summary>Takes the value of a row in one phase.</summary>
+    /// <param name="results">One result per phase.</param>
+    /// <param name="index">Index of the phase.</param>
+    /// <param name="pick">Takes the value from the stream numbers.</param>
+    /// <returns>The value, or null when the phase has no result or no stream numbers.</returns>
+    private static double? Value(IReadOnlyList<PhaseResult> results, int index, Func<StreamPhase, double?> pick)
+    {
+        StreamPhase? stream = index < results.Count ? results[index].Stream : null;
+        return stream == null ? null : pick(stream);
+    }
+
+    /// <summary>Takes one entry of a list that may be too short.</summary>
+    /// <param name="list">The list.</param>
+    /// <param name="index">The position.</param>
+    /// <returns>The entry, or null.</returns>
+    private static double? Entry(IReadOnlyList<double?> list, int index) => index < list.Count ? list[index] : null;
+}
+
 /// <summary>Builds model.json.</summary>
 internal static class ModelJson
 {
@@ -216,8 +269,11 @@ internal static class ModelJson
                 screen_w_at_50 = m.ScreenWattsAt50,
                 cpu_w_per_pct = m.CpuWattsPerPercent,
                 cpu_w_per_pct_from_cpu50 = m.CpuWattsPerPercentFromHalf,
-                graphics_w = m.GraphicsWatts
+                graphics_w = m.GraphicsWatts,
+                gpu_w_per_pct = m.GpuWattsPerPercent,
+                rest_w_per_gpu_pct = m.RestWattsPerGpuPercent
             },
+            conditions = m.Conditions.Values,
             power_settings = report.Power.ToDocument(),
             phase_power_w = report.Results.ToDictionary(r => r.Phase.Name, r => r.BatteryWatts),
             cpu_share_by_phase = report.Results.ToDictionary(r => r.Phase.Name, r => r.CpuShare),
@@ -238,6 +294,7 @@ internal static class SummaryText
         List<string> lines = new();
         AddHeader(lines, report);
         AddMethod(lines);
+        AddEnergySource(lines, report.Outcome);
         AddPowerSettings(lines, report.Power);
         AddPhases(lines, report.Results);
         AddProcessorEnergy(lines, report.Results);
@@ -269,6 +326,18 @@ internal static class SummaryText
         lines.Add($"Each phase ran for {TestSettings.PhaseSeconds} seconds. The first {TestSettings.SettleSeconds} seconds were ignored while the laptop settled.");
         lines.Add("The power of a phase is the fall of the battery charge divided by the time: watts = mWh x 3.6 / seconds.");
         lines.Add("It is the power of the whole laptop. The model below is made by subtracting the powers of the phases.");
+        lines.Add("");
+    }
+
+    /// <summary>Says where the energy values came from, and how many stream lines were skipped as bad.</summary>
+    /// <param name="lines">The text lines.</param>
+    /// <param name="outcome">What the run produced.</param>
+    private static void AddEnergySource(List<string> lines, TestOutcome outcome)
+    {
+        lines.Add("Energy values");
+        lines.Add(outcome.Stream == null
+            ? "Source: the Windows Energy Meter counter set (the energy stream of ews-scan.exe was not available)."
+            : $"Source: the energy stream of ews-scan.exe ({outcome.Stream.Emi.Count} channels; {outcome.StreamBadLines} bad lines skipped). Channel powers are in channels.csv.");
         lines.Add("");
     }
 

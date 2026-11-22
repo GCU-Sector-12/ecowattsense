@@ -2,7 +2,8 @@
 // Energy Meter parts (processor package, memory) do not explain.
 // Who uses it: PowerModel.Build in Analysis.cs, and through it the model file that ServiceModel.cs writes.
 // How it works: rest power of a phase = battery power minus every measured part of that phase. A measured part is an
-// Energy Meter kind that gave a value in the test. With no measured part the rest is not used (the service then serves level L3 only).
+// Energy Meter kind that is known in the phases 3, 5 and 7. When the parts add up to more than the battery power in one of those
+// phases they are not believed (AboveBattery). With no measured part the rest is not used (the service then serves level L3 only).
 namespace EnergyCalibrator;
 
 /// <summary>Works out the rest power of the phases.</summary>
@@ -14,15 +15,57 @@ internal static class RestPower
     /// <summary>Name of the memory part, as the service reads it (SPEC 3.3).</summary>
     public const string DramPart = "dram";
 
-    /// <summary>Lists the Energy Meter kinds that gave a value in at least one phase.</summary>
+    private const double SumTolerance = 1e-9;
+
+    /// <summary>Lists the Energy Meter kinds that are known in the phases 3, 5 and 7 (the three phases the rest power is worked out from).</summary>
     /// <param name="results">One result per phase.</param>
-    /// <returns>The part names in a fixed order (package, then memory); empty when the Energy Meter gave nothing.</returns>
+    /// <returns>The part names in a fixed order (package, then memory); empty when no kind is known in all three phases.</returns>
     public static IReadOnlyList<string> MeasuredParts(IReadOnlyList<PhaseResult> results)
     {
+        List<PhaseResult> phases = RestPhases(results);
         List<string> parts = new();
-        if (results.Any(r => r.MeanEmiPackageWatts.HasValue)) { parts.Add(PackagePart); }
-        if (results.Any(r => r.MeanEmiDramWatts.HasValue)) { parts.Add(DramPart); }
+        if (phases.All(r => r.MeanEmiPackageWatts.HasValue)) { parts.Add(PackagePart); }
+        if (phases.All(r => r.MeanEmiDramWatts.HasValue)) { parts.Add(DramPart); }
         return parts;
+    }
+
+    /// <summary>Tells whether the measured parts add up to more than the battery power in one of the phases 3, 5 or 7.</summary>
+    /// <param name="results">One result per phase.</param>
+    /// <param name="parts">The measured parts.</param>
+    /// <returns>True when the parts are not believable (a model of the processor can read above the real discharge, as on some AMD laptops).</returns>
+    public static bool AboveBattery(IReadOnlyList<PhaseResult> results, IReadOnlyList<string> parts)
+    {
+        return RestPhases(results).Any(r => PartsAboveBattery(r, parts));
+    }
+
+    /// <summary>Gives the phases the rest power is worked out from: the reference phase (3), CPU 100% (5) and screen off (7).</summary>
+    /// <param name="results">One result per phase.</param>
+    /// <returns>The three phases.</returns>
+    private static List<PhaseResult> RestPhases(IReadOnlyList<PhaseResult> results)
+    {
+        return [results[PhaseCatalogue.ScreenReference], results[PhaseCatalogue.CpuFull], results[PhaseCatalogue.ScreenOff]];
+    }
+
+    /// <summary>Tells whether the measured parts of one phase are above its battery power.</summary>
+    /// <param name="result">The phase.</param>
+    /// <param name="parts">The measured parts.</param>
+    /// <returns>True when their sum is above the battery power. False when there is no part or no battery power.</returns>
+    private static bool PartsAboveBattery(PhaseResult result, IReadOnlyList<string> parts)
+    {
+        if (parts.Count == 0 || result.BatteryWatts is not double battery) { return false; }
+        double sum = PartWatts(result, parts, PackagePart, result.MeanEmiPackageWatts) + PartWatts(result, parts, DramPart, result.MeanEmiDramWatts);
+        return sum > battery + SumTolerance;
+    }
+
+    /// <summary>Gives the power of one part when it is measured.</summary>
+    /// <param name="result">The phase.</param>
+    /// <param name="parts">The measured parts.</param>
+    /// <param name="part">The part.</param>
+    /// <param name="watts">Its power in the phase.</param>
+    /// <returns>The power, or 0 when the part is not measured.</returns>
+    private static double PartWatts(PhaseResult result, IReadOnlyList<string> parts, string part, double? watts)
+    {
+        return parts.Contains(part) ? watts.GetValueOrDefault() : 0;
     }
 
     /// <summary>Works out the rest power of one phase.</summary>

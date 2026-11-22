@@ -1,4 +1,4 @@
-// Program.cs: console tests of the calibrator model (schema 2 file for the service).
+// Program.cs: console tests of the calibrator model (schema 3 file for the service). The new groups are in the other *Checks.cs files.
 // Who uses it: tests\Test-Calibrator.ps1. Exit code = number of failed checks (0 = all passed).
 // What it checks: the analysis of the real run of 12 Nov 2026, the rest power, the exact fields of the file, the backup file,
 // the exit codes (written, stopped, aborted, not writable), a run without Energy Meter data, and the --data-dir argument.
@@ -32,6 +32,13 @@ internal static class Program
         CheckLimitsAndExitCodes(results, Path.Combine(temp, "d"));
         CheckCommandLine();
         RemoveFolder(temp);
+        MeasuredChecks.Run();
+        StreamChecks.Run();
+        StreamPhaseChecks.Run();
+        ClientChecks.Run();
+        ModelChecks.Run();
+        EndToEndChecks.Run();
+        failures += Harness.Failed;
         Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
         return failures;
     }
@@ -87,19 +94,19 @@ internal static class Program
         Check(model.RestWattsPerPercent is > 0 and <= ModelLimits.MaxWattsPerPercent, "rest_w_per_cpu_pct is above 0 and inside the limit");
     }
 
-    /// <summary>The written JSON has exactly the schema 2 fields and a UTC time in whole seconds.</summary>
+    /// <summary>The written JSON has exactly the schema 3 fields and a UTC time in whole seconds.</summary>
     /// <param name="results">The phase results.</param>
     private static void CheckJson(IReadOnlyList<PhaseResult> results)
     {
         using JsonDocument doc = JsonDocument.Parse(ServiceModel.BuildJson(Report(results, AbortReason.None), FixedTime));
         JsonElement root = doc.RootElement;
-        string[] top = ["schema", "generated_utc", "machine", "measured_parts", "model", "phase_power_w", "cpu_share_by_phase", "warnings"];
-        string[] model = ["base_w", "rest_w", "rest_w_per_cpu_pct", "cpu_w_per_pct", "screen_w_at_50", "screen_w_per_pct", "graphics_w"];
+        string[] top = ["schema", "generated_utc", "machine", "measured_parts", "model", "conditions", "phase_power_w", "phase_nvml_w", "phase_gpu_use_pct", "cpu_share_by_phase", "warnings"];
+        string[] model = ["base_w", "rest_w", "rest_w_per_cpu_pct", "cpu_w_per_pct", "screen_w_at_50", "screen_w_per_pct", "graphics_w", "gpu_w_per_pct", "rest_w_per_gpu_pct"];
         string[] machine = ["maker", "model", "cpu", "logical_processors", "windows"];
-        Check(Names(root).SequenceEqual(top), "top-level fields are exactly the schema 2 fields");
-        Check(Names(root.GetProperty("model")).SequenceEqual(model), "model fields are exactly the seven numbers");
+        Check(Names(root).SequenceEqual(top), "top-level fields are exactly the schema 3 fields");
+        Check(Names(root.GetProperty("model")).SequenceEqual(model), "model fields are exactly the nine numbers");
         Check(Names(root.GetProperty("machine")).SequenceEqual(machine), "machine fields are as before");
-        Check(root.GetProperty("schema").GetInt32() == 2, "schema is 2");
+        Check(root.GetProperty("schema").GetInt32() == 3, "schema is 3");
         Check(root.GetProperty("generated_utc").GetString() == "2026-11-14T10:30:05Z", "generated_utc is UTC, whole seconds, with Z");
         Check(Regex.IsMatch(root.GetProperty("generated_utc").GetString() ?? "", @"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$"), "generated_utc matches the pattern of the service");
     }

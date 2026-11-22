@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <!-- Only files without WPF and without Windows calls. A new file of that kind is added here. -->
-    <Compile Include="..\..\Analysis.cs;..\..\RestModel.cs;..\..\ServiceModel.cs;..\..\ResultWriter.cs;..\..\Sample.cs;..\..\PhaseModels.cs;..\..\TestSettings.cs;..\..\Fmt.cs;..\..\DisplayStateKind.cs;..\..\TestOutcome.cs;..\..\MachineInfo.cs;..\..\PowerRunRecord.cs;..\..\PowerSettingsApi.cs" Link="calibrator\%(Filename)%(Extension)" />
+    <Compile Include="..\..\Analysis.cs;..\..\RestModel.cs;..\..\ServiceModel.cs;..\..\ResultWriter.cs;..\..\Sample.cs;..\..\PhaseModels.cs;..\..\TestSettings.cs;..\..\Fmt.cs;..\..\DisplayStateKind.cs;..\..\TestOutcome.cs;..\..\WatchTypes.cs;..\..\WatchParser.cs;..\..\WatchLines.cs;..\..\WatchSession.cs;..\..\WatchClient.cs;..\..\StreamPhase.cs;..\..\GraphicsModel.cs;..\..\RunConditions.cs;..\..\MachineInfo.cs;..\..\PowerRunRecord.cs;..\..\PowerSettingsApi.cs" Link="calibrator\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

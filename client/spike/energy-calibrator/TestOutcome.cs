@@ -44,6 +44,8 @@ internal sealed class PhaseEventArgs(int index, PhaseStatus status) : EventArgs
 /// <param name="Reason">Why the run stopped early, or None.</param>
 /// <param name="ReasonText">The reason as a sentence.</param>
 /// <param name="RestoreProblems">Things that could not be put back at the end.</param>
+/// <param name="Stream">The header of the energy stream of this run, or null when the calibrator read the "Energy Meter" counter set instead.</param>
+/// <param name="StreamBadLines">How many lines of the stream were skipped as bad.</param>
 internal sealed record TestOutcome(
     DateTime StartedAt,
     IReadOnlyList<Sample> Samples,
@@ -51,4 +53,6 @@ internal sealed record TestOutcome(
     IReadOnlyList<string> Notes,
     AbortReason Reason,
     string ReasonText,
-    IReadOnlyList<string> RestoreProblems);
+    IReadOnlyList<string> RestoreProblems,
+    WatchHeader? Stream = null,
+    int StreamBadLines = 0);

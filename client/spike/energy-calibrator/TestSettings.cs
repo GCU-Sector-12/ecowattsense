@@ -77,4 +77,16 @@ internal static class TestSettings
 
     /// <summary>Seconds after the first command at which the display counts as "stayed on" when it still has not reported "off".</summary>
     public const double DisplayGiveUpSeconds = 10;
+
+    /// <summary>The graphics numbers of the model need the 3D use of the Graphics phase to be at least this many points above the reference phase.</summary>
+    public const double MinimumGpuSpanPoints = 5;
+
+    /// <summary>The graphics numbers are refused when an NVML device drew more than this many watts more in the Graphics phase than in the reference phase.</summary>
+    public const double DiscreteGpuWattsLimit = 1;
+
+    /// <summary>The period of the energy stream that the calibrator asks for, in milliseconds.</summary>
+    public const int WatchPeriodMs = 2000;
+
+    /// <summary>The program that gives the energy stream. It is looked for in the folder of the calibrator.</summary>
+    public const string ScannerFileName = "ews-scan.exe";
 }
