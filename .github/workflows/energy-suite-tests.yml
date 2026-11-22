@@ -1,0 +1,100 @@
+# Energy suite tests: builds the Windows energy suite and runs every test on Windows.
+#
+# What it does:
+#   Job "native": builds the C++ solution with MSVC (warnings are errors), runs
+#   ews-core-tests.exe and the nesting check (scripts/Test-Native.ps1).
+#   Job "managed": runs the Setup tests, the calibrator tests, the Developer page
+#   tests and the client integration tests, and builds the calibrator and the
+#   tray client.
+#
+# When it runs:
+#   On every push to the branch EWS-energy-suite or a branch that starts with
+#   EWS-energy-suite-, when files of the suite changed. Also by hand
+#   (Actions, "Energy suite tests", Run workflow).
+#
+# It makes no release, signs nothing and uses no secret. Every step of the
+# job "managed" runs even when an earlier one failed, so one run shows all results.
+
+name: Energy suite tests
+
+on:
+  push:
+    branches:
+      - 'EWS-energy-suite'
+      - 'EWS-energy-suite-*'
+    paths:
+      - 'client/spike/**'
+      - 'client/windows/**'
+      - '.github/workflows/energy-suite-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: energy-suite-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native build, tests and nesting check
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the native solution, run its tests and the nesting check
+        run: |
+          pwsh -NoProfile -File client/spike/energy-suite/scripts/Test-Native.ps1
+          exit $LASTEXITCODE
+
+  managed:
+    name: Setup, calibrator and client tests
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup tests
+        if: ${{ !cancelled() }}
+        run: |
+          pwsh -NoProfile -File client/spike/energy-suite/scripts/Test-Setup.ps1
+          exit $LASTEXITCODE
+
+      - name: Calibrator tests
+        if: ${{ !cancelled() }}
+        run: |
+          pwsh -NoProfile -File client/spike/energy-calibrator/tests/Test-Calibrator.ps1
+          exit $LASTEXITCODE
+
+      - name: Developer page tests
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet run --project client/windows/tests/DeveloperPage
+          exit $LASTEXITCODE
+
+      - name: Client integration tests
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet run --project client/windows/tests/MonitoringIntegration -c Release
+          exit $LASTEXITCODE
+
+      - name: Build the calibrator
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet build client/spike/energy-calibrator/EnergyCalibrator.csproj -c Release --nologo -v:minimal
+          exit $LASTEXITCODE
+
+      - name: Build the tray client
+        if: ${{ !cancelled() }}
+        run: |
+          dotnet build client/windows/EcoWattSense.Client.Gui/EcoWattSense.Client.Gui.csproj -c Release --nologo -v:minimal
+          exit $LASTEXITCODE
