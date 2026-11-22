@@ -40,6 +40,7 @@ public partial class MainWindow
         pipeReporter.Start();
         StartHistory();
         StartSettings();
+        StartDeveloper();
         StartCalibrate();
         IsVisibleChanged += OnViewerVisibleChanged;
         Closed += OnViewerClosed;
@@ -161,6 +162,7 @@ public partial class MainWindow
     private void OnViewerClosed(object? sender, EventArgs e)
     {
         StopCalibrate();
+        StopDeveloper();
         pipeReporter?.Dispose();
         statusWatcher?.Dispose();
         historyWatcher?.Dispose();
