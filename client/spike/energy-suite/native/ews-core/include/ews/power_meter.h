@@ -5,15 +5,13 @@
 #include <string>
 #include <vector>
 
+#include "ews/pdh_instance.h"
 #include "ews/reading.h"
 
 namespace ews {
 
-/// One instance of the counter set.
-struct PowerMeterInstance {
-    std::string name;    ///< Instance name, UTF-8.
-    double value = 0.0;  ///< The counter value as PDH gives it. The unit is the counter's own; it is not converted here.
-};
+/// One instance of the counter set (the same shape as every PDH instance).
+using PowerMeterInstance = PdhInstance;
 
 /// A source of power meter readings. Tests use a fake.
 class IPowerMeterSource {
