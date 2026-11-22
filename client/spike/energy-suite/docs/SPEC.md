@@ -366,11 +366,12 @@ The service also writes the settings it uses, because the client cannot read `co
 
 ## 8. Calibration model
 
-`<data>\calibration\model.json`, written by the calibrator. The file of today's calibrator (no `schema` field) is version 1 and is not read by the service.
+`<data>\calibration\model.json`, written by the calibrator. The file of the first calibrator (no `schema` field) is version 1 and is not read by the service.
+Schema 2 is the file without the graphics numbers and the conditions. The calibrator writes schema 3 now. The service of today reads schema 2 only; reading schema 3 is piece N2, so until then it treats a schema 3 file as no model.
 
 ```json
 {
-  "schema": 2,
+  "schema": 3,
   "generated_utc": "2026-11-12T17:08:31Z",
   "machine": { "maker": "HP", "model": "HP 250 G7 Notebook PC", "cpu": "...", "logical_processors": 8, "windows": "10.0.26300.0" },
   "measured_parts": ["cpu_package", "dram"],
@@ -381,22 +382,35 @@ The service also writes the settings it uses, because the client cannot read `co
     "cpu_w_per_pct": 0.075,
     "screen_w_at_50": 1.40,
     "screen_w_per_pct": 0.0104,
-    "graphics_w": 2.44
+    "graphics_w": 2.44,
+    "gpu_w_per_pct": 0.04,
+    "rest_w_per_gpu_pct": 0.03
   },
+  "conditions": { "cpu_vendor": "AuthenticAMD", "cpu_family": 25, "cpu_model": 80, "physical_cores": 8,
+                  "battery_design_mwh": 50000, "battery_full_mwh": 45000, "battery_cycle_count": 120,
+                  "displays": 1, "external_displays": 0, "refresh_hz": 60, "emi_source": "stream" },
   "phase_power_w": { },
+  "phase_nvml_w": { },
+  "phase_gpu_use_pct": { },
   "cpu_share_by_phase": { },
   "warnings": []
 }
 ```
 
-- `measured_parts`: the EMI kinds the calibrator could read during the test. Empty when it read none (then the model serves L3 only).
+- `measured_parts`: the EMI kinds that are known in the phases 3 ("Rest, brightness 50%"), 5 ("CPU 100%") and 7 ("Screen off") of the test: `cpu_package` and `dram`. `cpu_core` (one channel per physical core, AMD) is never a measured part, the package already holds it. Empty when no kind is known in all three phases (then the model serves L3 only).
+- Trust check: when the sum of the measured parts is above the battery power in the phase 3, 5 or 7, the parts are not believed (the AMD values are a model of the processor, not a measurement, and on forums the package power was sometimes above the battery discharge). Then `measured_parts` is empty, `rest_w`, `rest_w_per_cpu_pct` and `rest_w_per_gpu_pct` are 0, the model is still written and `warnings` holds `measured_above_battery`.
 - `rest_w`: battery power minus the measured parts in the "screen off" phase.
 - `rest_w_per_cpu_pct`: growth of the rest (battery power minus the measured parts) between the phase "Rest, brightness 50%" and the phase "CPU 100%", divided by the difference of their mean processor use in percentage points. Both phases have the same brightness, so the screen power cancels out; against "screen off" the slope would hold about 1.4 W of screen power. 0 when it cannot be calculated.
-- `base_w`, `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`: as today.
+- `base_w`, `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`: as before.
+- `gpu_w_per_pct` = max(0, (P6 - P3 - `cpu_w_per_pct` x (cpu6 - cpu3)) / (gpu6 - gpu3)) and `rest_w_per_gpu_pct` = max(0, (R6 - R3 - `rest_w_per_cpu_pct` x (cpu6 - cpu3)) / (gpu6 - gpu3)), 0 when no part is measured. P is the battery power of a phase, R is P minus the measured parts, cpu is the mean processor use and gpu the mean use of the busiest 3D engine. Phase 3 is "Rest, brightness 50%", phase 6 is "Graphics". Both are 0 with the warning `graphics_span_too_small` when gpu6 - gpu3 is below 5 points (an unknown use counts as too small), and 0 with the warning `graphics_phase_used_discrete` when an NVML device of the stream drew more than 1 W more in phase 6 than in phase 3 (the test loaded the discrete card, whose power is not part of this model).
+- `conditions`: what the laptop was like during the test, from the header of the energy stream. The service does not read it. Fields: `cpu_vendor`, `cpu_family`, `cpu_model`, `physical_cores`, `battery_design_mwh`, `battery_full_mwh`, `battery_cycle_count`, `displays`, `external_displays`, `refresh_hz`, `emi_source` (`stream` or `counter_set`). An unknown value is left out. Without the stream only `emi_source` is written. The warning `external_display_connected` is given when `external_displays` is above 0: the screen numbers are for the built-in panel only. It does not block the test.
+- `phase_nvml_w`, `phase_gpu_use_pct`: for each phase name the power of each NVML device in watts and the use of each adapter in percent, in the order of the stream header (null for unknown, an empty list without the stream).
+- `warnings`: the warning words `emi_stream_unavailable` (the calibrator read the "Energy Meter" counter set because `ews-scan.exe --watch` was missing, did not start or gave no header within 5 seconds), `measured_above_battery`, `graphics_span_too_small`, `graphics_phase_used_discrete`, `external_display_connected`, and sentences about model values that could not be worked out.
+- Energy stream: at the start of a test the calibrator starts `ews-scan.exe --watch --period-ms 2000` from its own folder and closes its input when the test ends, is stopped or the window closes. Every line is untrusted: at most 64 KB, lists at most 256 entries, numbers range-checked, a bad line is skipped and counted. The power of a channel in a phase is the energy between the first and the last used line divided by the time between them; a null at either end or in between makes the channel unknown for the phase. With the stream the "Energy Meter" counter set is not read. The results folder gets `channels.csv` with every channel of the header, its kind and its power per phase.
 - Before writing, the calibrator copies the current file to `model.previous.json`. It writes to a temporary file and renames it.
 - Calibrator exit codes for Setup: 0 model written, 1 stopped by the user, 2 start conditions not met (no battery, charger connected, charge below 30%), 3 test aborted, 4 file not writable.
 
-The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. Limits: file at most 64 KB; watt values 0 to 500; per-percent values 0 to 5; `measured_parts` only the kinds of section 3.3. Anything outside, missing or not a number makes the whole model invalid. An invalid model is treated as no model and counted in the log.
+The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. Limits: file at most 64 KB; watt values 0 to 500; per-percent values 0 to 5 (`gpu_w_per_pct` and `rest_w_per_gpu_pct` too); `measured_parts` only the kinds of section 3.3. Anything outside, missing or not a number makes the whole model invalid. An invalid model is treated as no model and counted in the log. The calibrator checks the same limits before it writes.
 
 ## 9. Client (viewer mode)
 

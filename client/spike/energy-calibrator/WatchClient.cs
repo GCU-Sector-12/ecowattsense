@@ -221,12 +221,13 @@ internal sealed class ScanProcess(Process process) : IWatchProcess
     /// <returns>True when it ended.</returns>
     public bool WaitForExit(int milliseconds) => process.WaitForExit(milliseconds);
 
-    /// <summary>Ends it and its children. A program that has already ended is not an error.</summary>
+    /// <summary>Ends it and its children (Process.Kill(true); it may throw Win32Exception or AggregateException, documented on learn.microsoft.com). A program that has already ended is not an error.</summary>
     public void Kill()
     {
         try { process.Kill(true); }
         catch (InvalidOperationException) { }
         catch (Win32Exception) { }
+        catch (AggregateException) { }
     }
 
     /// <summary>Releases the process object.</summary>
@@ -263,8 +264,17 @@ internal sealed class ScanProcessLauncher(string path, IReadOnlyList<string> arg
             WorkingDirectory = Path.GetDirectoryName(path) ?? ""
         };
         foreach (string argument in arguments) { info.ArgumentList.Add(argument); }
-        Process process = Process.Start(info) ?? throw new IOException("the program did not start");
+        Process process = new() { StartInfo = info };
+        process.ErrorDataReceived += DiscardLine;
+        process.Start();
         process.BeginErrorReadLine();
         return new ScanProcess(process);
+    }
+
+    /// <summary>Throws a line of standard error away. The scanner prints nothing there in watch mode; the read only keeps its pipe from filling up.</summary>
+    /// <param name="sender">The process.</param>
+    /// <param name="line">The line.</param>
+    private static void DiscardLine(object sender, DataReceivedEventArgs line)
+    {
     }
 }

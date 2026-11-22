@@ -1,6 +1,6 @@
-# Test-Calibrator.ps1: builds and runs the console tests of the EnergyCalibrator model file (schema 2).
+# Test-Calibrator.ps1: builds and runs the console tests of the EnergyCalibrator model file (schema 3) and of the energy stream.
 # Who uses it: the author of the calibrator code and the main session. Run: pwsh -NoProfile -File Test-Calibrator.ps1
-# What it does: dotnet build of tests\CalibratorTests (it builds the calibrator too), then runs the test program.
+# What it does: dotnet build of tests\CalibratorTests (plain net10.0, it compiles the calibrator files that hold no window code), then runs the test program.
 # Exit code: the number of failed checks (0 = all passed); 1000 when the build fails.
 # The tests never read or write C:\ProgramData: they use a temporary folder. They do not start the calibrator test itself.
 $ErrorActionPreference = 'Stop'
