@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     admin_username: str = Field(default="", validation_alias="EWS_ADMIN_USERNAME")
     admin_password: str = Field(default="", validation_alias="EWS_ADMIN_PASSWORD", repr=False)
     session_lifetime_seconds: int = Field(default=28800, gt=0)
+    connect_request_lifetime_seconds: int = Field(
+        default=600, gt=0, validation_alias="EWS_CONNECT_REQUEST_LIFETIME_SECONDS"
+    )
     report_interval_seconds: int = Field(default=300, gt=0)
     ping_interval_seconds: int = Field(default=60, gt=0)
     idle_threshold_seconds: int = Field(default=600, ge=0)
