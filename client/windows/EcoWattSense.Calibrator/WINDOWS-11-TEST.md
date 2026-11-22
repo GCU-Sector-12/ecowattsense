@@ -25,8 +25,7 @@ and how does it compare with Intel Dynamic Tuning (DTT) and the battery? On the 
 
 ## Rules for this work
 
-- Change only files in `client/spike/energy-calibrator/`. Do not touch the client (`client/windows/`), the server,
-  the dashboard or the contract (`shared/`).
+- Keep changes for this test within `client/windows/EcoWattSense.Calibrator/`.
 - Flat code ("never nested"), as in AGENTS.md. Check with `pwsh -NoProfile -File Check-Nesting.ps1`.
 - Every new function has a `///` documentation comment, every file a header comment (AGENTS.md).
 - Run the program as administrator (the button "Restart as administrator"), so Intel DTT is read too.

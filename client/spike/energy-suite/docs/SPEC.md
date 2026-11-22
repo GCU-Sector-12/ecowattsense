@@ -28,7 +28,7 @@ client/spike/energy-suite/
   native/                 C++ solution: ews-core, ews-scan, ews-service, ews-core-tests
   setup/                  Setup.exe (C# WPF)
   scripts/                Build-Native.ps1, Test-Native.ps1, Build-Package.ps1
-client/spike/energy-calibrator/      the calibrator (exists)
+client/windows/EcoWattSense.Calibrator/      the calibrator (exists)
 client/windows/EcoWattSense.Client.Gui/   the tray client (exists, gets a viewer mode)
 ```
 

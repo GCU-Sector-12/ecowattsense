@@ -72,7 +72,7 @@ jobs:
       - name: Calibrator tests
         if: ${{ !cancelled() }}
         run: |
-          pwsh -NoProfile -File client/spike/energy-calibrator/tests/Test-Calibrator.ps1
+          pwsh -NoProfile -File client/windows/EcoWattSense.Calibrator/tests/Test-Calibrator.ps1
           exit $LASTEXITCODE
 
       - name: Developer page tests
@@ -90,7 +90,7 @@ jobs:
       - name: Build the calibrator
         if: ${{ !cancelled() }}
         run: |
-          dotnet build client/spike/energy-calibrator/EnergyCalibrator.csproj -c Release --nologo -v:minimal
+          dotnet build client/windows/EcoWattSense.Calibrator/EnergyCalibrator.csproj -c Release --nologo -v:minimal
           exit $LASTEXITCODE
 
       - name: Build the tray client

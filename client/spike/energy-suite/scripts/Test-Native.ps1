@@ -5,7 +5,7 @@
 # Exit code: 0 only when all three exit codes are 0.
 $ErrorActionPreference = 'Stop'
 $native = (Resolve-Path (Join-Path $PSScriptRoot '..\native')).Path
-$nesting = Join-Path $PSScriptRoot '..\..\energy-calibrator\Check-Nesting.ps1'
+$nesting = Join-Path $PSScriptRoot '..\..\..\windows\EcoWattSense.Calibrator\Check-Nesting.ps1'
 
 & (Join-Path $PSScriptRoot 'Build-Native.ps1') -Configuration Release
 $buildCode = $LASTEXITCODE
