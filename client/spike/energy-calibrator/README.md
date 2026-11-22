@@ -84,6 +84,28 @@ summed over all processes for each engine, and the busiest engine is taken (at m
 
 A value that cannot be read, or that is outside a believable range, is left empty ("unknown"). It is never replaced by 0.
 
+## The energy stream (`ews-scan.exe --watch`)
+
+At the start of a test the calibrator starts `ews-scan.exe --watch --period-ms 2000` from the folder of its own program (full path, fixed
+arguments, no shell, no window, input and output redirected) and reads its lines on a pool thread, so the window never waits (`WatchClient.cs`).
+The format is the watch mode of the scanner (piece N1 of the AMD plan, 22 Nov 2026): one JSON line each. `ews-scan.exe` is not copied by this project: put it next to `EnergyCalibrator.exe`.
+
+* The first line is the header (the channels with their kinds, the NVML devices, the adapters, and the `machine`, `battery` and `display` fields).
+  Then one line per period. A sample takes the latest line that is not older than three periods and a second.
+* Every line is untrusted (`WatchParser.cs`, `WatchLines.cs`): at most 64 KB (the reader never keeps more), lists at most 256 entries and the
+  length of the header list, numbers range-checked, unknown fields ignored, JSON at most 8 deep. A bad line is skipped and counted (the count is in `summary.txt`).
+  A first line that is not a header, a second header, or `watch` other than 1 ends the reading. The logs and reasons hold fixed words only.
+* Power of one channel in a phase = (last value minus first value of the used samples) / the time between their lines (`t_ms`). A `null` at either end
+  or in between, a sample without a line, or no time between makes the channel unknown for the phase. The power of a kind is the sum of its channels, unknown when one is unknown.
+  The kind `cpu_core` (AMD, one channel per physical core) is logged and never counted: the package already holds it.
+* **Failure paths.** No `ews-scan.exe`, a start failure, no header within 5 seconds, or a bad first line: the calibrator reads the Windows
+  "Energy Meter" counter set as before and the model gets the warning `emi_stream_unavailable`. A program that ends or stalls in the middle of a test: lines go stale, so the
+  phases after it have unknown energy values (a phase warning says so); measured parts need the kind in phases 3, 5 and 7, so they are then empty and the model still
+  serves level L3. Stop, the end of the test or closing the window: the input pipe is closed and the program ends by itself (killed only after 3 seconds).
+  Unknown is never turned into 0.
+* With the stream the "Energy Meter" counter set is not read. `channels.csv` in the results folder lists every channel of the header (energy channels and NVML devices in
+  watts, adapters in percent) with its kind or role and its value in each phase.
+
 ## Windows 11 Energy Meter
 
 Windows 11 (measured on build 26300) shows processor energy in the performance counter set "Energy Meter". It needs no administrator
@@ -194,32 +216,51 @@ A file error is shown in the status line and never stops the test.
   Fixed columns include `emi_pkg_w`, `emi_cores_w`, `emi_gpu_w`, `emi_dram_w` (Windows Energy Meter watts).
   Extra columns are `dtt_p<n>_power_w`, `dtt_p<n>_temp_c` (Intel DTT participants), `thermal_zone_<n>_c`, `energymeter_<name>_energy` and `_time`.
 * `phases.csv`: one row per phase with the numbers above and a warning column.
-* `model.json`: the model, the power of each phase and the CPU share per phase.
+* `model.json`: the model, the conditions, the power of each phase and the CPU share per phase.
+* `channels.csv`: only when the energy stream was read: every channel of its header with its kind and its power in each phase.
 * `summary.txt`: the same in plain English.
 
 The files hold the PC maker, model and processor name. They hold no computer name, no user name, no serial number and no device id.
 Numbers use a dot as the decimal mark.
 
-## The model file for the service (`<data>\calibration\model.json`, schema 2)
+## The model file for the service (`<data>\calibration\model.json`, schema 3)
 
 When a test ends, `ServiceModel.cs` writes the model that the EcoWattSense service reads (SPEC section 8). `<data>` is
 `C:\ProgramData\EcoWattSense`; `--data-dir <folder>` replaces it (used by the tests). The `results\...` folder beside the program is written as before.
 
-* Fields: `schema` 2, `generated_utc` (UTC, whole seconds, Z), `machine`, `measured_parts`, `model` (`base_w`, `rest_w`, `rest_w_per_cpu_pct`,
-  `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`), `phase_power_w`, `cpu_share_by_phase`, `warnings`.
-* `measured_parts`: the Energy Meter kinds that gave a value in the test: `cpu_package` (the package channel), `dram`. Empty when none; then
-  `rest_w` and `rest_w_per_cpu_pct` are 0 and the service serves level L3 only.
-* `rest_w`: battery power minus the measured parts in the "Screen off" phase (`RestModel.cs`).
-* `rest_w_per_cpu_pct`: growth of that rest per percent of CPU use. It is taken between the "CPU 100%" phase and the "Rest, brightness 50%"
-  reference phase (same brightness), so the screen power does not leak into it. A fall is noise and gives 0. 0 also when it cannot be worked out.
-* Limits (the same as in the service, checked here first): watt values 0 to 500, per-percent values 0 to 5, file at most 64 KB. A value outside,
+* Fields: `schema` 3, `generated_utc` (UTC, whole seconds, Z), `machine`, `measured_parts`, `model` (`base_w`, `rest_w`, `rest_w_per_cpu_pct`,
+  `cpu_w_per_pct`, `screen_w_at_50`, `screen_w_per_pct`, `graphics_w`, `gpu_w_per_pct`, `rest_w_per_gpu_pct`), `conditions`, `phase_power_w`,
+  `phase_nvml_w`, `phase_gpu_use_pct`, `cpu_share_by_phase`, `warnings`. The service reads `schema`, `generated_utc`, `measured_parts` and `model` only.
+* `measured_parts`: the Energy Meter kinds that are known in the phases 3, 5 and 7: `cpu_package`, `dram`. `cpu_core` is never one. Empty when none; then
+  `rest_w`, `rest_w_per_cpu_pct` and `rest_w_per_gpu_pct` are 0 and the service serves level L3 only.
+* **Trust check** (`RestModel.cs`): when the sum of the measured parts is above the battery power in the phase 3, 5 or 7, the parts are not believed
+  (on forums an AMD package power was sometimes above the battery discharge). `measured_parts` is empty, the rest values are 0, the model is still written and
+  `warnings` holds `measured_above_battery`. Before this rule such a run wrote no model (`rest_w` came out negative and the limits refused it).
+* `rest_w`: battery power minus the measured parts in the "Screen off" phase.
+* `rest_w_per_cpu_pct`: growth of that rest per percent of CPU use, between the "CPU 100%" phase and the "Rest, brightness 50%" reference phase
+  (same brightness), so the screen power does not leak into it. A fall is noise and gives 0.
+* **Graphics numbers** (`GraphicsModel.cs`; P is the battery power of a phase, R is P minus the measured parts, cpu and gpu are the mean processor use and the mean
+  3D use of the busiest engine; phase 3 is the reference phase, phase 6 is "Graphics"):
+  `gpu_w_per_pct` = max(0, (P6 - P3 - `cpu_w_per_pct` x (cpu6 - cpu3)) / (gpu6 - gpu3)) and
+  `rest_w_per_gpu_pct` = max(0, (R6 - R3 - `rest_w_per_cpu_pct` x (cpu6 - cpu3)) / (gpu6 - gpu3)), 0 when no part is measured.
+  Both are 0 with the warning `graphics_span_too_small` when gpu6 - gpu3 is below 5 points (or the 3D use is unknown), and 0 with `graphics_phase_used_discrete`
+  when an NVML device drew more than 1 W more in phase 6 than in phase 3. `graphics_w` stays P6 - P3.
+* `conditions` (not read by the service): `cpu_vendor`, `cpu_family`, `cpu_model`, `physical_cores`, `battery_design_mwh`, `battery_full_mwh`,
+  `battery_cycle_count`, `displays`, `external_displays`, `refresh_hz`, `emi_source` (`stream` or `counter_set`). Unknown values are left out; without the stream only `emi_source` is there.
+  `external_display_connected` is a warning when `external_displays` is above 0 (the screen numbers are for the built-in panel only); it does not block the test.
+* `phase_nvml_w` and `phase_gpu_use_pct`: for each phase the power of each NVML device in watts and the use of each adapter in percent, in the order of the stream header (empty without the stream).
+* `warnings`: the warning words above (`emi_stream_unavailable`, `measured_above_battery`, `graphics_span_too_small`, `graphics_phase_used_discrete`,
+  `external_display_connected`) and the sentences about model values that could not be worked out.
+* Limits (the same as in the service, checked here first): watt values 0 to 500, per-percent values 0 to 5 (the two new numbers too), file at most 64 KB. A value outside,
   or unknown, writes nothing (exit code 3).
 * Before writing, the current file is copied to `model.previous.json`; the new text goes to `model.json.tmp` and is renamed to `model.json`.
 * Exit codes: 0 model written; 1 stopped by the user (or the window closed with the start conditions met); 2 start conditions not met
   (no battery, charger connected, charge below 30%) when the window is closed without a test; 3 test aborted, or a value outside the limits;
   4 the file cannot be written.
-* Tests: `pwsh -NoProfile -File tests\Test-Calibrator.ps1` builds and runs `tests\CalibratorTests` (exit code = failed checks). It uses
-  `tests\data\phases-20261112.csv`, the phases of the real run of 12 Nov 2026 (no serial number, user name or computer name in it).
+* Tests: `dotnet run --project tests/CalibratorTests` (on any system, plain net10.0; exit code = failed checks) or `pwsh -NoProfile -File tests\Test-Calibrator.ps1`.
+  The test program compiles the calibrator files that hold no window code and no Windows call (the list is in `CalibratorTests.csproj`; a new file of that kind is added there).
+  It checks the line parser, the line reader, the stream client (a fake program for every failure path, and a real child process on macOS and Linux), the phase power from counters,
+  the measured parts, the trust check, the graphics numbers, the conditions and the files. `tests\data\phases-20261112.csv` holds the phases of the real run of 12 Nov 2026.
 
 ## Things the program does that the test needs (not asked for in the first brief)
 
@@ -250,5 +291,8 @@ pwsh -NoProfile -File Check-Nesting.ps1             # checks all .cs files in th
 * `CpuLoad.cs`, `DisplayControl.cs`, `GraphicsWindow.xaml(.cs)`: the loads and the display control.
 * `PowerSettingsApi.cs`, `PowerSettingsSession.cs`: read, change and restore the processor power settings, the backup file and the start warning.
 * `Analysis.cs`: per-phase results and the model. `RestModel.cs`: rest power. `ResultWriter.cs`: the result files.
-* `ServiceModel.cs`: the schema 2 model file for the service, its limits, the exit codes and `--data-dir`. `tests\`: the console tests.
+* `ServiceModel.cs`: the schema 3 model file for the service, its limits, the exit codes and `--data-dir`. `tests\`: the console tests.
+* `WatchTypes.cs`, `WatchParser.cs`, `WatchLines.cs`, `WatchSession.cs`, `WatchClient.cs`: the energy stream (data, parser, bounded line reader, state, process and reading).
+* `StreamPhase.cs`: phase numbers from the stream. `GraphicsModel.cs`: the graphics numbers. `RunConditions.cs`: the conditions block.
+* `Fmt.cs`, `DisplayStateKind.cs`, `TestOutcome.cs`, `PowerRunRecord.cs`, `MachineInfo.cs`, `Reasons.cs`: small types that were moved out of the window and Windows files, so the tests can compile them.
 * `MainWindow.xaml(.cs)`, `ViewModels.cs`: the window.

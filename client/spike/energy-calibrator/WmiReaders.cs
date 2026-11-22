@@ -225,17 +225,9 @@ internal sealed class BrightnessControl
     }
 }
 
-/// <summary>Maker, model and processor of this computer. It holds no computer name, user name, serial number or device id.</summary>
-/// <param name="Maker">Manufacturer from Win32_ComputerSystem.</param>
-/// <param name="Model">Model from Win32_ComputerSystem.</param>
-/// <param name="Cpu">Processor name from Win32_Processor.</param>
-/// <param name="LogicalProcessors">Number of logical processors.</param>
-/// <param name="Windows">Windows version number.</param>
-internal sealed record MachineInfo(string Maker, string Model, string Cpu, int LogicalProcessors, string Windows)
+/// <summary>The WMI half of MachineInfo: reads maker, model and processor.</summary>
+internal sealed partial record MachineInfo
 {
-    /// <summary>Used until the real values are read, and when they cannot be read.</summary>
-    public static MachineInfo Unknown { get; } = new("unknown", "unknown", "unknown", Environment.ProcessorCount, Environment.OSVersion.Version.ToString());
-
     /// <summary>Reads maker, model and processor from WMI.</summary>
     /// <returns>The machine info; the Unknown value when WMI fails. It never throws.</returns>
     public static MachineInfo Read()

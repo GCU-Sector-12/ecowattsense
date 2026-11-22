@@ -1,4 +1,4 @@
-// ServiceModel.cs: writes the schema 2 model file that the EcoWattSense service reads (SPEC section 8), and holds the exit codes
+// ServiceModel.cs: writes the schema 3 model file that the EcoWattSense service reads (SPEC section 8), and holds the exit codes
 // and the --data-dir argument of the calibrator.
 // Who uses it: MainWindow calls ServiceModel.Publish when a run ends; App reads the data folder and sets the exit code;
 // the tests in tests\CalibratorTests call the same methods.
@@ -74,7 +74,7 @@ internal static class ModelLimits
     /// <summary>Upper limit of the file size in bytes.</summary>
     public const int MaxFileBytes = 64 * 1024;
 
-    /// <summary>Checks the seven numbers of a model.</summary>
+    /// <summary>Checks the nine numbers of a model.</summary>
     /// <param name="model">The model.</param>
     /// <returns>One line for every value that is unknown, not a number or outside its limit; empty when the model is valid.</returns>
     public static IReadOnlyList<string> Check(PowerModel model)
@@ -87,6 +87,8 @@ internal static class ModelLimits
         Check(problems, "screen_w_at_50", model.ScreenWattsAt50, MaxWatts);
         Check(problems, "screen_w_per_pct", model.ScreenWattsPerPercent, MaxWattsPerPercent);
         Check(problems, "graphics_w", model.GraphicsWatts, MaxWatts);
+        Check(problems, "gpu_w_per_pct", model.GpuWattsPerPercent, MaxWattsPerPercent);
+        Check(problems, "rest_w_per_gpu_pct", model.RestWattsPerGpuPercent, MaxWattsPerPercent);
         return problems;
     }
 
@@ -113,7 +115,7 @@ internal static class ServiceModel
     /// <returns>The folder path.</returns>
     public static string StandardDataDir() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EcoWattSense");
 
-    /// <summary>Builds the text of the schema 2 file.</summary>
+    /// <summary>Builds the text of the schema 3 file.</summary>
     /// <param name="report">The data of the run.</param>
     /// <param name="utcNow">The time of writing; it is cut to whole seconds.</param>
     /// <returns>The JSON text. Only call it for a model that passed ModelLimits.Check.</returns>
@@ -122,7 +124,7 @@ internal static class ServiceModel
         PowerModel m = report.Model;
         var document = new
         {
-            schema = 2,
+            schema = 3,
             generated_utc = utcNow.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss'Z'", CultureInfo.InvariantCulture),
             machine = new
             {
@@ -141,14 +143,29 @@ internal static class ServiceModel
                 cpu_w_per_pct = m.CpuWattsPerPercent,
                 screen_w_at_50 = m.ScreenWattsAt50,
                 screen_w_per_pct = m.ScreenWattsPerPercent,
-                graphics_w = m.GraphicsWatts
+                graphics_w = m.GraphicsWatts,
+                gpu_w_per_pct = m.GpuWattsPerPercent,
+                rest_w_per_gpu_pct = m.RestWattsPerGpuPercent
             },
+            conditions = m.Conditions.Values,
             phase_power_w = report.Results.ToDictionary(r => r.Phase.Name, r => r.BatteryWatts),
+            phase_nvml_w = report.Results.ToDictionary(r => r.Phase.Name, NvmlWatts),
+            phase_gpu_use_pct = report.Results.ToDictionary(r => r.Phase.Name, GpuUse),
             cpu_share_by_phase = report.Results.ToDictionary(r => r.Phase.Name, r => r.CpuShare),
             warnings = m.Warnings
         };
         return JsonSerializer.Serialize(document, Options);
     }
+
+    /// <summary>Gives the power of each NVML device in a phase, in header order.</summary>
+    /// <param name="result">The phase result.</param>
+    /// <returns>The powers in watts (null for unknown); an empty list when the phase has no stream numbers.</returns>
+    private static IReadOnlyList<double?> NvmlWatts(PhaseResult result) => result.Stream?.NvmlWatts ?? new List<double?>();
+
+    /// <summary>Gives the use of each adapter in a phase, in header order.</summary>
+    /// <param name="result">The phase result.</param>
+    /// <returns>The use in percent (null for unknown); an empty list when the phase has no stream numbers.</returns>
+    private static IReadOnlyList<double?> GpuUse(PhaseResult result) => result.Stream?.GpuUsePercent ?? new List<double?>();
 
     /// <summary>Decides what to do with the model after a run, and writes the file when it may be written.</summary>
     /// <param name="report">The data of the run.</param>

@@ -7,56 +7,6 @@
 // puts the brightness back, stops the load, closes the graphics window and turns the display on.
 namespace EnergyCalibrator;
 
-/// <summary>Why a run stopped before the last phase ended.</summary>
-internal enum AbortReason
-{
-    /// <summary>The run was not stopped.</summary>
-    None,
-    /// <summary>The user pressed Stop or closed the window.</summary>
-    UserStop,
-    /// <summary>The charger was plugged in.</summary>
-    Charger,
-    /// <summary>The battery fell below the limit.</summary>
-    BatteryLow,
-    /// <summary>The mouse or keyboard was used while the display was off.</summary>
-    UserInput,
-    /// <summary>An error stopped the run.</summary>
-    Failure,
-    /// <summary>The display did not report "off" within the time limit after the command.</summary>
-    DisplayStayedOn,
-    /// <summary>The display reported "on" or "dimmed" while the Screen off phase ran.</summary>
-    DisplayWoke
-}
-
-/// <summary>Tells the window that a phase started or ended.</summary>
-/// <param name="index">Index of the phase.</param>
-/// <param name="status">Running when it started, the final status when it ended.</param>
-internal sealed class PhaseEventArgs(int index, PhaseStatus status) : EventArgs
-{
-    /// <summary>Index of the phase.</summary>
-    public int Index { get; } = index;
-
-    /// <summary>The status of the phase.</summary>
-    public PhaseStatus Status { get; } = status;
-}
-
-/// <summary>Everything a run produced.</summary>
-/// <param name="StartedAt">Wall-clock time when the run started.</param>
-/// <param name="Samples">Every sample taken during the run.</param>
-/// <param name="Statuses">The final status of every phase.</param>
-/// <param name="Notes">A note for every phase (empty when none), for example a brightness that could not be set.</param>
-/// <param name="Reason">Why the run stopped early, or None.</param>
-/// <param name="ReasonText">The reason as a sentence.</param>
-/// <param name="RestoreProblems">Things that could not be put back at the end.</param>
-internal sealed record TestOutcome(
-    DateTime StartedAt,
-    IReadOnlyList<Sample> Samples,
-    IReadOnlyList<PhaseStatus> Statuses,
-    IReadOnlyList<string> Notes,
-    AbortReason Reason,
-    string ReasonText,
-    IReadOnlyList<string> RestoreProblems);
-
 /// <summary>Runs one test from the first phase to the last, or until it is stopped.</summary>
 internal sealed class TestRunner
 {
@@ -81,13 +31,16 @@ internal sealed class TestRunner
     private string failureText = "";
     private readonly IntPtr windowHandle;
     private readonly PowerSettingsSession power;
+    private readonly WatchClient? watch;
 
     /// <summary>Creates a runner.</summary>
     /// <param name="sampling">The loop that delivers a sample every 2 seconds.</param>
     /// <param name="windowHandle">Handle of the main window; the display-off command is sent to it.</param>
     /// <param name="power">The session that changed the power settings for this run; the runner restores them in its clean-up.</param>
-    public TestRunner(SamplingLoop sampling, IntPtr windowHandle, PowerSettingsSession power)
+    /// <param name="watch">The energy stream of this run, or null when the calibrator reads the "Energy Meter" counter set. The window starts and stops it; the runner only reports its header in the outcome.</param>
+    public TestRunner(SamplingLoop sampling, IntPtr windowHandle, PowerSettingsSession power, WatchClient? watch = null)
     {
+        this.watch = watch;
         this.sampling = sampling;
         this.windowHandle = windowHandle;
         this.power = power;
@@ -470,6 +423,6 @@ internal sealed class TestRunner
     /// <returns>The outcome.</returns>
     private TestOutcome BuildOutcome()
     {
-        return new TestOutcome(startedAt, samples.ToList(), statuses.ToList(), notes.ToList(), abortReason, ReasonText(), restoreProblems.ToList());
+        return new TestOutcome(startedAt, samples.ToList(), statuses.ToList(), notes.ToList(), abortReason, ReasonText(), restoreProblems.ToList(), watch?.Header, watch?.BadLines ?? 0);
     }
 }

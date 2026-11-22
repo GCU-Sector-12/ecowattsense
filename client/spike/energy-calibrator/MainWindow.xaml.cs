@@ -4,9 +4,11 @@
 // How the Start button is decided: every sample re-checks it (StartGate), so there is no extra loop or timer for it.
 // Power settings: at start the window restores a backup left by a crashed run; Start first shows a warning (StartWarning) and a
 // PowerSettingsSession changes the processor settings for the run; the settings are put back when the run ends and when the window closes.
+// Energy stream: at the start of a test the window starts "ews-scan.exe --watch" (WatchClient) and stops it when the test ends, is stopped or the window closes.
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
@@ -32,6 +34,7 @@ public partial class MainWindow : Window
     private bool runFinished;
     private bool lastCanStart;
     private PowerSettingsSession? powerSession;
+    private WatchClient? watch;
     private string startupNote = "";
 
     /// <summary>Creates the window and its XAML parts.</summary>
@@ -151,6 +154,7 @@ public partial class MainWindow : Window
     {
         try { await RunTestAsync(); }
         catch (Exception ex) { ReportFailure(ex); }
+        await StopWatchAsync();
         await RestorePowerSafelyAsync();
         EndRunUi();
     }
@@ -177,12 +181,39 @@ public partial class MainWindow : Window
         ReportSaveProblem(recorder.Start());
         powerSession = new PowerSettingsSession();
         await BeginPowerAsync(powerSession);
-        runner = new TestRunner(sampling, new WindowInteropHelper(this).Handle, powerSession);
+        watch = await StartWatchAsync();
+        sampling.UseWatch(watch);
+        runner = new TestRunner(sampling, new WindowInteropHelper(this).Handle, powerSession, watch);
         runner.PhaseStarted += OnPhaseStarted;
         runner.PhaseEnded += OnPhaseEnded;
         runner.SampleAccepted += OnSampleAccepted;
         TestOutcome outcome = await runner.RunAsync();
         FinishRun(outcome);
+    }
+
+    /// <summary>
+    /// Starts "ews-scan.exe --watch" from the folder of this program and waits up to 5 seconds for its header. When the program is missing,
+    /// cannot start or gives no header, the test reads the "Energy Meter" counter set as before and the model gets the warning emi_stream_unavailable.
+    /// </summary>
+    /// <returns>The stream client with a header, or null.</returns>
+    private async Task<WatchClient?> StartWatchAsync()
+    {
+        StatusText.Text = "Starting the energy stream...";
+        string path = Path.Combine(AppContext.BaseDirectory, TestSettings.ScannerFileName);
+        WatchClient client = new(new ScanProcessLauncher(path, ["--watch", "--period-ms", TestSettings.WatchPeriodMs.ToString(CultureInfo.InvariantCulture)]));
+        await Task.Run(client.Start);
+        if (await client.WaitForHeaderAsync(WatchClient.HeaderTimeout) != null) { return client; }
+        await client.StopAsync();
+        return null;
+    }
+
+    /// <summary>Switches the samples back to the counter set, closes the input of the stream program and waits for it to end. Does nothing when there was no stream.</summary>
+    private async Task StopWatchAsync()
+    {
+        sampling.UseWatch(null);
+        if (watch == null) { return; }
+        await watch.StopAsync();
+        watch = null;
     }
 
     /// <summary>
@@ -287,7 +318,7 @@ public partial class MainWindow : Window
     private void FinishRun(TestOutcome outcome)
     {
         IReadOnlyList<PhaseResult> results = PhaseAnalyser.AnalyseAll(outcome);
-        PowerModel model = PowerModel.Build(results);
+        PowerModel model = PowerModel.Build(results, outcome.Stream);
         ShowResults(results, model);
         string saved = SaveResults(outcome, results, model);
         string published = PublishModel(outcome, results, model);
