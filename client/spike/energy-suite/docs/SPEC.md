@@ -26,8 +26,9 @@ Target: Windows 11, x64. Windows 10 and ARM64 are out of scope.
 client/spike/energy-suite/
   docs/SPEC.md            this file
   native/                 C++ solution: ews-core, ews-scan, ews-service, ews-core-tests
-  setup/                  Setup.exe (C# WPF)
   scripts/                Build-Native.ps1, Test-Native.ps1, Build-Package.ps1
+client/windows/EcoWattSense.Setup/      Setup.exe (C# WPF)
+client/windows/tests/SetupTests/       Setup tests
 client/windows/EcoWattSense.Calibrator/      the calibrator (exists)
 client/windows/EcoWattSense.Client.Gui/   the tray client (exists, gets a viewer mode)
 ```

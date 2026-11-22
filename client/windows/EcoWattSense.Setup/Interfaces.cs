@@ -1,6 +1,6 @@
 // Interfaces.cs: the small interfaces behind every operation Setup does on the computer, and their data types.
 // Who uses it: the install and maintenance engines call only these interfaces. The Real* classes implement them for
-// Windows; the console tests (setup\tests\SetupTests) implement them with fakes, so no test touches the real machine.
+// Windows; the console tests (client\windows\tests\SetupTests) implement them with fakes, so no test touches the real machine.
 // Every operation returns 0 on success or a Windows error code; none throws, so the engines stay free of try blocks.
 namespace EcoWattSense.Setup;
 

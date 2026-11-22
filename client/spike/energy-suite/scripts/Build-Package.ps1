@@ -37,7 +37,7 @@ if ($ReleaseTag -eq '') { $ReleaseTag = "v$Version-energy-suite" }
 
 $clientProject = Join-Path $repo 'client\windows\EcoWattSense.Client.Gui\EcoWattSense.Client.Gui.csproj'
 $calibratorProject = Join-Path $repo 'client\windows\EcoWattSense.Calibrator\EnergyCalibrator.csproj'
-$setupProject = Join-Path $suite 'setup\EcoWattSense.Setup\EcoWattSense.Setup.csproj'
+$setupProject = Join-Path $repo 'client\windows\EcoWattSense.Setup\EcoWattSense.Setup.csproj'
 $nativeOut = Join-Path $suite 'native\out\Release'
 $webSetupSource = Join-Path $nativeOut 'EcoWattSense-Web-Setup.exe'
 $stage = Join-Path $OutDir 'EcoWattSense'
