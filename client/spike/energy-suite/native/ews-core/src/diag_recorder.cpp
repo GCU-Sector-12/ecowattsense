@@ -2,6 +2,7 @@
 // Used by ServiceCore through DiagRecorder and by the file writer (diag_file.cpp) for the names. Pure rules: no file is touched.
 #include "ews/diag_recorder.h"
 
+#include <algorithm>
 #include <chrono>
 
 #include "ews/diag_line.h"
@@ -16,15 +17,11 @@ constexpr std::wstring_view kSuffix = L".jsonl";
 constexpr std::size_t kDateLength = 10;  // yyyy-MM-dd
 constexpr std::int64_t kSecondsPerDay = 86400;
 
+/// @return True when the character is plain ASCII.
+bool IsAsciiChar(wchar_t c) { return c < 128; }
+
 /// @return True when every character is plain ASCII, so narrowing to char cannot turn a letter into a digit.
-bool IsAscii(std::wstring_view text) {
-    for (wchar_t c : text) {
-        if (c >= 128) {
-            return false;
-        }
-    }
-    return true;
-}
+bool IsAscii(std::wstring_view text) { return std::all_of(text.begin(), text.end(), IsAsciiChar); }
 
 /// @param name A file name.
 /// @return The date text `yyyy-MM-dd` of a name with the right shape, or an empty text.
@@ -115,6 +112,8 @@ void DiagRecorder::Clean(UtcTime now) {
         writer_->RemoveOld(now);
     }
 }
+
+bool DiagRecorder::Enabled() const { return writer_ != nullptr; }
 
 int DiagRecorder::Failures() const { return failures_; }
 

@@ -226,6 +226,11 @@ EWS_TEST(DiagEventLineFieldsAndUnknownValues) {
           R"({"t":"event","ts":"2026-11-14T10:05:00Z","what":"x","report_interval_seconds":300,"ping_interval_seconds":60,"result":"ok"})");
 }
 
+EWS_TEST(DiagEventLineLeavesOutAnEmptyWord) {
+    CHECK(ews::BuildEventLine(kTime, "level_change", {ews::FieldWord("from", ""), ews::FieldWord("to", "L2")}) ==
+          R"({"t":"event","ts":"2026-11-14T10:05:00Z","what":"level_change","to":"L2"})");
+}
+
 EWS_TEST(DiagEventLineEscapesAWord) {
     CHECK(ews::BuildEventLine(kTime, "x", {ews::FieldWord("w", "a\"b")}) == R"({"t":"event","ts":"2026-11-14T10:05:00Z","what":"x","w":"a\"b"})");
 }

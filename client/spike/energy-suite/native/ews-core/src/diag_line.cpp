@@ -171,7 +171,9 @@ DiagField FieldMaybeInt(const std::string& key, const std::optional<long long>& 
     return DiagField{key, value.has_value() ? std::to_string(*value) : std::string()};
 }
 
-DiagField FieldWord(const std::string& key, const std::string& word) { return DiagField{key, JsonQuote(word)}; }
+DiagField FieldWord(const std::string& key, const std::string& word) {
+    return DiagField{key, word.empty() ? std::string() : JsonQuote(word)};
+}
 
 std::string BuildTickLine(const DiagTick& tick) {
     Obj line = Start("tick", tick.unixSeconds);

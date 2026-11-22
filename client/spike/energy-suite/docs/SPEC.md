@@ -47,7 +47,7 @@ Data: `C:\ProgramData\EcoWattSense\` (below: `<data>`).
 | `<data>\status\` | `status.json` | modify | read | full |
 | `<data>\queue\` | `reports.jsonl` | modify | none | full |
 | `<data>\config\` | `service.ini`, `key.bin` | read | none | full |
-| `<data>\logs\` | `install.log`, `service.log` | modify | read | full |
+| `<data>\logs\` | `install.log`, `service.log`, `diag-<yyyy-MM-dd>.jsonl` (section 7a) | modify | read | full |
 
 The service rights use the service SID `NT SERVICE\EcoWattSenseService`, not `LOCAL SERVICE` (Darek's decision, 14 Nov 2026). Setup computes the SID from the service name (S-1-5-80 and a SHA-1 of the upper-case name), so the rights can be set before the service exists. `config\` holds only that SID (read), Administrators and SYSTEM; Users have no access to it.
 
@@ -338,7 +338,7 @@ The service also writes the settings it uses, because the client cannot read `co
 
 ### 5.8 Log
 
-`service.log` holds counts and fixed words only: no URL, no key, no file content, no server text. One line per start, stop, level change, send result and counted error. The file is capped at 1 MB; then it is renamed to `service.previous.log`.
+`service.log` holds counts and fixed words only: no URL, no key, no file content, no server text. One line per start, stop, level change, send result and counted error. The file is capped at 1 MB; then it is renamed to `service.previous.log`. The raw readings, the reports and the send tries are not in this log: they go to the diagnostics file (section 7a). The log only gets the words `diag_full` and `diag_write_failed <count>` from it.
 
 ## 6. Session pipe (client to service)
 
@@ -363,6 +363,75 @@ The service also writes the settings it uses, because the client cannot read `co
 - `device_w`: power of the whole computer. On battery it is the measured battery power, that is `battery_w` with the sign turned (Darek's decision, 14 Nov 2026); it is empty when the battery change of the minute is unknown. On mains it is the power of section 4.2 (measured or from the model). `measured_w`: the part read from hardware. `battery_w`: battery flow, negative when discharging. With no valid calibration model (and no whole-computer reading) `device_w` is empty, `measured_w` holds the known package and memory power, and `level` is `L4`; the report is unchanged and holds no energy for such a minute.
 - On battery, a minute whose charge did not fall (the gauge did not move) is held back. When the first minute with a fall follows, that fall is split over the held minutes and that minute in proportion to their seconds, and the rows are written in order with the split value in `battery_w` and `device_w` (Darek's decision, 14 Nov 2026). A row held for an impossible change (section 4.3) that waits behind such minutes gets the same split power. Rows held longer than 15 minutes, or still held when the power source changes, the computer sleeps, a gap is found or the service stops, are written with empty battery fields. The 15 minutes are measured from the start of the held minute (its end time minus its seconds) to the time of the minute being recorded now; the test runs each time a new minute is recorded, from the oldest held row on. The limit does not depend on the report interval: still minutes stay held across the end of a report interval (the report is sent at once and keeps the raw change). Known edge case: the same limit also covers a held impossible minute (section 4.3). With `interval_seconds` above 900, such a minute that waits more than 15 minutes is written with empty battery fields in the history, even when a possible minute follows later in the same interval and the report then uses the replaced value. History and report can then differ for that minute. This applies to the history only; the reports keep the battery change of section 4.5.
 - Readers skip a row they cannot parse and count it.
+
+## 7a. Diagnostics file
+
+The service records every raw reading and every report, so the Developer page of the client (section 9) and a support export can show what the service saw and what it calculated (Darek's decision, 22 Nov 2026). It only records: it does not change what the service measures, reports or sends, adds no timer and no extra read of any device.
+
+- File: `<data>\logs\diag-<yyyy-MM-dd>.jsonl`, UTC date. The folder `logs\` exists and has the rights of section 2.2 (service: modify, users: read). UTF-8, one JSON object per line, appended, opened with shared read, written through to the disk after each line. It is written always (no switch).
+- Old files: files older than 7 days (the date is before the UTC date of today minus 7 days) are deleted at the start of the service and at the change of day, together with the history files. Only names that are exactly `diag-<yyyy-MM-dd>.jsonl` with a real date are touched.
+- Limits: a line is at most 16 KB with its line feed. A longer one is not written and is counted. One file is at most 20 MB. When a line would pass that, nothing more is written for that UTC date and the log gets `diag_full` once.
+- A failed write (folder, open, disk, sharing) never stops measuring, reporting or sending. It is counted, and the log gets `diag_write_failed <count>` for the first failure and then at most once an hour (the count is the number of lines that failed since the start; it includes lines that were refused for their size). After a failure the next line is tried again. A line that is only half written (a full disk) can leave a broken line; readers skip a line they cannot parse.
+- Never in the file: the server key, the server address, the computer name, a user name, a file path, text that came from the server. Only numbers, fixed words, the names of the EMI channels, and the report object itself. The type of a server command is written as one of the five fixed words or `unknown`.
+- Every line has `"t"` (the kind) and `"ts"` (UTC, the form `2026-11-22T10:31:00Z`) as its first two fields. A value the service does not know is left out of the line. It is never written as 0 and never invented.
+
+### 7a.1 Line `tick`
+
+One line for every minute that is calculated (every 60 second tick, and the shorter minute that ends an interval early: a power source change, suspend, `report_now`, stop). It is written right after the minute is calculated and its history row is recorded. A late tick that is a gap calculates no minute and writes no tick line.
+
+```
+{"t":"tick","ts":"2026-11-22T10:31:00Z","seconds":60,
+ "power":{"on_battery":false},
+ "emi":[{"name":"RAPL_Package0_PKG","kind":"cpu_package","ok":true,"raw":123456789012,"uj":5400000}],
+ "battery":[{"ok":true,"unit":"mWh","remaining_mwh":31200,"full_mwh":36092,"design_mwh":41000,"voltage_mv":11400,"rate_mw":-8200,"online":false,"charging":false,"discharging":true}],
+ "cpu":{"pct":18.6},
+ "display":{"on":true,"brightness_pct":50,"brightness_from":"service"},
+ "session":{"logged_on":true,"locked":false,"idle_s":12,"idle_msg_age_s":30,"state":2},
+ "calc":{"scan_level":"L2","level":"L2","model":true,"measured_uj":4100000,"rest_w":2.240,"cpu_term_w":0.167,"screen_w":1.400,"device_w":7.910,"battery_w":-8.200,"energy_uj":474600000},
+ "flags":["battery_jump"]}
+```
+
+- `seconds`: the length of the minute, whole seconds. Watts have three decimals, `cpu.pct` one.
+- `emi`: every channel the service reads, in its order, as read in this tick. `raw` is the counter exactly as read (its own unit, pWh), `uj` the growth of this minute in microjoules. A failed read has `"ok":false` and no `raw` and no `uj`. A counter that went backwards keeps `raw` and has no `uj`.
+- `battery`: every battery as read in this tick; no battery gives `[]`. A battery read that failed gives one entry `{"ok":false}`. A value the driver marks unknown is left out. With a relative unit (`"unit":"relative"`) the mWh and mW values are left out, because they are not energy.
+- `display.brightness_from`: `service` (the service read it itself), `pipe` (the value of the client) or `default` (unknown, counted as 50; `brightness_pct` is then 50).
+- `session.idle_msg_age_s`: seconds since the last accepted pipe message; left out when there was none.
+- `calc`: the numbers the minute was calculated with. `scan_level` is the level of the scan, `level` the level used for this minute (section 4.5; left out when the minute is unknown), `model` is true when a valid model is loaded, `measured_uj` the measured energy (as in the history row). The terms of section 4.2 that were used: `base_w` (L3), `rest_w` (L2), `cpu_term_w` (the percent term of L2 or L3) and `screen_w`. `device_w` is the device power of the minute and `battery_w` the battery power (negative when discharging), both as calculated for the report, not the history value that turns the sign on battery. `energy_uj` is the energy of the minute for the report sum: 0 on battery; on mains `device_energy_uj` plus the positive part of the battery change (section 4.2), and left out when a value it needs is unknown (section 4.3).
+- `flags`: only the words that apply to this minute, in this order, from: `battery_jump` (the battery change of the minute was impossible, section 4.3), `battery_replaced` (this minute replaced the held impossible minutes), `held` (the history row of this minute was held back), `gap` (the previous read was taken at the late tick of a gap), `counter_back` (an EMI counter went backwards), `first_read` (the previous read was the first read after the start or a resume). An empty list when none.
+
+### 7a.2 Line `report`
+
+`{"t":"report","ts":"...","queue":3,"report":{ ...the report object exactly as queued... }}`, written when a report is put into the queue. `queue` is the number of reports in the queue after it was added. A report that was not queued (the queue could not be written) gets no line.
+
+### 7a.3 Line `send`
+
+`{"t":"send","ts":"...","trigger":"tick","reports":3,"result":"ok","http":201,"created":3,"duplicate":0,"rejected":0,"queue":0}`, written after every try to send one batch.
+
+- `trigger`: `tick` (a report tick, the end of an interval, a gap, a power source change), `network` (the network came back), `pipe` (the pipe command `EWS1 send`) or `command` (the server command `report_now` or `flush_buffer`).
+- `result`: the word of `last_send_result` after this try (`ok`, `unauthorised`, `rejected`, `server_error`, `network`).
+- `http`, `rejected` only when the server answered. `created` and `duplicate` only when the batch was taken (200 or 201): the number of items of the answer that say `created` and `duplicate`. `queue`: reports left in the queue after the try.
+
+### 7a.4 Line `event`
+
+`{"t":"event","ts":"...","what":"power_source","on_battery":true}`. One line for each of:
+
+| `what` | Extra fields |
+|---|---|
+| `start` | `service_version` |
+| `stop` | |
+| `power_source` | `on_battery` |
+| `suspend`, `resume` | |
+| `display` | `on` |
+| `session` | `logged_on`, `locked` |
+| `model_loaded` | `schema`, `generated_utc` |
+| `model_invalid` | |
+| `level_change` | `from` (`L1` to `L4`; left out at the start), `to` |
+| `gap` | |
+| `settings_applied` | `settings_version` (left out when unknown), `report_interval_seconds`, `ping_interval_seconds`, `idle_threshold_seconds`, `unused_threshold_seconds` |
+| `command` | `type` (`set_interval`, `report_now`, `flush_buffer`, `clear_buffer`, `pull_settings` or `unknown`), `result` (`done`, `failed`, `unsupported`) |
+| `ping` | `result` (the word of `last_ping_result`), only when the result word changes |
+
+`display` and `session` get a line for every event the service control handler passes on, also when the value is the same as before. `power_source` only when the source really changed. `model_loaded`, `model_invalid` and a `settings_applied` from the stored settings file come before `start`, because they happen while the service starts; the first read from the server comes after it.
 
 ## 8. Calibration model
 

@@ -77,6 +77,9 @@ public:
     /// @param now The current time.
     void Clean(UtcTime now);
 
+    /// @return True when there is a writer. Callers skip the work of building a line when it is false.
+    bool Enabled() const;
+
     /// @return How many lines failed or were refused since the start.
     int Failures() const;
 

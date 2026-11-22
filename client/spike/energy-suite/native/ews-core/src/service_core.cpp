@@ -52,14 +52,6 @@ IntervalMinute MakeIntervalMinute(double seconds, const std::optional<double>& c
     return minute;
 }
 
-/// @return Watts for an energy in uJ over some seconds, or nothing when the energy is unknown.
-std::optional<double> ToWatts(const std::optional<double>& microjoules, double seconds) {
-    if (!microjoules.has_value() || seconds <= 0.0) {
-        return std::nullopt;
-    }
-    return *microjoules / seconds / 1.0e6;
-}
-
 /// Sets `device_w` of a row on battery to the battery power with the sign turned (SPEC section 7).
 /// An unknown battery change gives an empty `device_w`, never the model value. A row on mains is not touched.
 /// Zero is subtracted from, not negated, so a change of 0 gives 0.000 and not -0.000.
@@ -87,7 +79,8 @@ bool IsStillMinute(const HistoryRow& row, const MinuteBattery& battery) {
 
 }  // namespace
 
-ServiceCore::ServiceCore(const ServiceDeps& deps, ServiceSettings settings) : deps_(deps), settings_(std::move(settings)) {}
+ServiceCore::ServiceCore(const ServiceDeps& deps, ServiceSettings settings)
+    : deps_(deps), settings_(std::move(settings)), diag_(deps.diag) {}
 
 StartResult ServiceCore::Start() {
     StartResult prepared = Prepare();
@@ -157,6 +150,7 @@ void ServiceCore::BeginRun() {
     CleanHistoryOnNewDay(first.time);
     running_ = true;
     Log(LogEvent::ServiceStart);
+    DiagEvent("start", {FieldWord("service_version", kServiceVersion)});
     CheckLevelChange();
     WriteStatus();
 }
@@ -193,7 +187,10 @@ Snapshot ServiceCore::TakeSnapshot() {
     Reading<std::vector<EmiSample>> emi = deps_.emi.Read();
     snapshot.emiKnown = emi.ok() && emi.value.size() == channels_.size();
     snapshot.emi = emi.ok() ? std::move(emi.value) : std::vector<EmiSample>{};
-    snapshot.battery = ToBatteryReading(deps_.battery.Read());
+    Reading<std::vector<BatteryState>> batteries = deps_.battery.Read();
+    snapshot.battery = ToBatteryReading(batteries);
+    snapshot.batteryReadOk = batteries.ok();
+    snapshot.batteries = batteries.ok() ? std::move(batteries.value) : std::vector<BatteryState>{};
     Reading<CpuTimes> cpu = deps_.cpu.Read();
     snapshot.cpu = cpu.ok() ? std::optional<CpuTimes>(cpu.value) : std::nullopt;
     return snapshot;
@@ -223,12 +220,19 @@ std::optional<double> ServiceCore::ReadDisplayBrightness() {
     return percent.ok() ? std::optional<double>(percent.value) : std::nullopt;
 }
 
-std::optional<double> ServiceCore::CurrentBrightness() {
+ServiceCore::BrightnessRead ServiceCore::CurrentBrightness() {
+    BrightnessRead read;
     std::optional<double> fromDisplay = displayReadable_ ? ReadDisplayBrightness() : std::nullopt;
     if (fromDisplay.has_value()) {
-        return fromDisplay;
+        read.percent = fromDisplay;
+        read.from = "service";
+        return read;
     }
-    return pipeBrightness_.has_value() ? std::optional<double>(*pipeBrightness_) : std::nullopt;
+    if (pipeBrightness_.has_value()) {
+        read.percent = static_cast<double>(*pipeBrightness_);
+        read.from = "pipe";
+    }
+    return read;
 }
 
 void ServiceCore::ProcessMinute(const Snapshot& current) {
@@ -246,15 +250,19 @@ void ServiceCore::ProcessMinute(const Snapshot& current) {
     input.packageGrowthUj = growth.packageUj;
     input.dramGrowthUj = growth.dramUj;
     input.displayOn = displayOn_;
-    input.brightnessPct = CurrentBrightness();
+    BrightnessRead brightness = CurrentBrightness();
+    input.brightnessPct = brightness.percent;
     input.model = model_.has_value() ? &*model_ : nullptr;
     MinuteEnergy energy = CalculateMinuteEnergy(input);
     MinuteEnergy shown = HistoryMinuteEnergy(input, energy);
     MinuteBattery battery = JudgeBatteryChange(previous_.battery, current.battery, onBattery_, seconds);
     batteryJumps_ += battery.jump ? 1 : 0;
     interval_->AddMinute(MakeIntervalMinute(seconds, cpuPercent, energy, battery));
+    minuteFlags_ = MinuteFlags{};
     AppendHistory(current, seconds, cpuPercent, shown, battery);
+    DiagTickLine(current, DiagMinute{seconds, cpuPercent, energy, shown, battery, brightness});
     previous_ = current;
+    previousRead_ = PreviousRead::Normal;
 }
 
 void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const std::optional<double>& cpuPercent,
@@ -267,9 +275,9 @@ void ServiceCore::AppendHistory(const Snapshot& current, double seconds, const s
     row.idleSeconds = idle;
     row.state = ComputeState(idle, config_.idleThresholdSeconds, config_.unusedThresholdSeconds, !somebodyLoggedOn_);
     row.cpuPct = cpuPercent;
-    row.deviceW = ToWatts(energy.deviceUj, seconds);
-    row.measuredW = energy.level != MeasureLevel::Unknown ? ToWatts(energy.measuredUj, seconds) : std::nullopt;
-    row.batteryW = ToWatts(battery.changeUj, seconds);
+    row.deviceW = EnergyToWatts(energy.deviceUj, seconds);
+    row.measuredW = energy.level != MeasureLevel::Unknown ? EnergyToWatts(energy.measuredUj, seconds) : std::nullopt;
+    row.batteryW = EnergyToWatts(battery.changeUj, seconds);
     row.level = energy.level;
     UseBatteryPowerOnBattery(row);
     RecordRow(row, current.time, battery, seconds);
@@ -301,6 +309,7 @@ void ServiceCore::RecordRow(const HistoryRow& row, UtcTime time, const MinuteBat
 
 void ServiceCore::HoldRow(const HistoryRow& row, UtcTime time, double seconds, bool replace, bool still) {
     heldRows_.push_back(HeldRow{row, time, seconds, replace, still});
+    minuteFlags_.held = true;
 }
 
 ServiceCore::HeldTotals ServiceCore::SummariseHeld() const {
@@ -317,8 +326,9 @@ void ServiceCore::ResolveHeldRows(const HistoryRow& row, UtcTime time, const Min
     // The fall is shared by the still minutes and this minute, in proportion to their seconds, so every one of them
     // shows the same power. A held impossible minute gets that power too (its own seconds times it).
     HeldTotals totals = SummariseHeld();
+    minuteFlags_.batteryReplaced = totals.jumpRows > 0;
     double shareSeconds = totals.stillSeconds + seconds;
-    std::optional<double> shareWatts = ToWatts(battery.changeUj, shareSeconds);
+    std::optional<double> shareWatts = EnergyToWatts(battery.changeUj, shareSeconds);
     interval_->ResolveBatteryJumps(*battery.changeUj / shareSeconds);
     if (totals.stillRows > 0) {
         Log(LogEvent::BatterySplit, {totals.stillRows});
@@ -376,6 +386,8 @@ void ServiceCore::CleanHistoryOnNewDay(UtcTime now) {
         return;
     }
     lastDate_ = today;
+    // The diagnostics files are cleaned at the same moments: at the start and at the change of day (SPEC 7a).
+    diag_.Clean(now);
     Reading<int> deleted = DeleteOldHistoryFiles(settings_.dataDir, now);
     if (deleted.ok() && deleted.value > 0) {
         Log(LogEvent::HistoryCleaned, {deleted.value});
@@ -389,9 +401,11 @@ bool ServiceCore::IsGap(const Snapshot& current) const {
 
 void ServiceCore::HandleGap(const Snapshot& current) {
     Log(LogEvent::GapDetected);
+    DiagEvent("gap");
     WriteHeldRows(std::nullopt);
     FinishInterval(previous_, true);
     BeginInterval(current);
+    previousRead_ = PreviousRead::AfterGap;
 }
 
 int ServiceCore::TicksPerInterval() const { return std::max(1, config_.intervalSeconds / 60); }
@@ -438,6 +452,7 @@ void ServiceCore::PowerSourceChanged() {
     Snapshot at = CloseEarly(true);
     onBattery_ = now.value;
     BeginInterval(at);
+    DiagEvent("power_source", {FieldBool("on_battery", onBattery_)});
 }
 
 void ServiceCore::Suspend() {
@@ -446,6 +461,7 @@ void ServiceCore::Suspend() {
     }
     CloseEarly(false);
     suspended_ = true;
+    DiagEvent("suspend");
 }
 
 void ServiceCore::Resume() {
@@ -456,13 +472,19 @@ void ServiceCore::Resume() {
     Reading<bool> power = deps_.power.OnBattery();
     onBattery_ = power.ok() ? power.value : onBattery_;
     BeginInterval(TakeSnapshot());
+    previousRead_ = PreviousRead::First;
+    DiagEvent("resume");
 }
 
-void ServiceCore::DisplayChanged(bool on) { displayOn_ = on; }
+void ServiceCore::DisplayChanged(bool on) {
+    displayOn_ = on;
+    DiagEvent("display", {FieldBool("on", on)});
+}
 
 void ServiceCore::SessionsChanged(bool somebodyLoggedOn, bool activeSessionLocked) {
     somebodyLoggedOn_ = somebodyLoggedOn;
     activeSessionLocked_ = activeSessionLocked;
+    DiagEvent("session", {FieldBool("logged_on", somebodyLoggedOn), FieldBool("locked", activeSessionLocked)});
 }
 
 void ServiceCore::PipeMessage(std::string_view text, bool senderSessionActive) {
@@ -496,7 +518,7 @@ void ServiceCore::NetworkBack() {
     if (!running_ || suspended_) {
         return;
     }
-    SendNow(LogEvent::SendOnNetwork);
+    SendNowFor(kTriggerNetwork, LogEvent::SendOnNetwork);
 }
 
 void ServiceCore::Stop() {
@@ -507,6 +529,7 @@ void ServiceCore::Stop() {
         CloseEarly(false);
     }
     Log(LogEvent::ServiceStop);
+    DiagEvent("stop");
     running_ = false;
     sender_.reset();
     api_.reset();

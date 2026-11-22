@@ -108,7 +108,7 @@ DiagField FieldBool(const std::string& key, bool value);
 DiagField FieldInt(const std::string& key, long long value);
 /// @param key The field name. @param value The value or nothing. @return A whole number field, or one that is left out.
 DiagField FieldMaybeInt(const std::string& key, const std::optional<long long>& value);
-/// @param key The field name. @param word A fixed word or a checked text. @return A text field (escaped).
+/// @param key The field name. @param word A fixed word or a checked text. @return A text field (escaped); an empty word is unknown and is left out.
 DiagField FieldWord(const std::string& key, const std::string& word);
 
 /// @param tick The values of one tick.

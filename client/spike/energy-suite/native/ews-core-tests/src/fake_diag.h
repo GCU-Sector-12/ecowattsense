@@ -36,12 +36,15 @@ public:
         lastClean = now;
     }
 
+    /// @param line A line. @param prefix A text. @return True when the line starts with the prefix.
+    static bool StartsWith(const std::string& line, const std::string& prefix) { return line.compare(0, prefix.size(), prefix) == 0; }
+
     /// @param prefix The start of a line, for example `{"t":"tick"`.
     /// @return How many written lines start with it.
     int CountStarting(const std::string& prefix) const {
         int count = 0;
         for (const std::string& line : lines) {
-            count += line.compare(0, prefix.size(), prefix) == 0 ? 1 : 0;
+            count += StartsWith(line, prefix) ? 1 : 0;
         }
         return count;
     }
@@ -49,12 +52,11 @@ public:
     /// @param prefix The start of a line.
     /// @return The first written line that starts with it, or an empty text.
     std::string FirstStarting(const std::string& prefix) const {
+        std::string found;
         for (const std::string& line : lines) {
-            if (line.compare(0, prefix.size(), prefix) == 0) {
-                return line;
-            }
+            found = (found.empty() && StartsWith(line, prefix)) ? line : found;
         }
-        return std::string();
+        return found;
     }
 
     /// @param part A piece of text.

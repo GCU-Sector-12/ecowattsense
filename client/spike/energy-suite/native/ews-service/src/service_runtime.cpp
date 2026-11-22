@@ -25,7 +25,8 @@ ServiceRuntime::ServiceRuntime(const ews::ServiceArgs& args, EventQueue& events,
     : args_(args),
       events_(events),
       stopEvent_(stopEvent),
-      core_(ews::ServiceDeps{clock_, scan_, emi_, battery_, cpu_, display_, power_, senders_}, SettingsFrom(args)) {}
+      diag_(args.dataDir),
+      core_(ews::ServiceDeps{clock_, scan_, emi_, battery_, cpu_, display_, power_, senders_, &diag_}, SettingsFrom(args)) {}
 
 void ServiceRuntime::LogCounted(long long code, unsigned long error) {
     ews::AppendLog(args_.dataDir, clock_.Now(), ews::LogEvent::CountedError, {code, static_cast<long long>(error)});
