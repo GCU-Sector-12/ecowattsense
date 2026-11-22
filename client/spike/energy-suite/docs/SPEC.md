@@ -25,8 +25,8 @@ Target: Windows 11, x64. Windows 10 and ARM64 are out of scope.
 ```
 client/spike/energy-suite/
   docs/SPEC.md            this file
-  native/                 C++ solution: ews-core, ews-scan, ews-service, ews-core-tests
   scripts/                Build-Native.ps1, Test-Native.ps1, Build-Package.ps1
+client/windows/native/                C++ solution: core, scanner, service, web installer and tests
 client/windows/EcoWattSense.Setup/      Setup.exe (C# WPF)
 client/windows/tests/SetupTests/       Setup tests
 client/windows/EcoWattSense.Calibrator/      the calibrator (exists)
@@ -628,7 +628,7 @@ Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter
 
 ## 13. Web installer
 
-`EcoWattSense-Web-Setup.exe` (project `native/ews-websetup`, same output folder as `ews-service.exe`, `asInvoker`) downloads the package and starts `Setup.exe`. Code is in `ews-websetup`; the pure parts (manifest check, address and redirect check, size check, SHA256 compare, result words) are in `ews-core` (`web_setup.h`) with tests that use no network.
+`EcoWattSense-Web-Setup.exe` (project `client/windows/native/ews-websetup`, same output folder as `ews-service.exe`, `asInvoker`) downloads the package and starts `Setup.exe`. Code is in `ews-websetup`; the pure parts (manifest check, address and redirect check, size check, SHA256 compare, result words) are in `ews-core` (`web_setup.h`) with tests that use no network.
 
 1. A TaskDialog "EcoWattSense setup" shows a progress bar and one status line. The work runs on a worker thread. Cancel stops it (exit code 1).
 2. The manifest comes from the fixed address `https://raw.githubusercontent.com/GCU-Sector-12/ecowattsense/EWS-energy-suite/client/spike/energy-suite/release/latest.json` (WinHTTP, https only, certificate checked, 10 s timeouts, at most 64 KB, no redirect). Format: `{"version","zip_url","sha256","size"}` and the optional `"server_url"`. Every field is checked: `version` has digits and dots only; `zip_url` starts with `https://github.com/GCU-Sector-12/ecowattsense/releases/download/`; `sha256` is 64 hex digits; `size` is 1 byte to 300 MB. `server_url` must start with `https://`, be at most 200 characters, and hold no space, quote or control character; a missing or bad value is left out, not an error. When valid, `Setup.exe` is started with `/server=<url>`.
