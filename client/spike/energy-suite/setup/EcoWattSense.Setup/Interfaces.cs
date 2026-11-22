@@ -168,6 +168,15 @@ public interface IProcessOps
     int CloseClients(out int closed);
 }
 
+/// <summary>Opening a web address.</summary>
+public interface IBrowserOps
+{
+    /// <summary>Opens the address in the default browser and does not wait. Never throws.</summary>
+    /// <param name="url">The full address, https or http to a loopback host.</param>
+    /// <returns>0, or -1 when no browser could be started.</returns>
+    int Open(string url);
+}
+
 /// <summary>Facts about the computer.</summary>
 public interface ISystemInfo
 {

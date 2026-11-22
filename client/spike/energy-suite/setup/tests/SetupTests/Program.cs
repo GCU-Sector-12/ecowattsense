@@ -37,6 +37,7 @@ public static class Program
         UndoChecks.Run();
         MaintenanceChecks.Run();
         ConnectionChecks.Run();
+        ConnectChecks.Run();
         DeviceNameChecks.Run();
         ClientCloseChecks.Run();
         NavChecks.Run();
