@@ -33,7 +33,11 @@ std::string DateOfName(const std::wstring& name) {
     if (date.empty() || !IsAscii(date)) {
         return std::string();
     }
-    return std::string(date.begin(), date.end());
+    std::string narrow;
+    for (wchar_t c : date) {
+        narrow.push_back(static_cast<char>(c));  // plain ASCII, checked above
+    }
+    return narrow;
 }
 
 /// @param date `yyyy-MM-dd`.
