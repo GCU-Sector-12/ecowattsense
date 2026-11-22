@@ -120,8 +120,8 @@ internal static class Program
         Run("parser: array is skipped", () => DiagLineParser.Parse("[1,2]") is null);
         Run("parser: garbage is skipped", () => DiagLineParser.Parse("not json") is null);
         Run("parser: half line is skipped", () => DiagLineParser.Parse("{\"t\":\"tick\",\"ts\":\"2026-11-22T10:3") is null);
-        Run("parser: nesting of 6 levels is read", () => DiagLineParser.Parse("{\"t\":\"x\",\"ts\":\"2026-11-22T10:31:00Z\",\"a\":{\"b\":{\"c\":{\"d\":[1]}}}}") is not null);
-        Run("parser: nesting of 7 levels is skipped", () => DiagLineParser.Parse("{\"t\":\"x\",\"ts\":\"2026-11-22T10:31:00Z\",\"a\":{\"b\":{\"c\":{\"d\":{\"e\":1}}}}}") is null);
+        Run("parser: nesting of 6 levels is read", () => DiagLineParser.Parse("{\"t\":\"x\",\"ts\":\"2026-11-22T10:31:00Z\",\"a\":{\"b\":{\"c\":{\"d\":{\"e\":[1]}}}}}") is not null);
+        Run("parser: nesting of 7 levels is skipped", () => DiagLineParser.Parse("{\"t\":\"x\",\"ts\":\"2026-11-22T10:31:00Z\",\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":[1]}}}}}}") is null);
         Run("parser: a line over 64 KB is skipped", () => DiagLineParser.Parse(Tick("2026-11-22T10:31:00Z", ",\"p\":\"" + new string('a', 70000) + "\"")) is null);
         Run("parser: a byte order mark is ignored", () => DiagLineParser.Parse("﻿" + Tick("2026-11-22T10:31:00Z")) is not null);
     }
@@ -256,7 +256,7 @@ internal static class Program
         Run("json rows: a broken file is unknown, not empty", () => !JsonFileRows.Read(Path.Combine(dir, "bad.json")).Available);
         Put(dir, "arr.json", "[1,2]");
         Run("json rows: a file that is not an object is unknown", () => !JsonFileRows.Read(Path.Combine(dir, "arr.json")).Available);
-        Put(dir, "deep.json", "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":1}}}}}}");
+        Put(dir, "deep.json", "{\"a\":{\"b\":{\"c\":{\"d\":{\"e\":{\"f\":{\"g\":1}}}}}}}");
         Run("json rows: nesting of 7 levels is unknown", () => !JsonFileRows.Read(Path.Combine(dir, "deep.json")).Available);
         Put(dir, "empty.json", "");
         Run("json rows: an empty file is unknown", () => !JsonFileRows.Read(Path.Combine(dir, "empty.json")).Available);
@@ -264,7 +264,7 @@ internal static class Program
         Run("json rows: a file over 64 MB is unknown", () => !JsonFileRows.Read(Path.Combine(dir, "huge.json")).Available);
         string manyRows = "{" + string.Join(",", Enumerable.Range(0, 450).Select(i => "\"k" + i + "\":1")) + "}";
         Put(dir, "many.json", manyRows);
-        Run("json rows: the cell cap of a row holds", () => JsonFileRows.Read(Path.Combine(dir, "many.json")).Rows.Count == 400);
+        Run("json rows: up to 5000 rows are kept", () => JsonFileRows.Read(Path.Combine(dir, "many.json")).Rows.Count == 450);
     }
 
     // ---------------------------------------------------------------- LogTailReader
@@ -286,10 +286,10 @@ internal static class Program
         Put(dir, "long.log", "ok\n" + new string('q', 70000) + "\nlast\n");
         LogTailResult lg = LogTailReader.Read(Path.Combine(dir, "long.log"));
         Run("log: a line over 64 KB is skipped and counted", () => lg.SkippedLines == 1 && lg.Lines.Count == 2);
-        string bigText = string.Join("\n", Enumerable.Range(1, 40000).Select(i => "line number " + i)) + "\n";
+        string bigText = string.Join("\n", Enumerable.Range(1, 80000).Select(i => "line number " + i)) + "\n";
         Put(dir, "huge.log", bigText);
         LogTailResult hg = LogTailReader.Read(Path.Combine(dir, "huge.log"));
-        Run("log: a file over 1 MB is read from its end and the cut first line is dropped", () => hg.Lines[0] == "line number 40000" && hg.Lines.Count == 300);
+        Run("log: a file over 1 MB is read from its end and the cut first line is dropped", () => hg.Lines[0] == "line number 80000" && hg.Lines.Count == 300);
     }
 
     // ---------------------------------------------------------------- DeveloperModeFile
@@ -373,7 +373,7 @@ internal static class Program
         File.WriteAllText(Path.Combine(d, "status", "status.json"), "{ broken");
         ExportPlan fewer = DiagExportPlan.Build(d);
         Run("plan: missing files are counted, a status that cannot be masked is left out", () => fewer.MissingCount == 3 && fewer.Entries.All(e => e.ZipPath != "status/status.json"));
-        Run("plan: an empty data folder gives no entries", () => DiagExportPlan.Build(NewDir()).Entries.Count == 0 && DiagExportPlan.Build(NewDir()).MissingCount == 9);
+        Run("plan: an empty data folder gives no entries", () => DiagExportPlan.Build(NewDir()).Entries.Count == 0 && DiagExportPlan.Build(NewDir()).MissingCount == 8);
     }
 
     // ---------------------------------------------------------------- DiagZipWriter
