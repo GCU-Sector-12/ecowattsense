@@ -113,3 +113,10 @@ EWS_TEST(LogTwoWritersNeverMixALine) {
     CHECK(CountLinesWith(text, "\n") == 201);
     ews_test::RemoveDataFolder(data);
 }
+
+EWS_TEST(LogEventWordsOfTheDiagnosticsFile) {
+    CHECK(std::string(ews::LogEventWord(ews::LogEvent::DiagFull)) == "diag_full");
+    CHECK(std::string(ews::LogEventWord(ews::LogEvent::DiagWriteFailed)) == "diag_write_failed");
+    CHECK(ews::FormatLogLine(Noon(), ews::LogEvent::DiagWriteFailed, {3}) == "2026-11-14T10:05:00Z diag_write_failed 3\n");
+    CHECK(ews::FormatLogLine(Noon(), ews::LogEvent::DiagFull, {}) == "2026-11-14T10:05:00Z diag_full\n");
+}

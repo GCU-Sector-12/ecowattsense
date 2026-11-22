@@ -10,6 +10,9 @@
 
 namespace ews {
 
+/// The only schema number that ParseModelJson accepts (the `schema` key of model.json).
+inline constexpr int kModelSchema = 2;
+
 /// A valid calibration model. Watt values are in W, per-percent values in W per processor percent.
 struct CalibrationModel {
     std::string generatedUtc;          ///< "YYYY-MM-DDTHH:MM:SSZ".

@@ -53,7 +53,9 @@ enum class LogEvent {
     CommandRun,        ///< numbers: command id, type (0 unknown, 1 set_interval, 2 report_now, 3 flush_buffer, 4 clear_buffer, 5 pull_settings), result (0 done, 1 failed, 2 unsupported).
     BufferCleared,     ///< numbers: how many reports were in the queue when `clear_buffer` emptied it.
     DeviceRegistered,  ///< numbers: the result code of `PUT /api/devices/{device_id}` (0 ok, 1 to 5 as PingFailed).
-    StateWriteFailed   ///< numbers: 1 server-settings.json, 2 commands-done.json could not be written.
+    StateWriteFailed,  ///< numbers: 1 server-settings.json, 2 commands-done.json could not be written.
+    DiagFull,          ///< The diagnostics file of the day has reached 20 MB; nothing more is written that day (SPEC 7a). Once per day.
+    DiagWriteFailed    ///< numbers: how many diagnostics lines have failed since the start. The first failure, then once an hour (SPEC 7a).
 };
 
 /// @param event An event.

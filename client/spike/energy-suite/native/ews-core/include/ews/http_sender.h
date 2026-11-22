@@ -31,6 +31,9 @@ struct SendResult {
     SendWord word = SendWord::Network;
     bool leaveQueue = false;  ///< True when the sent lines must leave the queue.
     int rejected = 0;         ///< How many reports the server refused (they left the queue too).
+    int httpStatus = 0;       ///< The HTTP status of the answer; 0 when there was no answer. Only for the diagnostics file.
+    int created = 0;          ///< How many items of a 200 or 201 answer say `created`. Only for the diagnostics file.
+    int duplicate = 0;        ///< How many items of a 200 or 201 answer say `duplicate`. Only for the diagnostics file.
 };
 
 /// Turns an HTTP answer into the result. A pure rule.
