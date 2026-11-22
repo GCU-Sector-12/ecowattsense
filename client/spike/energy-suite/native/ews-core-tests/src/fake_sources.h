@@ -59,8 +59,45 @@ class FakeGpu final : public ews::IGpuSource {
 public:
     ews::Reading<std::vector<ews::GpuAdapter>> adapters;
     ews::Reading<std::vector<ews::NvmlPower>> nvml;
+    ews::Reading<std::vector<ews::NvmlDeviceFacts>> devices =
+        ews::Reading<std::vector<ews::NvmlDeviceFacts>>::Failure(ews::Status::Unavailable, 0);
     ews::Reading<std::vector<ews::GpuAdapter>> ListAdapters() override { return adapters; }
     ews::Reading<std::vector<ews::NvmlPower>> ReadNvmlPower() override { return nvml; }
+    ews::Reading<std::vector<ews::NvmlDeviceFacts>> ReadNvmlDevices() override { return devices; }
+};
+
+/// Fake display layout source.
+class FakeDisplayLayout final : public ews::IDisplayLayoutSource {
+public:
+    ews::Reading<ews::DisplayLayout> result = ews::Reading<ews::DisplayLayout>::Failure(ews::Status::Error, 1);
+    ews::Reading<ews::DisplayLayout> Read() override { return result; }
+};
+
+/// Fake GPU Engine source: the first Read gives `first` (the priming read), every later Read gives `second`.
+class FakeGpuUse final : public ews::IGpuUseSource {
+public:
+    ews::Reading<std::vector<ews::PdhInstance>> first = ews::Reading<std::vector<ews::PdhInstance>>::Failure(ews::Status::Unavailable, 0);
+    ews::Reading<std::vector<ews::PdhInstance>> second = ews::Reading<std::vector<ews::PdhInstance>>::Failure(ews::Status::Unavailable, 0);
+    int reads = 0;
+    ews::Reading<std::vector<ews::PdhInstance>> Read() override { return reads++ == 0 ? first : second; }
+};
+
+/// Fake NVML session: Open gives `open`; every Read gives the next entry of `reads` (the last one repeats).
+class FakeNvmlSession final : public ews::INvmlSession {
+public:
+    ews::Reading<std::vector<ews::NvmlDeviceFacts>> open =
+        ews::Reading<std::vector<ews::NvmlDeviceFacts>>::Failure(ews::Status::Unavailable, 0);
+    std::vector<ews::Reading<std::vector<ews::NvmlSample>>> reads;
+    std::size_t next = 0;
+    ews::Reading<std::vector<ews::NvmlDeviceFacts>> Open() override { return open; }
+    ews::Reading<std::vector<ews::NvmlSample>> Read() override {
+        if (reads.empty()) {
+            return ews::Reading<std::vector<ews::NvmlSample>>::Failure(ews::Status::Unavailable, 0);
+        }
+        std::size_t at = next < reads.size() ? next : reads.size() - 1;
+        ++next;
+        return reads[at];
+    }
 };
 
 /// Fake Intel DTT source.
@@ -96,7 +133,9 @@ public:
     FakeBattery battery;
     FakePowerMeter powerMeter;
     FakeDisplay display;
+    FakeDisplayLayout displayLayout;
     FakeGpu gpu;
+    FakeGpuUse gpuUse;
     FakeDtt dtt;
     FakePawnIo pawnIo;
     FakeWaiter waiter;
@@ -105,7 +144,7 @@ public:
 
     /// @return The sources of this scenario, wired to the mains reading.
     ews::ScanSources Sources() {
-        return ews::ScanSources{machine, emi, battery, powerMeter, display, gpu, dtt, pawnIo, waiter, OnMains};
+        return ews::ScanSources{machine, emi, battery, powerMeter, display, displayLayout, gpu, gpuUse, dtt, pawnIo, waiter, OnMains};
     }
 };
 

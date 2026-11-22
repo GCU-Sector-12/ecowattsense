@@ -61,7 +61,22 @@ Users can write only `calibration\`. The service treats that file as untrusted (
 
 - Without `--out` the files go to the current folder. Setup passes `<data>\scan`.
 - The scanner needs no administrator rights and installs nothing.
-- Exit codes: 0 scan written, 2 output folder not writable, 3 bad arguments.
+- Exit codes: 0 scan written, 1 the watch timer or wait could not start (watch mode only), 2 output folder not writable, 3 bad arguments.
+
+Watch mode: `ews-scan.exe --watch [--period-ms <500..10000, default 2000>]`
+
+- It writes no file. It prints UTF-8 JSON lines to standard output and flushes after each line. The calibrator reads them (SPEC 8).
+- `--period-ms` is allowed only with `--watch`, and only as digits in the range. `--watch` cannot be combined with `--out`, `--context` or `--quiet`. A bad combination gives exit code 3.
+- It ends with exit code 0 when standard input reaches its end (the parent closed the pipe or died) or standard output cannot be written. Exit code 1: the timer or the wait could not start.
+- One waitable timer sets the period and one wait watches the end of input. There is no busy loop.
+- First line (header): `{"watch":1,"period_ms":2000,"emi":[{"name":"RAPL_Package0_PKG","kind":"cpu_package","device":0,"index":0}],"nvml":[{"name":"...","adapter":1,"power":true,"energy":true}],"gpu_use":[{"adapter":0,"role":"power_saving","vendor_id":4098}],"machine":{...},"battery":{...},"display":{...}}`.
+  `machine`, `battery` and `display` are the same objects as in `capabilities.json` (3.5). `gpu_use` lists the hardware adapters of source `gpu`, in the same order; `adapter` is the index in its `adapters`. `adapter` of an `nvml` entry and `role` are left out when unknown.
+- Then one line per period: `{"t_ms":4000,"emi_uj":[123456,null],"nvml_mw":[15300],"nvml_mj":[98765],"gpu_pct":[12.5,0.0]}`. The lists have the same order and length as in the header.
+  - `t_ms`: milliseconds on a monotonic clock since the watch started.
+  - `emi_uj`: energy of each channel in whole microjoules since its first good read (the first good value is 0). `null` for a failed read. A counter that went back gives `null` on that line and a new start value.
+  - `nvml_mw`: power of each NVML device in milliwatts, or `null`. `nvml_mj`: total energy counter since its first good read in millijoules, or `null` (always `null` when the header says `"energy":false`).
+  - `gpu_pct`: use of each adapter (rule of 3.3, source `gpu_use`), one decimal, or `null`.
+- Before the first line the watch reads every source once without printing, so the first line already counts one period.
 
 ### 3.2 The test of one source
 
@@ -79,13 +94,14 @@ A failed step is "unknown", never "does not exist". The scan never stops on one 
 | Id | What | How | Used by the service |
 |---|---|---|---|
 | `emi` | Every Energy Meter Interface device and every channel of it | SetupAPI with `GUID_DEVICE_ENERGY_METER`, then the four EMI IOCTLs, handle opened with `GENERIC_READ` only | yes |
-| `battery` | Every battery: unit (mWh or relative), full charge, whether the rate is known | Battery class IOCTLs | yes |
+| `battery` | Every battery: unit (mWh or relative), full charge, designed capacity, cycle count, whether the rate is known | Battery class IOCTLs | yes |
 | `acpi_power_meter` | Whole-computer power meter | Performance counter set "Power Meter" through PDH, English names | yes, when live |
-| `display` | Brightness | `IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS` on `\\.\LCD`. On the HP 250 G7 a standard user is denied (error 5); the scan records that. | yes, when readable in the service context |
-| `gpu` | List of graphics adapters (DXGI); power from NVML when `nvml.dll` loads | DXGI, dynamic load of NVML | no, logged only (section 12, point 1) |
+| `display` | Brightness; number of active displays, how many are external, refresh rate | `IOCTL_VIDEO_QUERY_DISPLAY_BRIGHTNESS` on `\\.\LCD`. On the HP 250 G7 a standard user is denied (error 5); the scan records that. The layout comes from `QueryDisplayConfig` (`QDC_ONLY_ACTIVE_PATHS`) and does not depend on the brightness read. | brightness: yes, when readable in the service context. Layout: no, logged only |
+| `gpu` | List of graphics adapters (DXGI) with a role; name, adapter, power and energy of NVIDIA devices from NVML when `nvml.dll` loads | DXGI (`IDXGIFactory6::EnumAdapterByGpuPreference` for the roles), dynamic load of NVML | no, logged only (section 12, point 1) |
+| `gpu_use` | Use of each graphics adapter | Performance counter set "GPU Engine", counter "Utilization Percentage", read through PDH with English names | no, logged only |
 | `intel_dtt` | Intel DTT participants | presence of the `esifsvc` service | no, logged only |
 | `pawnio` | The signed PawnIO driver, which gives programs the raw processor registers (among them the whole-platform energy counter that EMI does not show on the HP 250 G7) | whether PawnIO is installed, its version, and whether its device opens in this context. The scanner sends no command to the driver and loads no module. | no, logged only |
-| `machine` | Maker, model, chassis type (SMBIOS), processor vendor and name, logical processors, Windows build | `GetSystemFirmwareTable`, CPUID | yes (device type) |
+| `machine` | Maker, model, chassis type (SMBIOS), processor vendor and name, processor family, model and stepping, logical processors, physical cores, Windows build | `GetSystemFirmwareTable`, CPUID, `GetLogicalProcessorInformationEx` | yes (device type) |
 
 EMI channel kinds, set from the channel name:
 
@@ -95,8 +111,20 @@ EMI channel kinds, set from the channel name:
 | `cpu_package` | `RAPL_Package<N>_PKG`, `CPU` | yes |
 | `dram` | `RAPL_Package<N>_DRAM` | yes |
 | `cpu_cores` | `RAPL_Package<N>_PP0`, `CPU_*` | no, part of the package |
+| `cpu_core` | `RAPL_Package<N>_Core<M>_CORE` (one channel per physical core, as AMD laptops show it) | no, part of the package; never decides a level |
 | `igpu` | `RAPL_Package<N>_PP1` | no, part of the package |
 | `other` | every other name | no, logged |
+
+Rules of the kinds and of the extra fields:
+
+- Names such as `VDDCR_VDD Energy`, `VDDCR_SOC Energy`, `Current Socket Energy` and `Apu Energy` stay kind `other` (logged, never counted).
+- Processor facts: family is the base family plus the extended family when the base family is 15; model is the base model plus the extended model times 16 when the base family is 6 or 15; stepping and the three values come from CPUID leaf 1. `physical_cores` is the number of `RelationProcessorCore` records.
+- Battery: `design_mwh` is the sum of the known designed capacities of the mWh batteries; `cycle_count` is the largest known cycle count (0 means unknown and is left out).
+- Display: a path counts only when its target is available. The built-in panel is a path whose output technology is `INTERNAL`, `LVDS`, `DISPLAYPORT_EMBEDDED` or `UDI_EMBEDDED`. `refresh_hz` is the rate of the built-in panel, or of the first display when there is none, rounded to whole hertz.
+- Graphics roles: a software adapter has none. With one hardware adapter it is `only`. With more, the first hardware adapter that `EnumAdapterByGpuPreference` gives for minimum power is `power_saving` and for high performance is `high_performance`, when they differ; every other hardware adapter is `other`. Without the factory interface (or when one answer is missing) no adapter has a role.
+- NVML devices: `adapter` is the index in `adapters` of the first adapter, not yet taken, with the same PCI vendor and device id. The ids come from `nvmlDeviceGetPciInfo_v3`; they count only when the vendor half is 0x10DE. `power` and `energy` say whether `nvmlDeviceGetPowerUsage` and `nvmlDeviceGetTotalEnergyConsumption` answered; `sample_w` is the power read in watts.
+- GPU use of one adapter: take the instances of "GPU Engine" whose name holds `engtype_3D` (any case) and the adapter id (`luid_0x<high>_0x<low>`) of that adapter, group them by engine (the name from `_luid_` on, so without the process id), sum each engine over all processes, take the highest engine, limit to 0..100. A value that is not a finite number at or above 0 is ignored. With no such instance the use is unknown, never 0. The adapter LUID is kept in memory only to match the names and is never written to a file.
+- The counter "Utilization Percentage" is a rate, so the first collection only primes the query. The scan reads before and after the wait of step 3 and uses the second read.
 
 ### 3.4 Measurement level
 
@@ -126,14 +154,14 @@ Details of the rules:
   "scanned_utc": "2026-11-14T10:00:00Z",
   "context": "user",
   "machine": { "maker": "HP", "model": "HP 250 G7 Notebook PC", "chassis": "laptop",
-               "cpu_vendor": "GenuineIntel", "cpu_name": "...", "logical_processors": 8,
-               "windows_build": 26300 },
+               "cpu_vendor": "GenuineIntel", "cpu_name": "...", "cpu_family": 6, "cpu_model": 142,
+               "cpu_stepping": 12, "logical_processors": 8, "physical_cores": 4, "windows_build": 26300 },
   "sources": [
     { "id": "emi", "present": true, "readable": true, "live": true, "error": 0,
       "channels": [ { "device": 0, "index": 0, "name": "RAPL_Package0_PKG",
                       "kind": "cpu_package", "live": true, "sample_w": 4.1 } ] },
     { "id": "battery", "present": true, "readable": true, "live": null, "error": 0,
-      "count": 1, "unit": "mWh", "rate_known": false, "full_mwh": 36092 }
+      "count": 1, "unit": "mWh", "rate_known": false, "full_mwh": 36092, "design_mwh": 41000, "cycle_count": 212 }
   ],
   "level": "L2",
   "calibration": "needed",
@@ -146,12 +174,15 @@ The other sources use the same four common fields (`present`, `readable`, `live`
 | Source | Extra fields |
 |---|---|
 | `acpi_power_meter` | `instances` (count), `sample` (largest value read, in the unit of the counter) |
-| `display` | `brightness_pct` (only when readable) |
-| `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software" }`; `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count) |
+| `display` | `brightness_pct` (only when readable), `displays` (active displays), `external_displays` (active displays that are not the built-in panel), `refresh_hz` |
+| `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software", "role" }` (`role`: `only`, `power_saving`, `high_performance` or `other`; left out for a software adapter or when unknown); `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count); `nvml_list`: one entry per NVML device (see below) |
+| `gpu_use` | `adapters` (count of different adapter ids seen in the instance names). The four steps of 3.2 apply; `live` is `null`; `sample` is the highest use of one adapter in percent. |
 | `intel_dtt` | none (`present` says whether the service exists) |
 | `pawnio` | `version` (only when known). `present` says whether PawnIO is installed; `readable` says whether its device opened. |
 
-The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `intel_dtt`, `pawnio`. A field with an unknown value is left out.
+`nvml_list` of source `gpu` holds one entry per NVML device: `{ "name", "adapter", "power", "energy", "sample_w" }` (`adapter` and `sample_w` left out when unknown). It is left out when NVML lists no device. The word `nvml` and the count `nvml_devices` stay. The watch header holds the same list under the key `nvml`, without `sample_w`.
+
+The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `gpu_use`, `intel_dtt`, `pawnio`. A field with an unknown value is left out.
 
 `context`: the value of `--context`. Without the flag it is `admin` when the process is elevated, else `user`. With context `service` the files are named `capabilities.service.json` and `scan.service.log`.
 
@@ -493,9 +524,10 @@ Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter
 1. Graphics power from NVML is found by the scanner but not used in the energy sum. Using it needs the calibrator to read NVML too; that is a decision for Darek.
 2. EMI reads from the LocalService account: not tested yet. The scan in the service context answers it.
 3. Brightness through `\\.\LCD` is denied for a standard user on the HP 250 G7 (measured 13 Nov 2026). Whether the service account can read it is not tested yet. The pipe value is the fallback.
-4. EMI on AMD and on other makers: known from literature only. The scanner on real laptops answers it.
+4. EMI on AMD: Mozilla bug 1797697 (Ryzen 7 5800U, Windows 11 22H2) measured that EMI gives `RAPL_Package0_PKG` and one channel `RAPL_Package0_Core<N>_CORE` per physical core (N = 0, 2, 4 ... 14); the package holds the cores. So today's rules give L2 on such a laptop; the core channels are kind `cpu_core`, logged and not counted. The AMD values are a model of the processor, not a measurement (Schoene et al. 2021), and on forums the package power was sometimes above the battery discharge; the calibrator must survive that. Other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
 6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on mains on the HP 250 G7). The scan lists it with its test result, but it never gives level L1 and is not used for energy.
+7. Not run on Windows yet: the watch mode, the NVML fields (name, adapter, power, energy, `sample_w`), the source `gpu_use`, the display layout fields, the processor family, model, stepping and physical cores, and the battery design capacity and cycle count. They are written from the Microsoft and NVIDIA documentation and tested with fakes only. A first run on real laptops (Intel with NVIDIA, AMD) must confirm: that the wildcard counter "GPU Engine(*)" shows processes that start between two collections, that `EnumAdapterByGpuPreference` gives two different adapters on a switching laptop, that the PCI id of NVML has the device id in the high half, and that the refresh rate of the path is the current one.
 
 ## 13. Web installer
 

@@ -70,3 +70,51 @@ EWS_TEST(ArgsOptionWithoutValueIsRejected) {
     CHECK(!Parse({L"--context"}).ok);
     CHECK(!Parse({L"--quiet", L"--out"}).ok);
 }
+
+EWS_TEST(ArgsWatchAlone) {
+    auto r = Parse({L"--watch"});
+    CHECK(r.ok);
+    CHECK(r.args.watch);
+    CHECK(r.args.periodMs == 2000);
+}
+
+EWS_TEST(ArgsWatchWithAPeriod) {
+    auto r = Parse({L"--watch", L"--period-ms", L"500"});
+    CHECK(r.ok && r.args.watch && r.args.periodMs == 500);
+    auto other = Parse({L"--period-ms", L"10000", L"--watch"});
+    CHECK(other.ok && other.args.watch && other.args.periodMs == 10000);
+    CHECK(Parse({L"--watch", L"--period-ms", L"2500"}).args.periodMs == 2500);
+}
+
+EWS_TEST(ArgsWatchPeriodOutsideTheRangeIsRejected) {
+    CHECK(!Parse({L"--watch", L"--period-ms", L"499"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"10001"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"0"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"99999999999"}).ok);
+}
+
+EWS_TEST(ArgsWatchPeriodMustBeDigitsOnly) {
+    CHECK(!Parse({L"--watch", L"--period-ms", L"2e3"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"-1000"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"+1000"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L" 1000"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms", L"abc"}).ok);
+    CHECK(!Parse({L"--watch", L"--period-ms"}).ok);
+}
+
+EWS_TEST(ArgsPeriodWithoutWatchIsRejected) {
+    CHECK(!Parse({L"--period-ms", L"1000"}).ok);
+}
+
+EWS_TEST(ArgsWatchCannotBeCombinedWithOutContextOrQuiet) {
+    CHECK(!Parse({L"--watch", L"--out", L"x"}).ok);
+    CHECK(!Parse({L"--out", L"x", L"--watch"}).ok);
+    CHECK(!Parse({L"--watch", L"--context", L"user"}).ok);
+    CHECK(!Parse({L"--quiet", L"--watch"}).ok);
+}
+
+EWS_TEST(ArgsWithoutWatchKeepTheDefaults) {
+    auto r = Parse({L"--quiet"});
+    CHECK(!r.args.watch);
+    CHECK(r.args.periodMs == 2000);
+}

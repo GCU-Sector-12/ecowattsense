@@ -26,6 +26,7 @@ struct BatteryState {
     std::uint32_t fullCharged = 0;   ///< Full charged capacity, in `unit`.
     bool designedKnown = false;
     std::uint32_t designed = 0;      ///< Designed capacity, in `unit`.
+    std::uint32_t cycleCount = 0;    ///< Charge cycles from BATTERY_INFORMATION.CycleCount; 0 means unknown.
     bool rateKnown = false;
     std::int32_t rate = 0;           ///< Rate in mW (relative units for Relative); negative while discharging.
     bool voltageKnown = false;

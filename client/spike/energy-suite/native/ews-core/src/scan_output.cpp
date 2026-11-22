@@ -141,7 +141,7 @@ std::string EmiJson(const EmiResult& emi) {
     return Object(fields);
 }
 
-std::string BatteryJson(const BatteryResult& battery) {
+std::string BatteryObject(const BatteryResult& battery) {
     Fields fields = SourceFields("battery", battery.common);
     AddOptionalNumber(fields, "count", battery.count);
     if (battery.unit.has_value()) {
@@ -149,6 +149,8 @@ std::string BatteryJson(const BatteryResult& battery) {
     }
     AddOptionalBool(fields, "rate_known", battery.rateKnown);
     AddOptionalNumber(fields, "full_mwh", battery.fullMwh);
+    AddOptionalNumber(fields, "design_mwh", battery.designMwh);
+    AddOptionalNumber(fields, "cycle_count", battery.cycleCount);
     return Object(fields);
 }
 
@@ -159,9 +161,12 @@ std::string PowerMeterJson(const PowerMeterResult& meter) {
     return Object(fields);
 }
 
-std::string DisplayJson(const DisplayResult& display) {
+std::string DisplayObject(const DisplayResult& display) {
     Fields fields = SourceFields("display", display.common);
     AddOptionalNumber(fields, "brightness_pct", display.brightnessPercent);
+    AddOptionalNumber(fields, "displays", display.displays);
+    AddOptionalNumber(fields, "external_displays", display.externalDisplays);
+    AddOptionalNumber(fields, "refresh_hz", display.refreshHz);
     return Object(fields);
 }
 
@@ -171,6 +176,20 @@ std::string AdapterJson(const GpuAdapter& adapter) {
     AddWholeNumber(fields, "vendor_id", adapter.vendorId);
     AddWholeNumber(fields, "memory_mb", adapter.dedicatedMemoryMegabytes);
     AddBool(fields, "software", adapter.software);
+    if (adapter.role.has_value()) {
+        AddText(fields, "role", GpuRoleWord(*adapter.role));
+    }
+    return Object(fields);
+}
+
+/// @return One NVML device of the list: name, adapter, power, energy, sample_w. Unknown fields are left out.
+std::string NvmlEntryObject(const NvmlEntry& entry) {
+    Fields fields;
+    AddText(fields, "name", entry.name);
+    AddOptionalNumber(fields, "adapter", entry.adapter);
+    AddBool(fields, "power", entry.power);
+    AddBool(fields, "energy", entry.energy);
+    AddOptionalDecimal(fields, "sample_w", entry.sampleWatts);
     return Object(fields);
 }
 
@@ -187,6 +206,15 @@ std::string GpuJson(const GpuResult& gpu) {
         AddText(fields, "nvml", NvmlWord(*gpu.nvml));
     }
     AddOptionalNumber(fields, "nvml_devices", gpu.nvmlDevices);
+    if (!gpu.nvmlEntries.empty()) {
+        AddRaw(fields, "nvml_list", NvmlEntriesJson(gpu.nvmlEntries));
+    }
+    return Object(fields);
+}
+
+std::string GpuUseJson(const GpuUseResult& gpuUse) {
+    Fields fields = SourceFields("gpu_use", gpuUse.common);
+    AddOptionalNumber(fields, "adapters", gpuUse.adapters);
     return Object(fields);
 }
 
@@ -199,7 +227,7 @@ std::string PawnIoJson(const PawnIoResult& pawnIo) {
 }
 
 /// @return The machine object. Unknown fields are left out.
-std::string MachineJson(const MachineInfo& machine) {
+std::string MachineObject(const MachineInfo& machine) {
     Fields fields;
     AddOptionalText(fields, "maker", machine.smbios.maker);
     AddOptionalText(fields, "model", machine.smbios.model);
@@ -208,16 +236,20 @@ std::string MachineJson(const MachineInfo& machine) {
     }
     AddOptionalText(fields, "cpu_vendor", machine.processorVendor);
     AddOptionalText(fields, "cpu_name", machine.processorBrand);
+    AddOptionalNumber(fields, "cpu_family", machine.cpuFamily);
+    AddOptionalNumber(fields, "cpu_model", machine.cpuModel);
+    AddOptionalNumber(fields, "cpu_stepping", machine.cpuStepping);
     AddOptionalNumber(fields, "logical_processors", machine.logicalProcessors);
+    AddOptionalNumber(fields, "physical_cores", machine.physicalCores);
     AddOptionalNumber(fields, "windows_build", machine.windowsBuild);
     return Object(fields);
 }
 
-/// @return The seven source objects, in the order of SPEC 3.5, one per entry.
+/// @return The eight source objects, in the order of SPEC 3.5, one per entry.
 std::vector<std::string> SourceLines(const ScanResult& result) {
-    return {EmiJson(result.emi),         BatteryJson(result.battery), PowerMeterJson(result.powerMeter),
-            DisplayJson(result.display), GpuJson(result.gpu),         IntelDttJson(result.intelDtt),
-            PawnIoJson(result.pawnIo)};
+    return {EmiJson(result.emi),         BatteryObject(result.battery), PowerMeterJson(result.powerMeter),
+            DisplayObject(result.display), GpuJson(result.gpu),         GpuUseJson(result.gpuUse),
+            IntelDttJson(result.intelDtt), PawnIoJson(result.pawnIo)};
 }
 
 /// @return The items joined by the separator.
@@ -251,12 +283,26 @@ void AddSourceLog(std::string& log, const char* id, const SourceCommon& common) 
 
 }  // namespace
 
+std::string MachineObjectJson(const MachineInfo& machine) { return MachineObject(machine); }
+
+std::string BatteryObjectJson(const BatteryResult& battery) { return BatteryObject(battery); }
+
+std::string DisplayObjectJson(const DisplayResult& display) { return DisplayObject(display); }
+
+std::string NvmlEntriesJson(const std::vector<NvmlEntry>& entries) {
+    std::vector<std::string> items;
+    for (const NvmlEntry& entry : entries) {
+        items.push_back(NvmlEntryObject(entry));
+    }
+    return Array(items);
+}
+
 std::string WriteCapabilitiesJson(const ScanResult& result) {
     std::string out = "{\n";
     out += "  \"schema\": 1,\n";
     out += "  \"scanned_utc\": " + JsonQuote(result.scannedUtc) + ",\n";
     out += "  \"context\": " + JsonQuote(ContextWord(result.context)) + ",\n";
-    out += "  \"machine\": " + MachineJson(result.machine) + ",\n";
+    out += "  \"machine\": " + MachineObject(result.machine) + ",\n";
     out += "  \"sources\": [\n    " + Join(SourceLines(result), ",\n    ") + "\n  ],\n";
     out += "  \"level\": " + JsonQuote(LevelWord(result.level)) + ",\n";
     out += "  \"calibration\": " + JsonQuote(CalibrationWord(result.calibration)) + ",\n";
@@ -272,6 +318,7 @@ std::string WriteScanLog(const ScanResult& result) {
     AddSourceLog(log, "acpi_power_meter", result.powerMeter.common);
     AddSourceLog(log, "display", result.display.common);
     AddSourceLog(log, "gpu", result.gpu.common);
+    AddSourceLog(log, "gpu_use", result.gpuUse.common);
     AddSourceLog(log, "intel_dtt", result.intelDtt.common);
     AddSourceLog(log, "pawnio", result.pawnIo.common);
     log += std::string("level ") + LevelWord(result.level) + "\n";

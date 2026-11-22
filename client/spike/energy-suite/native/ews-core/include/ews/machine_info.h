@@ -27,6 +27,10 @@ struct MachineInfo {
     std::optional<std::string> processorBrand;    ///< CPUID brand string, if the processor has one.
     std::optional<std::uint32_t> logicalProcessors;
     std::optional<std::uint32_t> windowsBuild;
+    std::optional<std::uint32_t> cpuFamily;       ///< CPUID leaf 1, with the extended family added the documented way.
+    std::optional<std::uint32_t> cpuModel;        ///< CPUID leaf 1, with the extended model added the documented way.
+    std::optional<std::uint32_t> cpuStepping;     ///< CPUID leaf 1.
+    std::optional<std::uint32_t> physicalCores;   ///< GetLogicalProcessorInformationEx, RelationProcessorCore.
 };
 
 /// A source of machine facts. Tests use a fake.

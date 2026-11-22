@@ -4,8 +4,10 @@
 
 #include "ews/battery.h"
 #include "ews/display.h"
+#include "ews/display_layout.h"
 #include "ews/emi.h"
 #include "ews/gpu.h"
+#include "ews/gpu_use.h"
 #include "ews/intel_dtt.h"
 #include "ews/machine_info.h"
 #include "ews/pawnio.h"
@@ -24,11 +26,13 @@ ScanResult SystemScanRunner::Run(ScanContext context) {
     SystemBatterySource battery;
     SystemPowerMeterSource powerMeter;
     SystemDisplaySource display;
+    SystemDisplayLayoutSource displayLayout;
     SystemGpuSource gpu;
+    SystemGpuUseSource gpuUse;
     SystemIntelDttSource intelDtt;
     SystemPawnIoSource pawnIo;
     SystemScanWaiter waiter;
-    ScanSources sources{machine, emi, battery, powerMeter, display, gpu, intelDtt, pawnIo, waiter, ReadOnBattery};
+    ScanSources sources{machine, emi, battery, powerMeter, display, displayLayout, gpu, gpuUse, intelDtt, pawnIo, waiter, ReadOnBattery};
     return RunScan(sources, context, FormatUtcTimestamp(std::chrono::system_clock::now()));
 }
 

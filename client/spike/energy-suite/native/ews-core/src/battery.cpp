@@ -99,6 +99,7 @@ BatteryState BuildState(const BATTERY_INFORMATION& info, const BATTERY_STATUS& s
     SetCapacity(info.FullChargedCapacity, state.fullChargedKnown, state.fullCharged);
     SetCapacity(info.DesignedCapacity, state.designedKnown, state.designed);
     SetCapacity(status.Voltage, state.voltageKnown, state.voltage);
+    state.cycleCount = info.CycleCount;
     state.rateKnown = status.Rate != kUnknownRate;
     state.rate = state.rateKnown ? status.Rate : 0;
     state.onLine = (status.PowerState & BATTERY_POWER_ON_LINE) != 0;
