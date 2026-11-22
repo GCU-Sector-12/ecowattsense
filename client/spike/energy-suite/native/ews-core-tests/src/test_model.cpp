@@ -86,3 +86,70 @@ EWS_TEST(ModelRejectsEmptyAndBrokenFiles) {
     CHECK(!ParseModelJson("{").ok());
     CHECK(!ParseModelJson(ews_test::SpecModelText() + "x").ok());
 }
+
+namespace {
+
+/// Replaces the first occurrence of `from` in the schema 3 model text by `to`. The text must contain `from`.
+std::string Changed3(const std::string& from, const std::string& to) {
+    std::string text = ews_test::SpecModelText3();
+    std::size_t at = text.find(from);
+    CHECK(at != std::string::npos);
+    return text.replace(at, from.size(), to);
+}
+
+}  // namespace
+
+EWS_TEST(ModelSchema2StillParsesAndBothGraphicsNumbersAreZero) {
+    auto r = ParseModelJson(ews_test::SpecModelText());
+    CHECK(r.ok());
+    CHECK(r.value.schema == 2);
+    CHECK(r.value.gpuWPerPct == 0.0);
+    CHECK(r.value.restWPerGpuPct == 0.0);
+}
+
+EWS_TEST(ModelSchema3ParsesWithTheGraphicsNumbers) {
+    auto r = ParseModelJson(ews_test::SpecModelText3());
+    CHECK(r.ok());
+    CHECK(r.value.schema == 3);
+    CHECK(r.value.gpuWPerPct == 0.04);
+    CHECK(r.value.restWPerGpuPct == 0.03);
+    CHECK(r.value.baseW == 3.48);
+    CHECK(r.value.graphicsW == 2.44);
+}
+
+EWS_TEST(ModelSchema3AcceptsTheLimitsOfTheGraphicsNumbers) {
+    CHECK(ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": 0")).ok());
+    CHECK(ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": 5")).ok());
+    CHECK(ParseModelJson(Changed3("\"rest_w_per_gpu_pct\": 0.03", "\"rest_w_per_gpu_pct\": 5")).ok());
+}
+
+EWS_TEST(ModelSchema3RejectsAMissingGraphicsNumber) {
+    CHECK(!ParseModelJson(Changed3(",\n    \"gpu_w_per_pct\": 0.04", "")).ok());
+    CHECK(!ParseModelJson(Changed3(",\n    \"rest_w_per_gpu_pct\": 0.03", "")).ok());
+    CHECK(!ParseModelJson(Changed3(",\n    \"gpu_w_per_pct\": 0.04,\n    \"rest_w_per_gpu_pct\": 0.03", "")).ok());
+}
+
+EWS_TEST(ModelSchema3RejectsAGraphicsNumberOutOfRangeOrNotANumber) {
+    CHECK(!ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": 5.1")).ok());
+    CHECK(!ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": -0.1")).ok());
+    CHECK(!ParseModelJson(Changed3("\"rest_w_per_gpu_pct\": 0.03", "\"rest_w_per_gpu_pct\": 5.1")).ok());
+    CHECK(!ParseModelJson(Changed3("\"rest_w_per_gpu_pct\": 0.03", "\"rest_w_per_gpu_pct\": -1")).ok());
+    CHECK(!ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": \"0.04\"")).ok());
+    CHECK(!ParseModelJson(Changed3("\"gpu_w_per_pct\": 0.04", "\"gpu_w_per_pct\": NaN")).ok());
+    CHECK(!ParseModelJson(Changed3("\"rest_w_per_gpu_pct\": 0.03", "\"rest_w_per_gpu_pct\": 1e999")).ok());
+}
+
+EWS_TEST(ModelSchema2DoesNotReadTheGraphicsNumbers) {
+    // A schema 2 file is read as before: the two numbers count as 0 even when the file holds them.
+    auto r = ParseModelJson(Changed("\"graphics_w\": 2.44", "\"graphics_w\": 2.44, \"gpu_w_per_pct\": 9, \"rest_w_per_gpu_pct\": 0.5"));
+    CHECK(r.ok());
+    CHECK(r.value.gpuWPerPct == 0.0);
+    CHECK(r.value.restWPerGpuPct == 0.0);
+}
+
+EWS_TEST(ModelRejectsSchema4AndSchemaThreeAsText) {
+    CHECK(!ParseModelJson(Changed3("\"schema\": 3", "\"schema\": 4")).ok());
+    CHECK(!ParseModelJson(Changed3("\"schema\": 3", "\"schema\": \"3\"")).ok());
+    CHECK(!ParseModelJson(Changed3("\"schema\": 3", "\"schema\": 2.5")).ok());
+    CHECK(!ParseModelJson(Changed3("\"schema\": 3", "\"schema\": 0")).ok());
+}

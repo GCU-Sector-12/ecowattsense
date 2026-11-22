@@ -1,5 +1,8 @@
 // test_energy.cpp: tests of the energy of one minute (ews/energy.h, SPEC 4.2 and 4.5).
 // Every expected number is calculated by hand in the comment above the check (model of SPEC section 8).
+#include <cmath>
+#include <limits>
+
 #include "ews/energy.h"
 #include "test_calc_common.h"
 #include "test_common.h"
@@ -210,4 +213,118 @@ EWS_TEST(EnergyToWattsRule) {
     CHECK(!ews::EnergyToWatts(std::nullopt, 60.0).has_value());
     CHECK(!ews::EnergyToWatts(1.0e6, 0.0).has_value());
     CHECK(!ews::EnergyToWatts(1.0e6, -5.0).has_value());
+}
+
+namespace {
+
+/// @return The spec model with the two graphics numbers: rest_w_per_gpu_pct 0.03 (L2) and gpu_w_per_pct 0.04 (L3).
+ews::CalibrationModel GraphicsModel() {
+    ews::CalibrationModel model = ews_test::SpecModel();
+    model.schema = 3;
+    model.gpuWPerPct = 0.04;
+    model.restWPerGpuPct = 0.03;
+    return model;
+}
+
+/// @return True when two minutes are bit for bit the same: level, device energy, measured energy.
+bool SameMinute(const MinuteEnergy& a, const MinuteEnergy& b) {
+    return a.level == b.level && a.deviceUj == b.deviceUj && a.measuredUj == b.measuredUj;
+}
+
+}  // namespace
+
+EWS_TEST(EnergyL2AddsRestWPerGpuPctTimesTheGpuUse) {
+    // rest 2.42 W + screen 1.712 W + 0.03 x 50 = 1.5 W: 5.632 W x 60 s = 337.92 J; measured 150 000 000 uJ.
+    ews::CalibrationModel model = GraphicsModel();
+    MinuteInput in = BaseMinute(&model);
+    in.packageGrowthUj = 120e6;
+    in.dramGrowthUj = 30e6;
+    in.gpuPercent = 50.0;
+    MinuteEnergy e = CalculateMinuteEnergy(in);
+    CHECK(e.level == MeasureLevel::L2);
+    CHECK(e.deviceUj.has_value() && Near(*e.deviceUj, 487920000.0));
+    CHECK(Near(e.measuredUj, 150e6));
+    CHECK(e.terms.gpuW.has_value() && Near(*e.terms.gpuW * 1e6, 1.5e6));
+}
+
+EWS_TEST(EnergyL3AddsGpuWPerPctTimesTheGpuUse) {
+    // base 3.48 + 0.075 x 20 = 4.98 W + screen 1.712 W + 0.04 x 50 = 2.0 W: 8.692 W x 60 s = 521.52 J.
+    ews::CalibrationModel model = GraphicsModel();
+    MinuteInput in = BaseMinute(&model);
+    in.gpuPercent = 50.0;
+    MinuteEnergy e = CalculateMinuteEnergy(in);
+    CHECK(e.level == MeasureLevel::L3);
+    CHECK(e.deviceUj.has_value() && Near(*e.deviceUj, 521520000.0));
+    CHECK(Near(e.measuredUj, 0.0));
+    CHECK(e.terms.gpuW.has_value() && Near(*e.terms.gpuW * 1e6, 2.0e6));
+}
+
+EWS_TEST(EnergyUnknownGpuUseGivesTheSameMinuteAsBefore) {
+    ews::CalibrationModel withNumbers = GraphicsModel();
+    ews::CalibrationModel without = ews_test::SpecModel();
+    MinuteInput l2With = BaseMinute(&withNumbers);
+    MinuteInput l2Without = BaseMinute(&without);
+    l2With.packageGrowthUj = l2Without.packageGrowthUj = 120e6;
+    l2With.dramGrowthUj = l2Without.dramGrowthUj = 30e6;
+    MinuteInput l3With = BaseMinute(&withNumbers);
+    MinuteInput l3Without = BaseMinute(&without);
+    CHECK(SameMinute(CalculateMinuteEnergy(l2With), CalculateMinuteEnergy(l2Without)));
+    CHECK(SameMinute(CalculateMinuteEnergy(l3With), CalculateMinuteEnergy(l3Without)));
+    CHECK(!CalculateMinuteEnergy(l2With).terms.gpuW.has_value());
+    CHECK(!CalculateMinuteEnergy(l3With).terms.gpuW.has_value());
+}
+
+EWS_TEST(EnergyBothGraphicsNumbersZeroIsBitForBitTheOldResult) {
+    ews::CalibrationModel model = ews_test::SpecModel();
+    MinuteInput l2Known = BaseMinute(&model);
+    MinuteInput l2Unknown = BaseMinute(&model);
+    l2Known.packageGrowthUj = l2Unknown.packageGrowthUj = 120e6;
+    l2Known.dramGrowthUj = l2Unknown.dramGrowthUj = 30e6;
+    l2Known.gpuPercent = 80.0;
+    MinuteInput l3Known = BaseMinute(&model);
+    MinuteInput l3Unknown = BaseMinute(&model);
+    l3Known.gpuPercent = 100.0;
+    CHECK(SameMinute(CalculateMinuteEnergy(l2Known), CalculateMinuteEnergy(l2Unknown)));
+    CHECK(SameMinute(CalculateMinuteEnergy(l3Known), CalculateMinuteEnergy(l3Unknown)));
+    // The term is known and 0 W, so the diagnostics line can show it.
+    CHECK(CalculateMinuteEnergy(l2Known).terms.gpuW.has_value() && *CalculateMinuteEnergy(l2Known).terms.gpuW == 0.0);
+}
+
+EWS_TEST(EnergyL2UsesTheRestNumberAndL3UsesTheGpuNumber) {
+    ews::CalibrationModel model = GraphicsModel();
+    model.restWPerGpuPct = 0.0;
+    MinuteInput l2 = BaseMinute(&model);
+    l2.packageGrowthUj = 120e6;
+    l2.dramGrowthUj = 30e6;
+    l2.gpuPercent = 100.0;
+    // L2 with rest_w_per_gpu_pct 0: the result is the one of EnergyL2WithDisplayOn.
+    CHECK(Near(*CalculateMinuteEnergy(l2).deviceUj, 397920000.0));
+    model.restWPerGpuPct = 0.03;
+    model.gpuWPerPct = 0.0;
+    MinuteInput l3 = BaseMinute(&model);
+    l3.gpuPercent = 100.0;
+    // L3 with gpu_w_per_pct 0: the result is the one of the L3 test, 401 520 000 uJ.
+    CHECK(Near(*CalculateMinuteEnergy(l3).deviceUj, 401520000.0));
+}
+
+EWS_TEST(EnergyAGpuUseOutsideZeroToHundredCountsAsUnknown) {
+    ews::CalibrationModel model = GraphicsModel();
+    MinuteInput base = BaseMinute(&model);
+    MinuteEnergy reference = CalculateMinuteEnergy(base);
+    for (double bad : {-1.0, 100.5, 1e300, std::nan(""), std::numeric_limits<double>::infinity()}) {
+        MinuteInput in = BaseMinute(&model);
+        in.gpuPercent = bad;
+        CHECK(SameMinute(CalculateMinuteEnergy(in), reference));
+        CHECK(!CalculateMinuteEnergy(in).terms.gpuW.has_value());
+    }
+}
+
+EWS_TEST(EnergyTheGpuUseDoesNotChangeL1) {
+    MinuteInput in = BaseMinute(nullptr);
+    in.systemGrowthUj = 300e6;
+    in.gpuPercent = 90.0;
+    MinuteEnergy e = CalculateMinuteEnergy(in);
+    CHECK(e.level == MeasureLevel::L1);
+    CHECK(e.deviceUj.has_value() && Near(*e.deviceUj, 300e6));
+    CHECK(!e.terms.gpuW.has_value());
 }

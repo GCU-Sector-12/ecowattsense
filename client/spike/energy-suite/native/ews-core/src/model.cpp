@@ -44,10 +44,21 @@ bool ReadBounded(const JsonValue& object, const char* key, double maxValue, doub
     return true;
 }
 
-/// @return True when `schema` is the number 2.
-bool SchemaIsTwo(const JsonValue& root) {
+/// Reads `schema`: it must be the number 2 or the number 3.
+bool ReadSchema(const JsonValue& root, CalibrationModel& model) {
     const JsonValue* schema = FindOfType(root, "schema", JsonType::Number);
-    return schema != nullptr && schema->number == 2.0;
+    if (schema == nullptr) {
+        return false;
+    }
+    if (schema->number == static_cast<double>(kModelSchemaOldest)) {
+        model.schema = kModelSchemaOldest;
+        return true;
+    }
+    if (schema->number == static_cast<double>(kModelSchemaNewest)) {
+        model.schema = kModelSchemaNewest;
+        return true;
+    }
+    return false;
 }
 
 /// @return True when a pattern character accepts a text character: 'd' is a digit, any other is itself.
@@ -110,16 +121,25 @@ bool ReadModelNumbers(const JsonValue& object, CalibrationModel& model) {
            ReadBounded(object, "graphics_w", kMaxWatts, model.graphicsW);
 }
 
+/// Reads the two graphics numbers of schema 3. A schema 2 file does not have them: both stay 0 and are not looked for.
+bool ReadGraphicsNumbers(const JsonValue& object, CalibrationModel& model) {
+    if (model.schema < kModelSchemaNewest) {
+        return true;
+    }
+    return ReadBounded(object, "gpu_w_per_pct", kMaxWattsPerPercent, model.gpuWPerPct) &&
+           ReadBounded(object, "rest_w_per_gpu_pct", kMaxWattsPerPercent, model.restWPerGpuPct);
+}
+
 /// Checks every field of the document and fills the model.
 bool ReadModel(const JsonValue& root, CalibrationModel& model) {
-    if (root.type != JsonType::Object || !SchemaIsTwo(root)) {
+    if (root.type != JsonType::Object || !ReadSchema(root, model)) {
         return false;
     }
     if (!ReadGeneratedUtc(root, model) || !ReadMeasuredParts(root, model)) {
         return false;
     }
     const JsonValue* numbers = FindOfType(root, "model", JsonType::Object);
-    return numbers != nullptr && ReadModelNumbers(*numbers, model);
+    return numbers != nullptr && ReadModelNumbers(*numbers, model) && ReadGraphicsNumbers(*numbers, model);
 }
 
 }  // namespace

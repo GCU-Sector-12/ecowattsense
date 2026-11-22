@@ -54,4 +54,15 @@ inline std::string SpecModelText() {
 })";
 }
 
+/// @return The model file of SPEC section 8 in schema 3: the text of SpecModelText() with the two graphics numbers
+/// (gpu_w_per_pct 0.04 and rest_w_per_gpu_pct 0.03) and `"schema": 3`.
+inline std::string SpecModelText3() {
+    std::string text = SpecModelText();
+    const std::string oldSchema = "\"schema\": 2";
+    const std::string oldLast = "\"graphics_w\": 2.44";
+    text.replace(text.find(oldSchema), oldSchema.size(), "\"schema\": 3");
+    text.replace(text.find(oldLast), oldLast.size(), "\"graphics_w\": 2.44,\n    \"gpu_w_per_pct\": 0.04,\n    \"rest_w_per_gpu_pct\": 0.03");
+    return text;
+}
+
 }  // namespace ews_test

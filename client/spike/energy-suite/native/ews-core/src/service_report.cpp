@@ -280,7 +280,7 @@ void ServiceCore::LoadModel() {
         return;
     }
     model_ = std::move(parsed.value);
-    DiagEvent("model_loaded", {FieldInt("schema", kModelSchema), FieldWord("generated_utc", model_->generatedUtc)});
+    DiagEvent("model_loaded", {FieldInt("schema", model_->schema), FieldWord("generated_utc", model_->generatedUtc)});
 }
 
 int ServiceCore::EffectiveLevelNumber() const {

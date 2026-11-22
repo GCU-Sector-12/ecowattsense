@@ -20,6 +20,16 @@ bool IsPercent(const std::optional<double>& value) {
     return value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 100.0;
 }
 
+/// @param gpuPercent The GPU use of the minute (untrusted).
+/// @param wattsPerPercent The model number for the level.
+/// @return The graphics term in W when the use is a number from 0 to 100, else nothing (an unknown use adds nothing).
+std::optional<double> GpuTerm(const std::optional<double>& gpuPercent, double wattsPerPercent) {
+    if (!IsPercent(gpuPercent)) {
+        return std::nullopt;
+    }
+    return wattsPerPercent * *gpuPercent;
+}
+
 /// @return The value when `wanted` and known, else 0.
 double GrowthIfWanted(bool wanted, const std::optional<double>& value) { return wanted ? value.value_or(0.0) : 0.0; }
 
@@ -72,9 +82,10 @@ MinuteEnergy TryLevel2(const MinuteInput& input, const CalibrationModel& model) 
                       GrowthIfWanted(model.measuresDram, input.dramGrowthUj);
     double cpuWatts = model.restWPerCpuPct * *input.cpuPercent;
     double screenWatts = ScreenWatts(input, model);
-    double restWatts = model.restW + cpuWatts + screenWatts;
+    std::optional<double> gpuWatts = GpuTerm(input.gpuPercent, model.restWPerGpuPct);
+    double restWatts = model.restW + cpuWatts + screenWatts + gpuWatts.value_or(0.0);
     MinuteEnergy minute = KnownMinute(MeasureLevel::L2, measured + restWatts * input.seconds * kMicrojoulesPerJoule, measured);
-    minute.terms = MinuteTerms{std::nullopt, model.restW, cpuWatts, screenWatts};
+    minute.terms = MinuteTerms{std::nullopt, model.restW, cpuWatts, screenWatts, gpuWatts};
     return minute;
 }
 
@@ -85,9 +96,10 @@ MinuteEnergy TryLevel3(const MinuteInput& input, const CalibrationModel& model) 
     }
     double cpuWatts = model.cpuWPerPct * *input.cpuPercent;
     double screenWatts = ScreenWatts(input, model);
-    double watts = model.baseW + cpuWatts + screenWatts;
+    std::optional<double> gpuWatts = GpuTerm(input.gpuPercent, model.gpuWPerPct);
+    double watts = model.baseW + cpuWatts + screenWatts + gpuWatts.value_or(0.0);
     MinuteEnergy minute = KnownMinute(MeasureLevel::L3, watts * input.seconds * kMicrojoulesPerJoule, 0.0);
-    minute.terms = MinuteTerms{model.baseW, std::nullopt, cpuWatts, screenWatts};
+    minute.terms = MinuteTerms{model.baseW, std::nullopt, cpuWatts, screenWatts, gpuWatts};
     return minute;
 }
 

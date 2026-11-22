@@ -31,6 +31,7 @@ struct MinuteInput {
     std::optional<double> dramGrowthUj;         ///< Growth of the EMI "dram" kind, in uJ.
     bool displayOn = true;                      ///< The display is on.
     std::optional<double> brightnessPct;        ///< Brightness 0 to 100; unknown counts as 50.
+    std::optional<double> gpuPercent;           ///< GPU use of the minute, 0 to 100 (SPEC 4.2); unknown counts as 0 and adds nothing.
     const CalibrationModel* model = nullptr;    ///< The valid model, or null when there is none.
 };
 
@@ -41,6 +42,7 @@ struct MinuteTerms {
     std::optional<double> restW;    ///< rest_w, level L2 only.
     std::optional<double> cpuW;     ///< The processor term: rest_w_per_cpu_pct x percent (L2) or cpu_w_per_pct x percent (L3).
     std::optional<double> screenW;  ///< The screen power of the minute (L2 and L3).
+    std::optional<double> gpuW;     ///< The graphics term: rest_w_per_gpu_pct (L2) or gpu_w_per_pct (L3) x GPU use. Empty when the use is unknown.
 };
 
 /// The energy of one minute.
