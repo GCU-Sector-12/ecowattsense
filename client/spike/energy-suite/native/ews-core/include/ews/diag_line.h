@@ -46,6 +46,12 @@ struct DiagDisplay {
     std::string from;                         ///< `service`, `pipe` or `default`.
 };
 
+/// The GPU use at one tick.
+struct DiagGpu {
+    std::optional<double> pct;  ///< The use in percent; left out when unknown.
+    std::string from;           ///< `service` (the service read it) or `default` (unknown, counted as 0). Empty: the object is left out.
+};
+
 /// The session facts at one tick.
 struct DiagSession {
     bool loggedOn = false;
@@ -64,6 +70,7 @@ struct DiagCalc {
     std::optional<double> baseW;              ///< Only at L3.
     std::optional<double> restW;              ///< Only at L2.
     std::optional<double> cpuTermW;
+    std::optional<double> gpuTermW;           ///< Left out when the GPU use of the minute is unknown.
     std::optional<double> screenW;
     std::optional<double> deviceW;
     std::optional<double> batteryW;
@@ -78,6 +85,7 @@ struct DiagTick {
     std::vector<DiagEmi> emi;
     std::vector<DiagBattery> battery;
     std::optional<double> cpuPct;
+    DiagGpu gpu;
     DiagDisplay display;
     DiagSession session;
     DiagCalc calc;

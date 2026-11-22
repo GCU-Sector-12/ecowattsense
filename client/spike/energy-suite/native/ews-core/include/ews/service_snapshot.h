@@ -10,6 +10,7 @@
 #include "ews/cpu_times.h"
 #include "ews/emi.h"
 #include "ews/interval.h"
+#include "ews/pdh_instance.h"
 #include "ews/reading.h"
 #include "ews/utc_stamp.h"
 
@@ -24,7 +25,14 @@ struct Snapshot {
     bool batteryReadOk = false;        ///< The battery read worked (it may have found no battery).
     std::vector<BatteryState> batteries;  ///< Each battery as read, for the diagnostics file (SPEC 7a); empty when the read failed.
     std::optional<CpuTimes> cpu;       ///< The processor times, or nothing when the read failed.
+    std::optional<double> gpuUsePercent;  ///< The GPU use of the period that ends here, 0 to 100; nothing when it is unknown.
 };
+
+/// The GPU use of one read of the counter set "GPU Engine" (SPEC 4.2): the use of each adapter by the rule of
+/// SummariseGpuUse, the highest adapter, limited to 0..100. This is the busiest 3D engine that the calibrator samples.
+/// @param read The result of IGpuUseSource::Read (untrusted values).
+/// @return The use in percent, or nothing when the read failed, no adapter was seen, or no adapter has a known use.
+std::optional<double> GpuUsePercentOf(const Reading<std::vector<PdhInstance>>& read);
 
 /// Growth of the EMI kinds between two snapshots, in uJ. An empty value is unknown.
 struct EmiGrowth {

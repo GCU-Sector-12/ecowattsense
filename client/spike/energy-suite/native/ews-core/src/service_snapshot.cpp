@@ -2,9 +2,12 @@
 // Used by ServiceCore. EMI counters are in pWh; the sums are converted to uJ once, at the end.
 #include "ews/service_snapshot.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+
+#include "ews/gpu_use.h"
 
 namespace ews {
 
@@ -68,6 +71,25 @@ bool IsImpossibleChange(double changeUj, bool onBattery, double seconds) {
     return std::fabs(changeUj) / seconds / 1.0e6 > kMaxBatteryWatts;
 }
 
+/// @return The larger of two values; an unknown value is ignored, and both unknown gives unknown.
+std::optional<double> HigherOf(const std::optional<double>& a, const std::optional<double>& b) {
+    if (!a.has_value()) {
+        return b;
+    }
+    if (!b.has_value()) {
+        return a;
+    }
+    return (std::max)(*a, *b);
+}
+
+/// @return The value limited to 0..100, or nothing when it is unknown or not a finite number (the counter is untrusted).
+std::optional<double> LimitedToPercent(const std::optional<double>& value) {
+    if (!value.has_value() || !std::isfinite(*value)) {
+        return std::nullopt;
+    }
+    return (std::min)((std::max)(*value, 0.0), 100.0);
+}
+
 }  // namespace
 
 EmiGrowth ComputeEmiGrowth(const std::vector<EmiChannel>& channels, const Snapshot& previous, const Snapshot& current) {
@@ -113,6 +135,18 @@ MinuteBattery JudgeBatteryChange(const BatteryReading& previous, const BatteryRe
     result.jump = change.has_value() && IsImpossibleChange(*change, onBattery, seconds);
     result.changeUj = result.jump ? std::nullopt : change;
     return result;
+}
+
+std::optional<double> GpuUsePercentOf(const Reading<std::vector<PdhInstance>>& read) {
+    if (!read.ok()) {
+        return std::nullopt;
+    }
+    GpuUseSummary summary = SummariseGpuUse(read.value);
+    std::optional<double> highest;
+    for (const AdapterUse& use : summary.adapters) {
+        highest = HigherOf(highest, use.percent);
+    }
+    return LimitedToPercent(highest);
 }
 
 std::int64_t ToUnixSeconds(UtcTime time) {

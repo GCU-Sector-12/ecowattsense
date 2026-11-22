@@ -126,6 +126,7 @@ struct ServiceDeps {
     IPowerSource& power;
     ISenderFactory& senders;
     IDiagWriter* diag = nullptr;  ///< Where the diagnostics lines go (SPEC 7a). Nothing is written when it is null.
+    IGpuUseSource* gpuUse = nullptr;  ///< The GPU Engine counter set, read once at each tick (SPEC 5.3). Never read when it is null.
 };
 
 /// The settings of the core.
@@ -220,6 +221,10 @@ private:
     };
     BrightnessRead CurrentBrightness();
     std::optional<double> ReadDisplayBrightness();
+    /// Reads the GPU Engine source once and gives the GPU use of the period that ends now (SPEC 4.2).
+    /// @return The use in percent, or nothing when the scan did not find the source readable, there is no source,
+    ///         or the read gave no usable value. A failed read never stops the tick.
+    std::optional<double> ReadGpuUse();
     void AppendHistory(const Snapshot& current, double seconds, const std::optional<double>& cpuPercent,
                        const MinuteEnergy& energy, const MinuteBattery& battery);
     void RecordRow(const HistoryRow& row, UtcTime time, const MinuteBattery& battery, double seconds);
@@ -246,6 +251,7 @@ private:
         MinuteEnergy shown;       ///< As shown in the history (level L4 without a model).
         MinuteBattery battery;
         BrightnessRead brightness;
+        std::optional<double> gpuPercent;  ///< The GPU use of the minute; empty when it was unknown.
     };
     /// Flags of the minute that are set while its history row is recorded.
     struct MinuteFlags {
@@ -368,6 +374,7 @@ private:
     std::optional<std::int64_t> modelFileTime_;
     MeasurementLevel scanLevel_ = MeasurementLevel::L4;
     bool displayReadable_ = false;
+    bool gpuUseReadable_ = false;  ///< The scan in the service context found the source `gpu_use` readable (SPEC 3.2).
     int loggedLevel_ = 0;
 
     bool running_ = false;

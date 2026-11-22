@@ -129,6 +129,7 @@ void ServiceCore::LoadSetup() {
     ScanResult scan = deps_.scan.Run(ScanContext::Service);
     scanLevel_ = scan.level;
     displayReadable_ = scan.display.common.readable == Tri::True;
+    gpuUseReadable_ = scan.gpuUse.common.readable == Tri::True;
     WriteScanFiles(scan);
     config_ = LoadServiceConfig(settings_.dataDir).value;
     if (config_.badValues > 0) {
@@ -193,7 +194,15 @@ Snapshot ServiceCore::TakeSnapshot() {
     snapshot.batteries = batteries.ok() ? std::move(batteries.value) : std::vector<BatteryState>{};
     Reading<CpuTimes> cpu = deps_.cpu.Read();
     snapshot.cpu = cpu.ok() ? std::optional<CpuTimes>(cpu.value) : std::nullopt;
+    snapshot.gpuUsePercent = ReadGpuUse();
     return snapshot;
+}
+
+std::optional<double> ServiceCore::ReadGpuUse() {
+    if (!gpuUseReadable_ || deps_.gpuUse == nullptr) {
+        return std::nullopt;
+    }
+    return GpuUsePercentOf(deps_.gpuUse->Read());
 }
 
 void ServiceCore::BeginInterval(const Snapshot& at) {
@@ -250,6 +259,7 @@ void ServiceCore::ProcessMinute(const Snapshot& current) {
     input.packageGrowthUj = growth.packageUj;
     input.dramGrowthUj = growth.dramUj;
     input.displayOn = displayOn_;
+    input.gpuPercent = current.gpuUsePercent;
     BrightnessRead brightness = CurrentBrightness();
     input.brightnessPct = brightness.percent;
     input.model = model_.has_value() ? &*model_ : nullptr;
@@ -260,7 +270,7 @@ void ServiceCore::ProcessMinute(const Snapshot& current) {
     interval_->AddMinute(MakeIntervalMinute(seconds, cpuPercent, energy, battery));
     minuteFlags_ = MinuteFlags{};
     AppendHistory(current, seconds, cpuPercent, shown, battery);
-    DiagTickLine(current, DiagMinute{seconds, cpuPercent, energy, shown, battery, brightness});
+    DiagTickLine(current, DiagMinute{seconds, cpuPercent, energy, shown, battery, brightness, current.gpuUsePercent});
     previous_ = current;
     previousRead_ = PreviousRead::Normal;
 }

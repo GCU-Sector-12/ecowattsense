@@ -123,6 +123,16 @@ std::string CpuJson(const std::optional<double>& percent) {
     return percent.has_value() && std::isfinite(*percent) ? object.Close() : std::string();
 }
 
+/// @return The GPU use object; empty (the field is left out) when `from` is empty.
+std::string GpuJson(const DiagGpu& gpu) {
+    if (gpu.from.empty()) {
+        return std::string();
+    }
+    Obj object;
+    object.Number("pct", gpu.pct, kPercentDecimals).Text("from", gpu.from);
+    return object.Close();
+}
+
 /// @return The display object.
 std::string DisplayJson(const DiagDisplay& display) {
     Obj object;
@@ -143,7 +153,7 @@ std::string CalcJson(const DiagCalc& calc) {
     Obj object;
     object.Text("scan_level", calc.scanLevel).Text("level", calc.level).Bool("model", calc.model).Int("measured_uj", calc.measuredUj);
     object.Number("base_w", calc.baseW, kWattDecimals).Number("rest_w", calc.restW, kWattDecimals);
-    object.Number("cpu_term_w", calc.cpuTermW, kWattDecimals).Number("screen_w", calc.screenW, kWattDecimals);
+    object.Number("cpu_term_w", calc.cpuTermW, kWattDecimals).Number("gpu_term_w", calc.gpuTermW, kWattDecimals).Number("screen_w", calc.screenW, kWattDecimals);
     object.Number("device_w", calc.deviceW, kWattDecimals).Number("battery_w", calc.batteryW, kWattDecimals);
     object.Int("energy_uj", calc.energyUj);
     return object.Close();
@@ -188,6 +198,7 @@ std::string BuildTickLine(const DiagTick& tick) {
         batteries.push_back(BatteryJson(battery));
     }
     line.Json("emi", JoinArray(channels)).Json("battery", JoinArray(batteries)).Json("cpu", CpuJson(tick.cpuPct));
+    line.Json("gpu", GpuJson(tick.gpu));
     line.Json("display", DisplayJson(tick.display)).Json("session", SessionJson(tick.session));
     line.Json("calc", CalcJson(tick.calc)).Json("flags", TextArray(tick.flags));
     return line.Close();

@@ -240,3 +240,35 @@ EWS_TEST(DiagLineLimitIs16KbWithTheLineFeed) {
     CHECK(!ews::FitsDiagLine(std::string(16384, 'a')));
     CHECK(ews::FitsDiagLine(std::string()));
 }
+
+EWS_TEST(DiagTickLineShowsTheGpuUseAfterTheProcessor) {
+    ews::DiagTick tick = FullTick();
+    tick.gpu.pct = 12.5;
+    tick.gpu.from = "service";
+    tick.calc.gpuTermW = 0.38;
+    std::string line = ews::BuildTickLine(tick);
+    CHECK(Has(line, R"("cpu":{"pct":18.6},"gpu":{"pct":12.5,"from":"service"},"display":{)"));
+    CHECK(Has(line, R"("rest_w":2.240,"cpu_term_w":0.167,"gpu_term_w":0.380,"screen_w":1.400,)"));
+}
+
+EWS_TEST(DiagTickLineWithAnUnknownGpuUseLeavesOutThePercentAndTheTerm) {
+    ews::DiagTick tick = FullTick();
+    tick.gpu.from = "default";
+    std::string line = ews::BuildTickLine(tick);
+    CHECK(Has(line, R"("cpu":{"pct":18.6},"gpu":{"from":"default"},"display":{)"));
+    CHECK(!Has(line, "gpu_term_w"));
+}
+
+EWS_TEST(DiagTickLineWithoutGpuFromLeavesOutTheGpuObject) {
+    CHECK(!Has(ews::BuildTickLine(FullTick()), R"("gpu")"));
+}
+
+EWS_TEST(DiagTickLineShowsAZeroGpuTermWhenTheUseIsKnown) {
+    ews::DiagTick tick = FullTick();
+    tick.gpu.pct = 0.0;
+    tick.gpu.from = "service";
+    tick.calc.gpuTermW = 0.0;
+    std::string line = ews::BuildTickLine(tick);
+    CHECK(Has(line, R"("gpu":{"pct":0.0,"from":"service"})"));
+    CHECK(Has(line, R"("gpu_term_w":0.000,)"));
+}

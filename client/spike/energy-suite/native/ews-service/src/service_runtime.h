@@ -57,6 +57,7 @@ private:
     ews::SystemPowerSource power_;
     ews::WinHttpSenderFactory senders_;
     ews::DiagFileWriter diag_;  ///< The diagnostics file (SPEC 7a); written always, no switch.
+    ews::SystemGpuUseSource gpuUse_;  ///< The GPU Engine counter set; one query lives as long as the service, read once a tick (SPEC 5.3).
     ews::ServiceCore core_;
     std::unique_ptr<PipeServer> pipe_;
     std::unique_ptr<NetworkWatch> network_;

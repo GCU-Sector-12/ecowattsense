@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "ews/secret.h"
@@ -94,6 +95,46 @@ public:
         times.user += busy;
         return ews::Reading<ews::CpuTimes>::Success(times);
     }
+};
+
+/// A GPU Engine source that gives the reads of `script` one after another; after the last one every read is Unavailable.
+/// Counts the reads, so a test can see that the service did not read it.
+class ScriptedGpuUse final : public ews::IGpuUseSource {
+public:
+    std::vector<ews::Reading<std::vector<ews::PdhInstance>>> script;
+    int reads = 0;
+
+    /// @return The next scripted read, or an unavailable one when the script is used up.
+    ews::Reading<std::vector<ews::PdhInstance>> Read() override {
+        std::size_t at = static_cast<std::size_t>(reads++);
+        bool scripted = at < script.size();
+        return scripted ? script[at] : Unavailable();
+    }
+
+    /// @return A read that gives no value (the priming read, or a counter set that does not exist).
+    static ews::Reading<std::vector<ews::PdhInstance>> Unavailable() {
+        return ews::Reading<std::vector<ews::PdhInstance>>::Failure(ews::Status::Unavailable, 0);
+    }
+
+    /// @return A read that failed with a Windows error.
+    static ews::Reading<std::vector<ews::PdhInstance>> Failed() {
+        return ews::Reading<std::vector<ews::PdhInstance>>::Failure(ews::Status::Error, 31);
+    }
+
+    /// @param adapter A number that makes the adapter id. @param percent The value of its 3D engine.
+    /// @return One 3D instance of that adapter, as PDH names it.
+    static ews::PdhInstance Engine(int adapter, double percent) {
+        std::string name = "pid_100_luid_0x00000000_0x0000000" + std::to_string(adapter) + "_phys_0_eng_0_engtype_3D";
+        return ews::PdhInstance{name, percent};
+    }
+
+    /// @return A good read with the instances.
+    static ews::Reading<std::vector<ews::PdhInstance>> Good(std::vector<ews::PdhInstance> instances) {
+        return ews::Reading<std::vector<ews::PdhInstance>>::Success(std::move(instances));
+    }
+
+    /// @return A good read with one adapter at this use.
+    static ews::Reading<std::vector<ews::PdhInstance>> Use(double percent) { return Good({Engine(1, percent)}); }
 };
 
 /// A sender factory whose senders record every batch and answer from a script (Ok when the script is empty).
@@ -292,6 +333,7 @@ public:
     FakeDisplay display;
     FakeSenders senders;
     FakeDiagWriter diag;  ///< Keeps the lines of the diagnostics file (SPEC 7a).
+    ScriptedGpuUse gpuUse;  ///< The GPU Engine source; the core reads it only when the scan says it is readable.
     ews::ServiceDeps deps;
     ews::ServiceCore core;
 
@@ -299,7 +341,7 @@ public:
     /// @param withModel False to leave calibration\model.json out.
     explicit Rig(const char* name, bool withModel = true)
         : data(name),
-          deps{clock, scan, emi, battery, cpu, display, power, senders, &diag},
+          deps{clock, scan, emi, battery, cpu, display, power, senders, &diag, &gpuUse},
           core(deps, ews::ServiceSettings{data.wide(), 60}) {
         battery.result = ews::Reading<std::vector<ews::BatteryState>>::Success({});
         WriteIni("server_enabled=1\nserver_url=http://localhost:1\ninterval_seconds=300\ndevice_type=laptop\n");

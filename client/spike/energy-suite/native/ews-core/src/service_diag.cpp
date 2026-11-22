@@ -123,6 +123,14 @@ std::optional<std::int64_t> MinuteReportEnergyUj(bool onBattery, bool batteryPre
     return static_cast<std::int64_t>(std::llround(*energy.deviceUj + std::max(0.0, *battery.changeUj)));
 }
 
+/// @return The GPU use of the tick. `default` means unknown: the use is left out and the term was 0 (SPEC 4.2).
+DiagGpu DiagGpuOf(const std::optional<double>& percent) {
+    DiagGpu gpu;
+    gpu.pct = percent;
+    gpu.from = percent.has_value() ? "service" : "default";
+    return gpu;
+}
+
 /// @return The display facts of the tick.
 DiagDisplay DiagDisplayOf(bool on, const std::optional<double>& brightness, const char* from) {
     DiagDisplay display;
@@ -174,6 +182,7 @@ DiagCalc ServiceCore::DiagCalcOf(const Snapshot& current, const DiagMinute& minu
     calc.baseW = minute.energy.terms.baseW;
     calc.restW = minute.energy.terms.restW;
     calc.cpuTermW = minute.energy.terms.cpuW;
+    calc.gpuTermW = minute.energy.terms.gpuW;
     calc.screenW = minute.energy.terms.screenW;
     calc.deviceW = EnergyToWatts(minute.energy.deviceUj, minute.seconds);
     calc.batteryW = EnergyToWatts(minute.battery.changeUj, minute.seconds);
@@ -204,6 +213,7 @@ void ServiceCore::DiagTickLine(const Snapshot& current, const DiagMinute& minute
     tick.emi = DiagEmiList(channels_, previous_, current);
     tick.battery = DiagBatteries(current);
     tick.cpuPct = minute.cpuPercent;
+    tick.gpu = DiagGpuOf(minute.gpuPercent);
     tick.display = DiagDisplayOf(displayOn_, minute.brightness.percent, minute.brightness.from);
     tick.session = DiagSessionAt(nowUnix);
     tick.calc = DiagCalcOf(current, minute);
