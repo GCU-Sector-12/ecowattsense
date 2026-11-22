@@ -44,6 +44,8 @@ public static class PureChecks
         Check(document.Root != null, "task xml: well-formed");
         Check(xml.Contains("<GroupId>S-1-5-32-545</GroupId>") && xml.Contains("LeastPrivilege"), "task xml: group Users, not elevated");
         Check(xml.Contains("<Delay>PT1M</Delay>") && xml.Contains("<LogonTrigger>") && !xml.Contains("<UserId>"), "task xml: log-on trigger for every user, one minute delay");
+        Check(xml.Contains("<LogonTrigger><Repetition><Interval>PT5M</Interval></Repetition>") && !xml.Contains("<Duration>"), "task xml: repeats every five minutes for the whole session");
+        Check(xml.Contains("<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>") && xml.Contains("<RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure>"), "task xml: no second copy, three restarts one minute apart");
         Check(xml.Contains("--start-hidden --Reporting:DeviceType=laptop") && !xml.Contains("key", StringComparison.OrdinalIgnoreCase), "task xml: arguments hold no key");
     }
 

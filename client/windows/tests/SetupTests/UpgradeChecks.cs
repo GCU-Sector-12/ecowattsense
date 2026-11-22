@@ -15,6 +15,7 @@ public static class UpgradeChecks
     {
         OrderChecks();
         ConfigChecks();
+        TaskRepeatChecks();
         FallbackChecks();
         UndoChecks();
         ClientChecks();
@@ -71,6 +72,22 @@ public static class UpgradeChecks
         Check(world.Files[Kit.Layout.KeyFile] == "protected" && world.Files[Kit.Layout.DeviceNameFile] == "Kitchen", "upgrade mode: the key and the computer name are untouched");
         Check(world.Tasks.TryGetValue(SetupLayout.TaskName, out string? xml) && xml.Contains("DeviceType=laptop"), "upgrade mode: the autostart task keeps the stored device type");
         Check(world.RegisterCount == 0 && !world.Calls.Contains("service.delete"), "upgrade mode: the service is neither registered again nor deleted");
+    }
+
+    /// <summary>
+    /// Checks that an upgrade from 0.1.8 replaces the old autostart task, which had no repetition, with the
+    /// task that repeats every five minutes. The 0.1.8 task is the current XML without its Repetition element.
+    /// </summary>
+    private static void TaskRepeatChecks()
+    {
+        FakeWorld world = InstalledWorld();
+        string current = TaskXml.Build(Kit.Layout.ClientExe, Kit.Layout.ProgramDir, "laptop");
+        string old = current.Replace("<Repetition><Interval>PT5M</Interval></Repetition>", "");
+        world.Tasks[SetupLayout.TaskName] = old;
+        Check(!old.Contains("PT5M"), "upgrade task: the 0.1.8 task starts without a repetition");
+        RunUpgrade(world);
+        Check(world.Tasks.TryGetValue(SetupLayout.TaskName, out string? xml) && xml.Contains("<Repetition><Interval>PT5M</Interval></Repetition>"), "upgrade task: the registered task repeats every five minutes");
+        Check(xml != null && !xml.Contains("<Duration>") && xml.Contains("DeviceType=laptop"), "upgrade task: the repeat has no end and the device type stays");
     }
 
     private static void FallbackChecks()

@@ -132,8 +132,10 @@ public static class TaskXml
     /// <summary>
     /// The task starts the client hidden one minute after log-on, for every user: a log-on trigger without a user
     /// and the principal group Users, interactive and not elevated (the client must run in the user's own session
-    /// to see keyboard and mouse use). No battery limit, no time limit, up to three restarts one minute apart,
-    /// no second copy at the same time. No key is passed, because task arguments are visible to every user.
+    /// to see keyboard and mouse use). After log-on the trigger repeats every five minutes for the whole session,
+    /// so a client that crashed or exited starts again. No battery limit, no time limit, up to three restarts one
+    /// minute apart, no second copy at the same time (a repeat is skipped while the client runs). No key is passed,
+    /// because task arguments are visible to every user.
     /// </summary>
     /// <param name="clientExe">Full path of the client.</param>
     /// <param name="workingDir">Folder of the client.</param>
@@ -147,7 +149,8 @@ public static class TaskXml
             "<?xml version=\"1.0\" encoding=\"UTF-16\"?>",
             "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">",
             "<RegistrationInfo><Description>Starts the EcoWattSense client in the system tray when you log in.</Description></RegistrationInfo>",
-            "<Triggers><LogonTrigger><Enabled>true</Enabled><Delay>PT1M</Delay></LogonTrigger></Triggers>",
+            // Repetition must come first in the trigger (Task Scheduler schema). No Duration means it never ends.
+            "<Triggers><LogonTrigger><Repetition><Interval>PT5M</Interval></Repetition><Enabled>true</Enabled><Delay>PT1M</Delay></LogonTrigger></Triggers>",
             $"<Principals><Principal id=\"Users\"><GroupId>{AclPlan.Users}</GroupId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>",
             "<Settings>",
             "<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>",

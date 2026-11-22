@@ -44,6 +44,12 @@ Needed on L2 and L3 when the computer has a battery that reports mWh. Without a 
 - Programs: `C:\Program Files\EcoWattSense\`
 - Data: `C:\ProgramData\EcoWattSense\` (scan results, calibration, history, status, queue, configuration, logs)
 
+## Tray client start and restart
+
+Setup registers the task "EcoWattSense Client" for every user. It starts the tray client one minute after you log in. After that it tries again every five minutes until you log out, and it skips a try while the client is running. So the client comes back within about five minutes after a crash, and also after you choose **Exit** in the tray menu. `Setup.exe /upgrade` registers the task again with these settings.
+
+To pause automatic starts, disable the task in an elevated PowerShell (`Disable-ScheduledTask -TaskName 'EcoWattSense Client'`), then choose **Exit**. To turn them on again, use `Enable-ScheduledTask -TaskName 'EcoWattSense Client'` and log out and back in. You can also clear "Start the client with Windows for every user" in `Setup.exe /settings`.
+
 ## Uninstall
 
 Run `Setup.exe /uninstall` from `C:\Program Files\EcoWattSense`. It stops and removes the service, the autostart task and the programs. The data folder stays unless you tick "Remove data".
