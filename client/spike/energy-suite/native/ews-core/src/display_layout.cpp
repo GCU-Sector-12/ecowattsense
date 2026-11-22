@@ -10,6 +10,7 @@ namespace ews {
 namespace {
 
 constexpr std::uint32_t kInternal = 0x80000000u;  // DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL
+constexpr std::uint32_t kLvds = 6;                // DISPLAYCONFIG_OUTPUT_TECHNOLOGY_LVDS
 constexpr std::uint32_t kDisplayPortEmbedded = 11;
 constexpr std::uint32_t kUdiEmbedded = 13;
 constexpr std::size_t kMaxPaths = 256;            // a sane upper bound for one computer
@@ -29,7 +30,7 @@ std::optional<std::uint32_t> PathHertz(const DisplayPathFacts& path) {
 }  // namespace
 
 bool IsInternalOutputTechnology(std::uint32_t technology) {
-    return technology == kInternal || technology == kDisplayPortEmbedded || technology == kUdiEmbedded;
+    return technology == kInternal || technology == kLvds || technology == kDisplayPortEmbedded || technology == kUdiEmbedded;
 }
 
 std::optional<std::uint32_t> RefreshHertz(std::uint32_t numerator, std::uint32_t denominator) {

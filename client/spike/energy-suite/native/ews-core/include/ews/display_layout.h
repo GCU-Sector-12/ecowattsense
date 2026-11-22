@@ -26,7 +26,7 @@ struct DisplayLayout {
 };
 
 /// Tells if a DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY value is a built-in connection: INTERNAL (0x80000000),
-/// DISPLAYPORT_EMBEDDED (11) or UDI_EMBEDDED (13).
+/// LVDS (6), DISPLAYPORT_EMBEDDED (11) or UDI_EMBEDDED (13).
 /// @param technology The value of outputTechnology.
 /// @return True for a built-in panel.
 bool IsInternalOutputTechnology(std::uint32_t technology);

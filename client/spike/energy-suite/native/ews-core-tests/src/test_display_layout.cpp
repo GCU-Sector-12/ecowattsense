@@ -23,6 +23,7 @@ EWS_TEST(DisplayInternalTechnologies) {
     CHECK(ews::IsInternalOutputTechnology(0x80000000u));  // INTERNAL
     CHECK(ews::IsInternalOutputTechnology(11));           // DISPLAYPORT_EMBEDDED
     CHECK(ews::IsInternalOutputTechnology(13));           // UDI_EMBEDDED
+    CHECK(ews::IsInternalOutputTechnology(6));            // LVDS
     CHECK(!ews::IsInternalOutputTechnology(5));           // HDMI
     CHECK(!ews::IsInternalOutputTechnology(10));          // DISPLAYPORT_EXTERNAL
     CHECK(!ews::IsInternalOutputTechnology(0xFFFFFFFFu)); // OTHER (-1)
