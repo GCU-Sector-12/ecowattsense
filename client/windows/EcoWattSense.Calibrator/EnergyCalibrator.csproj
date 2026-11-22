@@ -13,7 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EnergyCalibrator</RootNamespace>
     <AssemblyName>EnergyCalibrator</AssemblyName>
-    <ApplicationIcon>../../spike/energy-suite/assets/ecowattsense.ico</ApplicationIcon>
+    <ApplicationIcon>../assets/ecowattsense.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DefaultItemExcludes>$(DefaultItemExcludes);out\**;tests\**</DefaultItemExcludes>

@@ -23,8 +23,7 @@ Target: Windows 11, x64. Windows 10 and ARM64 are out of scope.
 ### 2.1 Repository
 
 ```
-client/spike/energy-suite/
-  docs/SPEC.md            this file
+client/windows/docs/SPEC.md           this file
 client/windows/scripts/               Windows build, test and packaging scripts
 client/windows/native/                C++ solution: core, scanner, service, web installer and tests
 client/windows/EcoWattSense.Setup/      Setup.exe (C# WPF)

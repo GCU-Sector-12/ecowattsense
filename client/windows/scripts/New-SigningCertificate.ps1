@@ -13,7 +13,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$suite = Join-Path $PSScriptRoot '..\..\spike\energy-suite'
+$suite = Split-Path -Parent $PSScriptRoot
 $subject = 'CN=EcoWattSense Code Signing, O=GCU Sector 12'
 $cerPath = Join-Path $suite 'signing\EcoWattSense-CodeSigning.cer'
 if ($PfxPath -eq '') { $PfxPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'EcoWattSense-CodeSigning.pfx' }

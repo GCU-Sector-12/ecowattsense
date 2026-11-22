@@ -10,7 +10,7 @@
 .PARAMETER OutDir
   The folder that receives the files. Default: the energy suite assets folder.
 #>
-param([string] $OutDir = (Join-Path $PSScriptRoot '..\..\spike\energy-suite\assets'))
+param([string] $OutDir = (Join-Path $PSScriptRoot '..\assets'))
 
 Add-Type -AssemblyName PresentationCore, WindowsBase
 

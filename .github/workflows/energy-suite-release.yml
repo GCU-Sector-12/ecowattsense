@@ -93,7 +93,7 @@ jobs:
           $zipHash = (Get-FileHash -LiteralPath (Join-Path $out $zip) -Algorithm SHA256).Hash.ToLowerInvariant()
           $webHash = (Get-FileHash -LiteralPath (Join-Path $out 'EcoWattSense-Web-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
           $lines = @(
-            'Draft made by the release workflow. Check, then publish; after publishing commit latest.json to client/spike/energy-suite/release/.',
+            'Draft made by the release workflow. Check, then publish; after publishing follow client/windows/release/README.md to update the manifest.',
             '',
             'SHA256:',
             '',

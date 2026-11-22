@@ -13,7 +13,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EcoWattSense.Setup</RootNamespace>
     <AssemblyName>Setup</AssemblyName>
-    <ApplicationIcon>../../spike/energy-suite/assets/ecowattsense.ico</ApplicationIcon>
+    <ApplicationIcon>../assets/ecowattsense.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

@@ -71,4 +71,4 @@ git tag v0.1.2-energy-suite
 git push origin v0.1.2-energy-suite
 ```
 
-The version (here 0.1.2) is taken from the tag. The workflow needs the repository secrets `ENERGY_SUITE_SIGNING_PFX` (the .pfx file, base64) and `ENERGY_SUITE_SIGNING_PASSWORD`; without them it fails at once. It makes a DRAFT pre-release with the ZIP, the web installer, both `.sha256` files and `latest.json`. A person checks the draft and publishes it, then commits `latest.json` to `client/spike/energy-suite/release/`.
+The version (here 0.1.2) is taken from the tag. The workflow needs the repository secrets `ENERGY_SUITE_SIGNING_PFX` (the .pfx file, base64) and `ENERGY_SUITE_SIGNING_PASSWORD`; without them it fails at once. It makes a DRAFT pre-release with the ZIP, the web installer, both `.sha256` files and `latest.json`. A person checks the draft and publishes it, then follows the publication steps in [release/README.md](release/README.md).

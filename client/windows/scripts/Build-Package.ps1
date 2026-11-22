@@ -30,7 +30,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$suite = Join-Path $PSScriptRoot '..\..\spike\energy-suite'
+$suite = Split-Path -Parent $PSScriptRoot
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 if ($OutDir -eq '') { $OutDir = Join-Path $repo 'out\package' }
 if ($ReleaseTag -eq '') { $ReleaseTag = "v$Version-energy-suite" }
