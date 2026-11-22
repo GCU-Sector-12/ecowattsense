@@ -7,9 +7,11 @@
 
 #include <array>
 #include <cstring>
+#include <span>
 #include <string>
 #include <vector>
 
+#include "ews/cpu_facts.h"
 #include "ews/machine_info.h"
 
 namespace ews {
@@ -18,6 +20,7 @@ namespace {
 
 constexpr DWORD kSmbiosSignature = 'RSMB';       // firmware table provider
 constexpr UINT kMaxSmbiosBytes = 4u * 1024 * 1024;  // a larger table is not believable
+constexpr DWORD kMaxCoreBytes = 1024 * 1024;        // a larger answer is not believable
 constexpr unsigned kLeafMaxExtended = 0x80000000u;
 constexpr unsigned kLeafBrandFirst = 0x80000002u;
 constexpr unsigned kLeafBrandLast = 0x80000004u;
@@ -98,6 +101,33 @@ std::optional<std::uint32_t> ReadWindowsBuild() {
     return static_cast<std::uint32_t>(version.dwBuildNumber);
 }
 
+/// Reads the family, model and stepping of the processor (CPUID leaf 1, decoded by DecodeCpuSignature).
+/// @return The signature, or nothing when the processor has no leaf 1 or gives an empty answer.
+std::optional<CpuSignature> ReadSignature() {
+    unsigned maxLeaf = static_cast<unsigned>(Cpuid(0)[0]);
+    if (maxLeaf < 1) {
+        return std::nullopt;
+    }
+    return DecodeCpuSignature(static_cast<std::uint32_t>(Cpuid(1)[0]));
+}
+
+/// Counts the physical cores with GetLogicalProcessorInformationEx(RelationProcessorCore) (Microsoft Learn page
+/// "GetLogicalProcessorInformationEx function"): the first call gives the size, the second fills the buffer.
+/// @return The count, or nothing when a call fails, the size is not believable, or the buffer does not parse.
+std::optional<std::uint32_t> ReadPhysicalCores() {
+    DWORD bytes = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bytes);
+    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER || bytes == 0 || bytes > kMaxCoreBytes) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> buffer(bytes);
+    auto* records = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data());
+    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, records, &bytes) || bytes > buffer.size()) {
+        return std::nullopt;
+    }
+    return CountProcessorCores(std::span<const std::uint8_t>(buffer.data(), bytes));
+}
+
 /// Counts the logical processors of all processor groups.
 /// @return The count, or nothing when Windows returns 0.
 std::optional<std::uint32_t> ReadLogicalProcessors() {
@@ -118,6 +148,11 @@ Reading<MachineInfo> SystemMachineInfoSource::Read() {
     info.processorBrand = ReadBrand();
     info.logicalProcessors = ReadLogicalProcessors();
     info.windowsBuild = ReadWindowsBuild();
+    auto signature = ReadSignature();
+    info.cpuFamily = signature.has_value() ? std::optional<std::uint32_t>(signature->family) : std::nullopt;
+    info.cpuModel = signature.has_value() ? std::optional<std::uint32_t>(signature->model) : std::nullopt;
+    info.cpuStepping = signature.has_value() ? std::optional<std::uint32_t>(signature->stepping) : std::nullopt;
+    info.physicalCores = ReadPhysicalCores();
     return Reading<MachineInfo>::Success(std::move(info));
 }
 
