@@ -31,7 +31,7 @@ std::string DisplayObjectJson(const DisplayResult& display);
 
 /// @param entries The NVML devices of the gpu source.
 /// @return The list of devices as JSON text: [ { "name", "adapter", "power", "energy", "sample_w" }, ... ].
-///         `adapter` and `sample_w` are left out when unknown. Used for the key of the list once the spec names it.
+///         `adapter` and `sample_w` are left out when unknown. Written as the key "nvml_list" of source gpu.
 std::string NvmlEntriesJson(const std::vector<NvmlEntry>& entries);
 
 /// Builds the text of scan.log: one line per step of each source (source id, step, result word, error code,

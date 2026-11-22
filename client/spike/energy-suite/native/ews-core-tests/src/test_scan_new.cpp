@@ -240,6 +240,27 @@ EWS_TEST(JsonNvmlEntries) {
     CHECK(ews::NvmlEntriesJson({}) == "[ ]");
 }
 
+EWS_TEST(JsonGpuHoldsTheNvmlListUnderNvmlList) {
+    Scenario s;
+    s.gpu.adapters = ews::Reading<std::vector<ews::GpuAdapter>>::Success({Adapter(0x8086, 0x9A49, 1), Adapter(0x10DE, 0x2520, 2)});
+    s.gpu.nvml = ews::Reading<std::vector<ews::NvmlPower>>::Success({ews::NvmlPower{true, 15300}});
+    ews::NvmlDeviceFacts facts;
+    facts.name = "NVIDIA Test";
+    facts.vendorId = 0x10DE;
+    facts.deviceId = 0x2520;
+    facts.powerAnswered = true;
+    facts.milliwatts = 15300;
+    s.gpu.devices = ews::Reading<std::vector<ews::NvmlDeviceFacts>>::Success({facts});
+    auto text = ews::WriteCapabilitiesJson(Run(s));
+    CHECK(Has(text, "\"nvml\": \"ok\", \"nvml_devices\": 1, \"nvml_list\": [ { \"name\": \"NVIDIA Test\", \"adapter\": 1, "
+                    "\"power\": true, \"energy\": false, \"sample_w\": 15.3 } ] },"));
+}
+
+EWS_TEST(JsonGpuWithoutNvmlDevicesHasNoNvmlList) {
+    Scenario s;
+    CHECK(!Has(ews::WriteCapabilitiesJson(Run(s)), "nvml_list"));
+}
+
 EWS_TEST(JsonAdapterHasTheRole) {
     Scenario s;
     auto adapter = Adapter(0x8086, 0x9A49, 1);

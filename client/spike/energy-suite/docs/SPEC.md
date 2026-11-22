@@ -61,7 +61,7 @@ Users can write only `calibration\`. The service treats that file as untrusted (
 
 - Without `--out` the files go to the current folder. Setup passes `<data>\scan`.
 - The scanner needs no administrator rights and installs nothing.
-- Exit codes: 0 scan written, 2 output folder not writable, 3 bad arguments.
+- Exit codes: 0 scan written, 1 the watch timer or wait could not start (watch mode only), 2 output folder not writable, 3 bad arguments.
 
 Watch mode: `ews-scan.exe --watch [--period-ms <500..10000, default 2000>]`
 
@@ -120,7 +120,7 @@ Rules of the kinds and of the extra fields:
 - Names such as `VDDCR_VDD Energy`, `VDDCR_SOC Energy`, `Current Socket Energy` and `Apu Energy` stay kind `other` (logged, never counted).
 - Processor facts: family is the base family plus the extended family when the base family is 15; model is the base model plus the extended model times 16 when the base family is 6 or 15; stepping and the three values come from CPUID leaf 1. `physical_cores` is the number of `RelationProcessorCore` records.
 - Battery: `design_mwh` is the sum of the known designed capacities of the mWh batteries; `cycle_count` is the largest known cycle count (0 means unknown and is left out).
-- Display: a path counts only when its target is available. The built-in panel is a path whose output technology is `INTERNAL`, `DISPLAYPORT_EMBEDDED` or `UDI_EMBEDDED`. `refresh_hz` is the rate of the built-in panel, or of the first display when there is none, rounded to whole hertz.
+- Display: a path counts only when its target is available. The built-in panel is a path whose output technology is `INTERNAL`, `LVDS`, `DISPLAYPORT_EMBEDDED` or `UDI_EMBEDDED`. `refresh_hz` is the rate of the built-in panel, or of the first display when there is none, rounded to whole hertz.
 - Graphics roles: a software adapter has none. With one hardware adapter it is `only`. With more, the first hardware adapter that `EnumAdapterByGpuPreference` gives for minimum power is `power_saving` and for high performance is `high_performance`, when they differ; every other hardware adapter is `other`. Without the factory interface (or when one answer is missing) no adapter has a role.
 - NVML devices: `adapter` is the index in `adapters` of the first adapter, not yet taken, with the same PCI vendor and device id. The ids come from `nvmlDeviceGetPciInfo_v3`; they count only when the vendor half is 0x10DE. `power` and `energy` say whether `nvmlDeviceGetPowerUsage` and `nvmlDeviceGetTotalEnergyConsumption` answered; `sample_w` is the power read in watts.
 - GPU use of one adapter: take the instances of "GPU Engine" whose name holds `engtype_3D` (any case) and the adapter id (`luid_0x<high>_0x<low>`) of that adapter, group them by engine (the name from `_luid_` on, so without the process id), sum each engine over all processes, take the highest engine, limit to 0..100. A value that is not a finite number at or above 0 is ignored. With no such instance the use is unknown, never 0. The adapter LUID is kept in memory only to match the names and is never written to a file.
@@ -175,12 +175,12 @@ The other sources use the same four common fields (`present`, `readable`, `live`
 |---|---|
 | `acpi_power_meter` | `instances` (count), `sample` (largest value read, in the unit of the counter) |
 | `display` | `brightness_pct` (only when readable), `displays` (active displays), `external_displays` (active displays that are not the built-in panel), `refresh_hz` |
-| `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software", "role" }` (`role`: `only`, `power_saving`, `high_performance` or `other`; left out for a software adapter or when unknown); `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count) |
+| `gpu` | `adapters`: list of `{ "name", "vendor_id", "memory_mb", "software", "role" }` (`role`: `only`, `power_saving`, `high_performance` or `other`; left out for a software adapter or when unknown); `nvml`: `ok`, `unavailable` or `error`; `nvml_devices` (count); `nvml_list`: one entry per NVML device (see below) |
 | `gpu_use` | `adapters` (count of different adapter ids seen in the instance names). The four steps of 3.2 apply; `live` is `null`; `sample` is the highest use of one adapter in percent. |
 | `intel_dtt` | none (`present` says whether the service exists) |
 | `pawnio` | `version` (only when known). `present` says whether PawnIO is installed; `readable` says whether its device opened. |
 
-The per-device list of NVML (`{ "name", "adapter", "power", "energy", "sample_w" }` per device) is built and tested, but the key under which `capabilities.json` holds it is not decided yet, so it is not written; the watch header holds it as `nvml`.
+`nvml_list` of source `gpu` holds one entry per NVML device: `{ "name", "adapter", "power", "energy", "sample_w" }` (`adapter` and `sample_w` left out when unknown). It is left out when NVML lists no device. The word `nvml` and the count `nvml_devices` stay. The watch header holds the same list under the key `nvml`, without `sample_w`.
 
 The sources appear in this order: `emi`, `battery`, `acpi_power_meter`, `display`, `gpu`, `gpu_use`, `intel_dtt`, `pawnio`. A field with an unknown value is left out.
 

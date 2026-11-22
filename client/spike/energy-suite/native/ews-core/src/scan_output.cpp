@@ -206,6 +206,9 @@ std::string GpuJson(const GpuResult& gpu) {
         AddText(fields, "nvml", NvmlWord(*gpu.nvml));
     }
     AddOptionalNumber(fields, "nvml_devices", gpu.nvmlDevices);
+    if (!gpu.nvmlEntries.empty()) {
+        AddRaw(fields, "nvml_list", NvmlEntriesJson(gpu.nvmlEntries));
+    }
     return Object(fields);
 }
 
