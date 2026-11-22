@@ -115,6 +115,15 @@ public static class ConnectFlow
         return known && id != Guid.Empty ? id.ToString("D") : null;
     }
 
+    /// <summary>Chooses the device id for C1.</summary>
+    /// <param name="fileText">The text of device-id.txt, or null when the file does not exist.</param>
+    /// <param name="newId">The id Setup made in memory. It is used only when the file does not exist.</param>
+    /// <returns>
+    /// The id of the file when it holds one GUID; the new id when the file is missing; null when the file exists but is bad
+    /// (it is never replaced) or when the file is missing and the new id is not a GUID.
+    /// </returns>
+    public static string? ResolveDeviceId(string? fileText, string newId) => ParseDeviceId(fileText ?? newId);
+
     /// <summary>Reads and checks a C1 answer.</summary>
     /// <param name="json">The body text.</param>
     /// <returns>The values, or null when the body is not JSON or any field is missing, of the wrong type or out of range.</returns>
@@ -230,4 +239,48 @@ public static class ConnectFlow
         if (value.ValueKind != JsonValueKind.Number) return null;
         return value.TryGetInt32(out int number) ? number : null;
     }
+}
+
+/// <summary>
+/// The server key that Connect received, kept in memory with the address it came from. When the address field changes, the
+/// key is dropped, so a key from one server never goes to another. The key is never shown, logged or written by this class.
+/// </summary>
+public sealed class ReceivedKey
+{
+    private string _address = "";
+
+    /// <summary>The key, or an empty text when there is none.</summary>
+    public string Value { get; private set; } = "";
+
+    /// <summary>True when a key is kept.</summary>
+    public bool Has => Value.Length > 0;
+
+    /// <summary>Keeps a key.</summary>
+    /// <param name="key">The key from C4.</param>
+    /// <param name="address">The address field text the key came from.</param>
+    public void Set(string key, string address)
+    {
+        Value = key;
+        _address = Normalize(address);
+    }
+
+    /// <summary>Tells the key that the address field changed. Drops the key when the address is another one.</summary>
+    /// <param name="address">The new text of the address field.</param>
+    /// <returns>True when a key was dropped.</returns>
+    public bool OnAddressChanged(string address)
+    {
+        bool drop = Has && Normalize(address) != _address;
+        if (drop) Clear();
+        return drop;
+    }
+
+    /// <summary>Forgets the key.</summary>
+    public void Clear()
+    {
+        Value = "";
+        _address = "";
+    }
+
+    /// <summary>The address without spaces at the ends, without a trailing slash and in lower case.</summary>
+    private static string Normalize(string address) => address.Trim().TrimEnd('/').ToLowerInvariant();
 }

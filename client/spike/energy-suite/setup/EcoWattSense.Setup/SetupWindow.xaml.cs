@@ -55,7 +55,9 @@ public partial class SetupWindow : Window
     private readonly ConnectionTester _tester;
     private readonly ConnectClient _connect;
     private CancellationTokenSource? _connectSource;
-    private string _receivedKey = "";
+    private readonly ReceivedKey _received = new();
+    private readonly string _pendingDeviceId = Guid.NewGuid().ToString("D");
+    private bool _pendingIdUsed;
 
     /// <summary>Creates the window.</summary>
     /// <param name="mode">Install, settings or uninstall.</param>
@@ -259,7 +261,7 @@ public partial class SetupWindow : Window
         InstallText.Text = "Installing. This can take a minute.";
         BuildStepList();
         IProgress<InstallProgress> progress = new Progress<InstallProgress>(ShowProgress);
-        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), EffectiveKey(), SendBox.IsChecked == true, DeviceNameBox.Text);
+        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), EffectiveKey(), SendBox.IsChecked == true, DeviceNameBox.Text, _pendingIdUsed ? _pendingDeviceId : null);
         StepOutcome outcome = await Task.Run(() => _install.Install(request, progress));
         ClearKey(outcome.Ok);
         SetBusy(false);
@@ -464,10 +466,10 @@ public partial class SetupWindow : Window
         KeyHint.Visibility = KeyBox.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>The key to use: the typed one, else the one that Connect received, else empty (the stored key stays).</summary>
-    private string EffectiveKey() => KeyBox.Password.Length > 0 ? KeyBox.Password : _receivedKey;
+    private string EffectiveKey() => KeyBox.Password.Length > 0 ? KeyBox.Password : _received.Value;
 
     /// <summary>Shows the placeholder of the empty key field. The key itself is never shown.</summary>
-    private void ShowKeyHint() => KeyHint.Text = _receivedKey.Length > 0 ? "Server key received" : _keyStored ? "Server key is set" : "Server key";
+    private void ShowKeyHint() => KeyHint.Text = _received.Has ? "Server key received" : _keyStored ? "Server key is set" : "Server key";
 
     /// <summary>After an install or a save: forgets the typed and the received key and shows the placeholder.</summary>
     /// <param name="stored">True when the key was written, so the placeholder says that a key is set.</param>
@@ -475,7 +477,7 @@ public partial class SetupWindow : Window
     {
         _keyStored = _keyStored || (stored && EffectiveKey().Length > 0);
         KeyBox.Clear();
-        _receivedKey = "";
+        _received.Clear();
         ShowKeyHint();
     }
 
@@ -487,11 +489,20 @@ public partial class SetupWindow : Window
         _hadUrl = hasUrl;
         if (changed) SendBox.IsChecked = hasUrl;
         CancelConnect();
+        DropReceivedKey();
         UpdateConnectButton();
     }
 
     /// <summary>The device type that goes to the server: the choice on the settings page, else the one from the scan.</summary>
     private string CurrentDeviceType() => _mode == SetupMode.Settings ? DeviceBox.SelectedItem as string ?? "desktop" : _install.Scan?.DeviceType ?? "desktop";
+
+    /// <summary>A key from another address must never be used: drops the received key, clears the result line and restores the placeholder.</summary>
+    private void DropReceivedKey()
+    {
+        if (!_received.OnAddressChanged(UrlBox.Text)) return;
+        ConnectResultText.Text = "";
+        ShowKeyHint();
+    }
 
     /// <summary>Connect is on when the address is valid and no connect is running.</summary>
     private void UpdateConnectButton() =>
@@ -510,7 +521,9 @@ public partial class SetupWindow : Window
     {
         if (_connectSource != null) return;
         if (!InputIsValid()) return;
-        ConnectRequest request = new(UrlBox.Text, _services.Files.ReadText(_layout.DeviceIdFile) ?? "", DeviceNameBox.Text, CurrentDeviceType());
+        string? idText = _services.Files.ReadText(_layout.DeviceIdFile);
+        _pendingIdUsed = _pendingIdUsed || idText == null;
+        ConnectRequest request = new(UrlBox.Text, idText, DeviceNameBox.Text, CurrentDeviceType(), _pendingDeviceId);
         using CancellationTokenSource source = new();
         _connectSource = source;
         ShowConnecting();
@@ -548,7 +561,7 @@ public partial class SetupWindow : Window
         ConnectCancelButton.Visibility = Visibility.Collapsed;
         ConnectResultText.Foreground = outcome.Result == ConnectFlow.Connected ? GoodBrush : ErrorBrush;
         ConnectResultText.Text = outcome.Result.Text;
-        _receivedKey = outcome.Key.Length > 0 ? outcome.Key : _receivedKey;
+        if (outcome.Key.Length > 0) _received.Set(outcome.Key, UrlBox.Text);
         ShowKeyHint();
         UpdateConnectButton();
     }

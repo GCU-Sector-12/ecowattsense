@@ -13,10 +13,11 @@ namespace EcoWattSense.Setup;
 
 /// <summary>The input of one connect run.</summary>
 /// <param name="Address">The server address as typed.</param>
-/// <param name="DeviceIdText">The text of device-id.txt, or an empty text when the file is missing.</param>
+/// <param name="DeviceIdText">The text of device-id.txt, or null when the file is missing.</param>
 /// <param name="Name">The computer name as on the page.</param>
 /// <param name="DeviceType">laptop or desktop.</param>
-public sealed record ConnectRequest(string Address, string DeviceIdText, string Name, string DeviceType);
+/// <param name="NewDeviceId">The device id made in memory by Setup; used only when the file is missing.</param>
+public sealed record ConnectRequest(string Address, string? DeviceIdText, string Name, string DeviceType, string NewDeviceId = "");
 
 /// <summary>The output of one connect run.</summary>
 /// <param name="Result">The result: its word goes to the log and its text to the window.</param>
@@ -68,7 +69,7 @@ public sealed class ConnectClient
     /// <summary>Checks the input, sends C1 and goes on.</summary>
     private async Task<ConnectOutcome> Execute(ConnectRequest request, Action<ConnectCode> onCode, CancellationToken token)
     {
-        string? deviceId = ConnectFlow.ParseDeviceId(request.DeviceIdText);
+        string? deviceId = ConnectFlow.ResolveDeviceId(request.DeviceIdText, request.NewDeviceId);
         if (deviceId == null) return new ConnectOutcome(ConnectFlow.NoId);
         Uri? address = ConnectionTester.ParseAddress(request.Address.Trim());
         if (address == null) return new ConnectOutcome(ConnectFlow.BadAddress);

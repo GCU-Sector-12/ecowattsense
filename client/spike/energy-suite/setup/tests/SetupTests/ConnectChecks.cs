@@ -154,12 +154,17 @@ public sealed class ConnectRig
     /// <summary>The text of the install log.</summary>
     public string Log => Kit.LogText(World);
 
-    /// <summary>Runs one connect.</summary>
-    public ConnectOutcome Run(string idText = Id + "\n", string address = Server, string name = "Lab 1")
+    /// <summary>Runs one connect with a device-id.txt that holds the given text.</summary>
+    public ConnectOutcome Run(string idText = Id + "\n", string address = Server, string name = "Lab 1") =>
+        Execute(new ConnectRequest(address, idText, name, "laptop"));
+
+    /// <summary>Runs one connect when device-id.txt is missing; Setup offers the given new id.</summary>
+    public ConnectOutcome RunWithoutFile(string newId) => Execute(new ConnectRequest(Server, null, "Lab 1", "laptop", newId));
+
+    private ConnectOutcome Execute(ConnectRequest request)
     {
         SetupLog log = new(World.Services, Kit.Layout);
         ConnectClient client = new(Handler, Browser, log, Sleep, Clock);
-        ConnectRequest request = new(address, idText, name, "laptop");
         return client.RunAsync(request, Codes.Add, Cancel.Token).GetAwaiter().GetResult();
     }
 }
@@ -180,6 +185,9 @@ public static class ConnectChecks
         FailureChecks();
         WaitChecks();
         SecretChecks();
+        NewIdChecks();
+        InstallIdChecks();
+        ReceivedKeyChecks();
     }
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
@@ -443,5 +451,76 @@ public static class ConnectChecks
         Check(!outcome.Result.Text.Contains(ConnectRig.Key) && !outcome.Result.Text.Contains("server.example.org"), "connect result: the line has no key and no address");
         bool urlsClean = rig.Handler.Seen.All(seen => !seen.Path.Contains(ConnectRig.RequestId) && !seen.Query.Contains(ConnectRig.RequestId));
         Check(urlsClean, "connect request: the request id is never in an address");
+    }
+
+    private const string NewId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+
+    private static void NewIdChecks()
+    {
+        Check(ConnectFlow.ResolveDeviceId(null, NewId) == NewId, "connect id: a missing file gives the new id");
+        Check(ConnectFlow.ResolveDeviceId(ConnectRig.Id + "\n", NewId) == ConnectRig.Id, "connect id: an existing file wins over the new id");
+        Check(ConnectFlow.ResolveDeviceId("garbage", NewId) == null && ConnectFlow.ResolveDeviceId("", NewId) == null, "connect id: a file that exists but is bad gives null, not the new id");
+        Check(ConnectFlow.ResolveDeviceId(null, "") == null && ConnectFlow.ResolveDeviceId(null, "nonsense") == null, "connect id: a missing file and no valid new id gives null");
+        ConnectRig rig = new();
+        rig.GoodStart();
+        rig.Handler.Add("/api/connect/claim", 200, ConnectRig.ApprovedBody);
+        ConnectOutcome outcome = rig.RunWithoutFile(NewId);
+        Check(outcome.Result == ConnectFlow.Connected && Parse(rig.Handler.Seen[0].Body).GetProperty("device_id").GetString() == NewId, "connect id: with a missing file C1 is sent with the new id");
+        Check(!rig.World.Files.ContainsKey(Kit.Layout.DeviceIdFile) && rig.World.Calls.Count == 0, "connect id: Connect writes no file and makes no folder");
+        ConnectRig bad = new();
+        Check(bad.Run(idText: "garbage").Result == ConnectFlow.NoId && bad.Handler.Seen.Count == 0, "connect id: a bad file still gives the no id line and no request");
+        ConnectRig noNew = new();
+        Check(noNew.RunWithoutFile("").Result == ConnectFlow.NoId && noNew.Handler.Seen.Count == 0, "connect id: a missing file and no new id sends nothing");
+    }
+
+    private static InstallEngine NewEngine(FakeWorld world)
+    {
+        InstallEngine engine = new(world.Services, Kit.Layout, new SetupLog(world.Services, Kit.Layout));
+        engine.Prepare(Kit.Package);
+        return engine;
+    }
+
+    private static StepOutcome InstallWith(FakeWorld world, string? newId) =>
+        NewEngine(world).Install(new InstallRequest(Kit.Package, "", "", false, null, newId));
+
+    private static void InstallIdChecks()
+    {
+        FakeWorld fresh = new();
+        StepOutcome outcome = InstallWith(fresh, NewId);
+        Check(outcome.Ok && fresh.Files.GetValueOrDefault(Kit.Layout.DeviceIdFile) == NewId + "\n", "install id: the new id is written as the GUID and a line feed");
+        string[] words = Kit.LogWords(fresh).ToArray();
+        int folders = Array.IndexOf(words, "data_folders ok");
+        Check(folders >= 1 && words[folders - 1] == "device_id written" && words.ElementAtOrDefault(folders + 1) == "configure ok", "install id: the id is written at the end of the data folders step, before the configuration");
+        FakeWorld existing = new();
+        existing.Files[Kit.Layout.DeviceIdFile] = ConnectRig.Id + "\n";
+        Check(InstallWith(existing, NewId).Ok && existing.Files[Kit.Layout.DeviceIdFile] == ConnectRig.Id + "\n", "install id: an existing file is not touched");
+        FakeWorld bad = new();
+        bad.Files[Kit.Layout.DeviceIdFile] = "garbage";
+        Check(InstallWith(bad, NewId).Ok && bad.Files[Kit.Layout.DeviceIdFile] == "garbage", "install id: a bad file is not touched either");
+        FakeWorld without = new();
+        Check(InstallWith(without, null).Ok && !without.Files.ContainsKey(Kit.Layout.DeviceIdFile), "install id: without a new id no file is written");
+        FakeWorld failed = new() { FailOn = "close_client", ClientsRunning = 1 };
+        Check(!InstallWith(failed, NewId).Ok && !failed.Files.ContainsKey(Kit.Layout.DeviceIdFile), "install id: an install that stops before the data folders writes no file");
+        Check(!Kit.LogText(fresh).Contains(NewId), "install id: the id is not in the log");
+    }
+
+    private static void ReceivedKeyChecks()
+    {
+        ReceivedKey keep = new();
+        keep.Set(ConnectRig.Key, "https://server.example.org");
+        Check(keep.Has && keep.Value == ConnectRig.Key, "received key: it is kept");
+        Check(!keep.OnAddressChanged("https://server.example.org") && keep.Has, "received key: the same address keeps it");
+        Check(!keep.OnAddressChanged("  https://SERVER.example.org/ ") && keep.Has, "received key: spaces, case and a trailing slash do not count as a change");
+        Check(keep.OnAddressChanged("https://other.example.org") && !keep.Has && keep.Value == "", "received key: another address drops it and says so");
+        Check(!keep.OnAddressChanged("https://other.example.org"), "received key: nothing to drop the second time");
+        ReceivedKey typing = new();
+        typing.Set(ConnectRig.Key, "https://server.example.org");
+        Check(typing.OnAddressChanged("https://server.example.or") && !typing.Has, "received key: one deleted letter drops it");
+        typing.Set("NEW-KEY", "https://other.example.org");
+        Check(typing.Value == "NEW-KEY", "received key: a new key can be kept after a drop");
+        typing.Clear();
+        Check(!typing.Has, "received key: Clear forgets it");
+        ReceivedKey none = new();
+        Check(!none.OnAddressChanged("https://x.example.org") && !none.Has, "received key: an address change without a key does nothing");
     }
 }

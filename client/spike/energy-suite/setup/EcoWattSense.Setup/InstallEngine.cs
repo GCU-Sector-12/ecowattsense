@@ -11,7 +11,8 @@ namespace EcoWattSense.Setup;
 /// <param name="Key">Server key; empty keeps the stored one.</param>
 /// <param name="SendReports">True to set server_enabled=1.</param>
 /// <param name="DeviceName">The computer name typed on the Server page; null leaves the name alone, empty removes it.</param>
-public sealed record InstallRequest(string PackageDir, string Url, string Key, bool SendReports, string? DeviceName = null);
+/// <param name="NewDeviceId">The device id that Connect used when device-id.txt was missing; written after the data folders step when the file is still missing. Null writes nothing.</param>
+public sealed record InstallRequest(string PackageDir, string Url, string Key, bool SendReports, string? DeviceName = null, string? NewDeviceId = null);
 
 /// <summary>The end of a run of steps.</summary>
 /// <param name="Ok">True when every step worked.</param>
@@ -317,7 +318,21 @@ public sealed partial class InstallEngine
         {
             code = ApplyFolder(plan[index]);
         }
-        return code;
+        return code == 0 ? WriteDeviceId() : code;
+    }
+
+    /// <summary>
+    /// Writes the device id that Connect used (the GUID and a line feed, as the service does) when the request carries one and
+    /// device-id.txt is still missing. An existing file, a good or a bad one, is never touched. A failed write is only logged:
+    /// the service then makes its own id at its first start.
+    /// </summary>
+    private int WriteDeviceId()
+    {
+        string? id = _request.NewDeviceId;
+        if (id == null || _services.Files.FileExists(_layout.DeviceIdFile)) return 0;
+        int code = _services.Files.WriteText(_layout.DeviceIdFile, id + "\n");
+        _log.Line("device_id", code == 0 ? "written" : "write_failed", code);
+        return 0;
     }
 
     private int ApplyFolder(FolderPlan plan)
