@@ -1,13 +1,14 @@
 <!--
   CalibratorTests.csproj: build file of the console test program of the EnergyCalibrator.
-  Who uses it: tests\Test-Calibrator.ps1 builds and runs it. The exit code of the program is the number of failed checks.
-  It uses the internal analysis and model code of the calibrator (InternalsVisibleTo in EnergyCalibrator.csproj).
+  Who uses it: tests\Test-Calibrator.ps1 and the command dotnet run on this folder, on any system. The exit code is the number of failed checks.
+  It targets plain net10.0 (no Windows targeting). It does not reference the WPF project: it compiles the calibrator files that hold
+  no window code and no Windows call (the list below), so the tests run on Windows, macOS and Linux.
 -->
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CalibratorTests</RootNamespace>
@@ -17,7 +18,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\EnergyCalibrator.csproj" />
+    <!-- Only files without WPF and without Windows calls. A new file of that kind is added here. -->
+    <Compile Include="..\..\Analysis.cs;..\..\RestModel.cs;..\..\ServiceModel.cs;..\..\ResultWriter.cs;..\..\Sample.cs;..\..\PhaseModels.cs;..\..\TestSettings.cs;..\..\Fmt.cs;..\..\DisplayStateKind.cs;..\..\TestOutcome.cs;..\..\MachineInfo.cs;..\..\PowerRunRecord.cs;..\..\PowerSettingsApi.cs" Link="calibrator\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

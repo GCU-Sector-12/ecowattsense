@@ -183,7 +183,7 @@ internal static class Program
         Check(CommandLine.DataDir(["--data-dir", @"C:\x\y"]) == @"C:\x\y", "--data-dir gives the folder");
         Check(CommandLine.DataDir([]) == ServiceModel.StandardDataDir(), "no argument gives the standard folder");
         Check(CommandLine.DataDir(["--data-dir"]) == ServiceModel.StandardDataDir(), "--data-dir without a value gives the standard folder");
-        Check(ServiceModel.StandardDataDir().EndsWith(@"\EcoWattSense", StringComparison.OrdinalIgnoreCase), "the standard folder ends with EcoWattSense");
+        Check(ServiceModel.StandardDataDir().EndsWith(Path.DirectorySeparatorChar + "EcoWattSense", StringComparison.OrdinalIgnoreCase), "the standard folder ends with EcoWattSense");
     }
 
     /// <summary>Deletes the temporary test folder.</summary>

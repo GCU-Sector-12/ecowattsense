@@ -7,6 +7,6 @@ $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot 'CalibratorTests\CalibratorTests.csproj'
 dotnet build $project -nodeReuse:false --nologo -v:minimal
 if ($LASTEXITCODE -ne 0) { Write-Host 'BUILD FAILED'; exit 1000 }
-$program = Join-Path $PSScriptRoot 'CalibratorTests\bin\Debug\net10.0-windows\CalibratorTests.dll'
+$program = Join-Path $PSScriptRoot 'CalibratorTests\bin\Debug\net10.0\CalibratorTests.dll'
 dotnet $program
 exit $LASTEXITCODE
