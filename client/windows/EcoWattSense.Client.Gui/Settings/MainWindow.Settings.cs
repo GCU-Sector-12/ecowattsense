@@ -51,6 +51,7 @@ public partial class MainWindow
     private void ShowPage(bool settings)
     {
         if (SettingsNav.Visibility != Visibility.Visible) return;
+        HideDeveloperPage();
         settingsPageShown = settings;
         ViewerPanel.Visibility = settings ? Visibility.Collapsed : Visibility.Visible;
         SettingsPanel.Visibility = settings ? Visibility.Visible : Visibility.Collapsed;
