@@ -21,6 +21,8 @@ struct Snapshot {
     bool emiKnown = false;             ///< The EMI read worked and gave one sample per channel.
     std::vector<EmiSample> emi;        ///< One sample per channel, in the order of the channel list.
     BatteryReading battery;            ///< The battery summary.
+    bool batteryReadOk = false;        ///< The battery read worked (it may have found no battery).
+    std::vector<BatteryState> batteries;  ///< Each battery as read, for the diagnostics file (SPEC 7a); empty when the read failed.
     std::optional<CpuTimes> cpu;       ///< The processor times, or nothing when the read failed.
 };
 

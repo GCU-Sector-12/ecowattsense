@@ -14,6 +14,7 @@
 
 #include "ews/secret.h"
 #include "ews/service_core.h"
+#include "fake_diag.h"
 #include "fake_sources.h"
 #include "temp_folder.h"
 #include "test_calc_common.h"
@@ -290,6 +291,7 @@ public:
     FakeCpu cpu;
     FakeDisplay display;
     FakeSenders senders;
+    FakeDiagWriter diag;  ///< Keeps the lines of the diagnostics file (SPEC 7a).
     ews::ServiceDeps deps;
     ews::ServiceCore core;
 
@@ -297,7 +299,7 @@ public:
     /// @param withModel False to leave calibration\model.json out.
     explicit Rig(const char* name, bool withModel = true)
         : data(name),
-          deps{clock, scan, emi, battery, cpu, display, power, senders},
+          deps{clock, scan, emi, battery, cpu, display, power, senders, &diag},
           core(deps, ews::ServiceSettings{data.wide(), 60}) {
         battery.result = ews::Reading<std::vector<ews::BatteryState>>::Success({});
         WriteIni("server_enabled=1\nserver_url=http://localhost:1\ninterval_seconds=300\ndevice_type=laptop\n");

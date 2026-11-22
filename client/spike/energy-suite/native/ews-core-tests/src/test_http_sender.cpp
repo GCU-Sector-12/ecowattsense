@@ -80,3 +80,25 @@ EWS_TEST(SenderRefusesABadUrlOrKeyWithoutTouchingTheNetwork) {
     CHECK(empty.Send({}).word == ews::SendWord::Ok);
     CHECK(!empty.Send({}).leaveQueue);
 }
+
+EWS_TEST(SenderResultHoldsTheAnswerForTheDiagnosticsFile) {
+    const std::string answer = R"({"results":[{"index":0,"status":"created"},{"index":1,"status":"duplicate"},{"index":2,"status":"created"},{"index":3,"status":"rejected"}]})";
+    ews::SendResult list = ews::InterpretResponse(200, answer, 4);
+    CHECK(list.httpStatus == 200 && list.created == 2 && list.duplicate == 1 && list.rejected == 1);
+    ews::SendResult single = ews::InterpretResponse(201, R"({"results":[{"index":0,"status":"created","error":null}]})", 1);
+    CHECK(single.httpStatus == 201 && single.created == 1 && single.duplicate == 0);
+    ews::SendResult capped = ews::InterpretResponse(200, answer, 2);  // never more than the batch
+    CHECK(capped.created == 2 && capped.duplicate == 1);
+}
+
+EWS_TEST(SenderResultHasNoCountsWhenTheBatchWasNotTaken) {
+    const std::string body = R"({"detail":"created duplicate","x":"created"})";
+    ews::SendResult unauthorised = ews::InterpretResponse(401, body, 3);
+    CHECK(unauthorised.httpStatus == 401 && unauthorised.created == 0 && unauthorised.duplicate == 0);
+    ews::SendResult unavailable = ews::InterpretResponse(503, body, 3);
+    CHECK(unavailable.httpStatus == 503 && unavailable.created == 0);
+    ews::SendResult none = ews::InterpretResponse(0, "", 3);
+    CHECK(none.httpStatus == 0 && none.created == 0 && none.duplicate == 0);
+    ews::SendResult odd = ews::InterpretResponse(-5, "", 3);
+    CHECK(odd.httpStatus == 0);
+}

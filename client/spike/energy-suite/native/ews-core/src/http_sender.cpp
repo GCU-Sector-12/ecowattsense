@@ -52,9 +52,8 @@ struct Answer {
     int retryAfterSeconds = 0;
 };
 
-/// @return How many times `"rejected"` (with the quotes) is in the text.
-int CountRejected(const std::string& body) {
-    const std::string needle = "\"rejected\"";
+/// @return How many times the needle is in the text (the matches do not overlap).
+int CountWord(const std::string& body, const std::string& needle) {
     int count = 0;
     std::size_t position = body.find(needle);
     while (position != std::string::npos) {
@@ -63,6 +62,9 @@ int CountRejected(const std::string& body) {
     }
     return count;
 }
+
+/// @return How many times `"rejected"` (with the quotes) is in the text.
+int CountRejected(const std::string& body) { return CountWord(body, "\"rejected\""); }
 
 /// Builds a result from its three parts.
 SendResult Make(SendWord word, bool leave, int rejected) {
@@ -176,7 +178,10 @@ const char* SendWordText(SendWord word) {
     return "network";
 }
 
-SendResult InterpretResponse(int httpStatus, const std::string& body, int batchSize) {
+namespace {
+
+/// The rule of InterpretResponse for the word, the queue and the rejected count; the diagnostics fields are added by the caller.
+SendResult Classify(int httpStatus, const std::string& body, int batchSize) {
     int batch = std::max(0, batchSize);
     if (httpStatus == 200 || httpStatus == 201) {
         return Make(SendWord::Ok, true, std::min(CountRejected(body), batch));
@@ -192,6 +197,18 @@ SendResult InterpretResponse(int httpStatus, const std::string& body, int batchS
     }
     // Code 0 (or below) is "no answer". Any other code is not understood: keep the reports and try again.
     return httpStatus <= 0 ? Make(SendWord::Network, false, 0) : Make(SendWord::ServerError, false, 0);
+}
+
+}  // namespace
+
+SendResult InterpretResponse(int httpStatus, const std::string& body, int batchSize) {
+    SendResult result = Classify(httpStatus, body, batchSize);
+    int batch = std::max(0, batchSize);
+    bool taken = result.word == SendWord::Ok;
+    result.httpStatus = std::max(0, httpStatus);
+    result.created = taken ? std::min(CountWord(body, "\"created\""), batch) : 0;
+    result.duplicate = taken ? std::min(CountWord(body, "\"duplicate\""), batch) : 0;
+    return result;
 }
 
 std::string BuildBatchBody(const std::vector<std::string>& lines) {

@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "event_queue.h"
+#include "ews/diag_file.h"
 #include "ews/service_args.h"
 #include "ews/service_core.h"
 #include "pipe_server.h"
@@ -55,6 +56,7 @@ private:
     ews::SystemDisplaySource display_;
     ews::SystemPowerSource power_;
     ews::WinHttpSenderFactory senders_;
+    ews::DiagFileWriter diag_;  ///< The diagnostics file (SPEC 7a); written always, no switch.
     ews::ServiceCore core_;
     std::unique_ptr<PipeServer> pipe_;
     std::unique_ptr<NetworkWatch> network_;

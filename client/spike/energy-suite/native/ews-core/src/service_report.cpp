@@ -124,6 +124,7 @@ void ServiceCore::QueueReport(const IntervalResult& result) {
     }
     QueueAppendResult queued = AppendReport(settings_.dataDir, json.value);
     LogQueueOutcome(queued);
+    DiagReportLine(queued.outcome == QueueAppend::Added, json.value);
     lastReportUnix_ = queued.outcome == QueueAppend::Added ? std::optional<std::int64_t>(result.endUnix) : lastReportUnix_;
 }
 
@@ -181,6 +182,13 @@ void ServiceCore::SendQueued() {
     }
 }
 
+bool ServiceCore::SendNowFor(const char* trigger, LogEvent event) {
+    sendTrigger_ = trigger;
+    bool tried = SendNow(event);
+    sendTrigger_ = kTriggerTick;
+    return tried;
+}
+
 bool ServiceCore::SendNow(LogEvent event) {
     // No server (sending off, no URL or no key) or nothing queued: nothing to try, and nothing is logged.
     Reading<int> queued = CountReports(settings_.dataDir);
@@ -203,7 +211,7 @@ void ServiceCore::SendRequested() {
         ++droppedPipeMessages_;
         return;
     }
-    bool tried = SendNow(LogEvent::SendRequested);
+    bool tried = SendNowFor(kTriggerPipe, LogEvent::SendRequested);
     lastSendRequestUnix_ = tried ? std::optional<std::int64_t>(now) : lastSendRequestUnix_;
 }
 
@@ -231,6 +239,7 @@ void ServiceCore::HandleSendResult(const SendResult& result, int lines) {
         Log(LogEvent::QueueWriteFailed);
     }
     LogSend(result, lines);
+    DiagSendLine(result, lines);
     sendFailures_ = IsRetryLater(result.word) ? sendFailures_ + 1 : 0;
     waitIntervals_ = BackoffIntervals(sendFailures_, BackoffCapIntervals(config_.intervalSeconds));
 }
@@ -267,9 +276,11 @@ void ServiceCore::LoadModel() {
     Reading<CalibrationModel> parsed = text.ok() ? ParseModelJson(text.value) : Reading<CalibrationModel>::Failure(text.status, text.error);
     if (!parsed.ok()) {
         Log(LogEvent::ModelInvalid);
+        DiagEvent("model_invalid");
         return;
     }
     model_ = std::move(parsed.value);
+    DiagEvent("model_loaded", {FieldInt("schema", kModelSchema), FieldWord("generated_utc", model_->generatedUtc)});
 }
 
 int ServiceCore::EffectiveLevelNumber() const {
@@ -286,6 +297,7 @@ void ServiceCore::CheckLevelChange() {
         return;
     }
     Log(LogEvent::LevelChange, {loggedLevel_, now});
+    DiagEvent("level_change", {FieldWord("from", loggedLevel_ > 0 ? LevelText(loggedLevel_) : std::string()), FieldWord("to", LevelText(now))});
     loggedLevel_ = now;
 }
 

@@ -70,8 +70,12 @@ MinuteEnergy TryLevel2(const MinuteInput& input, const CalibrationModel& model) 
     }
     double measured = GrowthIfWanted(model.measuresCpuPackage, input.packageGrowthUj) +
                       GrowthIfWanted(model.measuresDram, input.dramGrowthUj);
-    double restWatts = model.restW + model.restWPerCpuPct * *input.cpuPercent + ScreenWatts(input, model);
-    return KnownMinute(MeasureLevel::L2, measured + restWatts * input.seconds * kMicrojoulesPerJoule, measured);
+    double cpuWatts = model.restWPerCpuPct * *input.cpuPercent;
+    double screenWatts = ScreenWatts(input, model);
+    double restWatts = model.restW + cpuWatts + screenWatts;
+    MinuteEnergy minute = KnownMinute(MeasureLevel::L2, measured + restWatts * input.seconds * kMicrojoulesPerJoule, measured);
+    minute.terms = MinuteTerms{std::nullopt, model.restW, cpuWatts, screenWatts};
+    return minute;
 }
 
 /// Level L3: everything from the model. Unknown when the processor percent is unknown.
@@ -79,8 +83,12 @@ MinuteEnergy TryLevel3(const MinuteInput& input, const CalibrationModel& model) 
     if (!IsPercent(input.cpuPercent)) {
         return UnknownMinute();
     }
-    double watts = model.baseW + model.cpuWPerPct * *input.cpuPercent + ScreenWatts(input, model);
-    return KnownMinute(MeasureLevel::L3, watts * input.seconds * kMicrojoulesPerJoule, 0.0);
+    double cpuWatts = model.cpuWPerPct * *input.cpuPercent;
+    double screenWatts = ScreenWatts(input, model);
+    double watts = model.baseW + cpuWatts + screenWatts;
+    MinuteEnergy minute = KnownMinute(MeasureLevel::L3, watts * input.seconds * kMicrojoulesPerJoule, 0.0);
+    minute.terms = MinuteTerms{model.baseW, std::nullopt, cpuWatts, screenWatts};
+    return minute;
 }
 
 }  // namespace
@@ -110,6 +118,13 @@ MinuteEnergy CalculateMinuteEnergy(const MinuteInput& input) {
         return level2;
     }
     return TryLevel3(input, *input.model);
+}
+
+std::optional<double> EnergyToWatts(const std::optional<double>& microjoules, double seconds) {
+    if (!microjoules.has_value() || !(seconds > 0.0)) {
+        return std::nullopt;
+    }
+    return *microjoules / seconds / kMicrojoulesPerJoule;
 }
 
 MinuteEnergy HistoryMinuteEnergy(const MinuteInput& input, const MinuteEnergy& calculated) {

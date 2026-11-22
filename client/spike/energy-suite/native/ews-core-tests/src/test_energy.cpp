@@ -160,3 +160,54 @@ EWS_TEST(EnergyLevelWords) {
     CHECK(std::string(ews::MeasureLevelWord(MeasureLevel::L3)) == "L3");
     CHECK(std::string(ews::MeasureLevelWord(MeasureLevel::Unknown)).empty());
 }
+
+namespace {
+
+/// @return True when two watt values are the same to a nanowatt.
+bool SameWatts(const std::optional<double>& value, double expected) { return value.has_value() && std::fabs(*value - expected) < 1e-9; }
+
+}  // namespace
+
+EWS_TEST(EnergyReportsTheWattTermsOfLevel2) {
+    // rest 2.24 W; processor term 0.009 x 20 = 0.18 W; screen 1.40 + (80 - 50) x 0.0104 = 1.712 W.
+    ews::CalibrationModel model = ews_test::SpecModel();
+    MinuteInput in = BaseMinute(&model);
+    in.packageGrowthUj = 120e6;
+    in.dramGrowthUj = 30e6;
+    MinuteEnergy e = CalculateMinuteEnergy(in);
+    CHECK(e.level == MeasureLevel::L2);
+    CHECK(!e.terms.baseW.has_value());
+    CHECK(SameWatts(e.terms.restW, 2.24));
+    CHECK(SameWatts(e.terms.cpuW, 0.18));
+    CHECK(SameWatts(e.terms.screenW, 1.712));
+}
+
+EWS_TEST(EnergyReportsTheWattTermsOfLevel3) {
+    // base 3.48 W; processor term 0.075 x 20 = 1.5 W; screen 1.712 W. Without EMI growth the minute is level 3.
+    ews::CalibrationModel model = ews_test::SpecModel();
+    MinuteInput in = BaseMinute(&model);
+    MinuteEnergy e = CalculateMinuteEnergy(in);
+    CHECK(e.level == MeasureLevel::L3);
+    CHECK(SameWatts(e.terms.baseW, 3.48));
+    CHECK(!e.terms.restW.has_value());
+    CHECK(SameWatts(e.terms.cpuW, 1.5));
+    CHECK(SameWatts(e.terms.screenW, 1.712));
+}
+
+EWS_TEST(EnergyHasNoWattTermsAtLevel1OrWhenUnknown) {
+    MinuteInput in = BaseMinute(nullptr);
+    in.systemGrowthUj = 300e6;
+    MinuteEnergy l1 = CalculateMinuteEnergy(in);
+    CHECK(!l1.terms.baseW.has_value() && !l1.terms.restW.has_value() && !l1.terms.cpuW.has_value() && !l1.terms.screenW.has_value());
+    MinuteEnergy unknown = CalculateMinuteEnergy(BaseMinute(nullptr));
+    CHECK(unknown.level == MeasureLevel::Unknown);
+    CHECK(!unknown.terms.cpuW.has_value());
+}
+
+EWS_TEST(EnergyToWattsRule) {
+    CHECK(SameWatts(ews::EnergyToWatts(4.0e6, 2.0), 2.0));
+    CHECK(SameWatts(ews::EnergyToWatts(-8.2e6 * 60.0, 60.0), -8.2));
+    CHECK(!ews::EnergyToWatts(std::nullopt, 60.0).has_value());
+    CHECK(!ews::EnergyToWatts(1.0e6, 0.0).has_value());
+    CHECK(!ews::EnergyToWatts(1.0e6, -5.0).has_value());
+}

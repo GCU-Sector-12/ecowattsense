@@ -17,6 +17,8 @@
 #include "ews/config.h"
 #include "ews/cpu_times.h"
 #include "ews/device_name.h"
+#include "ews/diag_line.h"
+#include "ews/diag_recorder.h"
 #include "ews/display.h"
 #include "ews/emi.h"
 #include "ews/energy.h"
@@ -107,6 +109,12 @@ public:
     std::unique_ptr<ServerApi> CreateApi(const std::string& url, const std::string& key) override;
 };
 
+/// The words of the `trigger` field of a `send` line of the diagnostics file (SPEC 7a).
+inline constexpr const char* kTriggerTick = "tick";        ///< A report tick, the end of an interval, a gap, or a power source change.
+inline constexpr const char* kTriggerNetwork = "network";  ///< The network came back.
+inline constexpr const char* kTriggerPipe = "pipe";        ///< The pipe command `EWS1 send`.
+inline constexpr const char* kTriggerCommand = "command";  ///< A command of the server (`report_now` or `flush_buffer`).
+
 /// The sources and helpers of the core. The caller owns them; they must outlive the core.
 struct ServiceDeps {
     IClock& clock;
@@ -117,6 +125,7 @@ struct ServiceDeps {
     IDisplaySource& display;
     IPowerSource& power;
     ISenderFactory& senders;
+    IDiagWriter* diag = nullptr;  ///< Where the diagnostics lines go (SPEC 7a). Nothing is written when it is null.
 };
 
 /// The settings of the core.
@@ -204,7 +213,12 @@ private:
     void BeginInterval(const Snapshot& at);
     Snapshot CloseEarly(bool trySend);
     void ProcessMinute(const Snapshot& current);
-    std::optional<double> CurrentBrightness();
+    /// The brightness used for a minute and where it came from.
+    struct BrightnessRead {
+        std::optional<double> percent;  ///< Empty when neither the service nor the pipe knows it (counted as 50).
+        const char* from = "default";   ///< `service`, `pipe` or `default`.
+    };
+    BrightnessRead CurrentBrightness();
     std::optional<double> ReadDisplayBrightness();
     void AppendHistory(const Snapshot& current, double seconds, const std::optional<double>& cpuPercent,
                        const MinuteEnergy& energy, const MinuteBattery& battery);
@@ -221,6 +235,39 @@ private:
     bool IsGap(const Snapshot& current) const;
     void HandleGap(const Snapshot& current);
 
+    // Diagnostics file (service_diag.cpp, SPEC 7a). A failed write never stops the work: it is counted and logged.
+    /// Where the previous read of a minute came from. The first minute after a start, a resume or a gap is flagged.
+    enum class PreviousRead { Normal, First, AfterGap };
+    /// What one minute produced, for its tick line.
+    struct DiagMinute {
+        double seconds = 0.0;
+        std::optional<double> cpuPercent;
+        MinuteEnergy energy;      ///< As calculated (the terms are here).
+        MinuteEnergy shown;       ///< As shown in the history (level L4 without a model).
+        MinuteBattery battery;
+        BrightnessRead brightness;
+    };
+    /// Flags of the minute that are set while its history row is recorded.
+    struct MinuteFlags {
+        bool held = false;             ///< The history row of this minute was held back.
+        bool batteryReplaced = false;  ///< This minute replaced one or more held impossible minutes (SPEC 4.3).
+    };
+    /// Writes one line through the recorder; puts `diag_full` or `diag_write_failed` into the log when the recorder says so.
+    void DiagWrite(UtcTime time, const std::string& line);
+    /// Writes one `event` line.
+    void DiagEvent(const std::string& what, const std::vector<DiagField>& fields = {});
+    /// Writes the `tick` line of the minute that was just calculated. Call it before `previous_` is replaced.
+    void DiagTickLine(const Snapshot& current, const DiagMinute& minute);
+    /// Writes the `report` line of a report that was just queued; does nothing when it was not queued.
+    void DiagReportLine(bool queued, const std::string& reportJson);
+    /// Writes the `send` line after one send try (call it after `lastSend_` is set).
+    void DiagSendLine(const SendResult& result, int lines);
+    /// Writes a `ping` event when the result word changed.
+    void DiagPingChanged(LastPing before);
+    DiagSession DiagSessionAt(std::int64_t nowUnix) const;
+    DiagCalc DiagCalcOf(const Snapshot& current, const DiagMinute& minute) const;
+    std::vector<std::string> DiagFlagsOf(const Snapshot& current, const DiagMinute& minute) const;
+
     // Reports, queue, sending, status.
     void FinishInterval(const Snapshot& at, bool trySend);
     ReportFields MakeFields(const IntervalResult& result);
@@ -233,6 +280,11 @@ private:
     /// @param event The log event that tells why (SendOnNetwork or SendRequested).
     /// @return True when a send was tried.
     bool SendNow(LogEvent event);
+    /// Like SendNow, and the `send` lines of the diagnostics file name the trigger.
+    /// @param trigger One of kTriggerNetwork, kTriggerPipe and kTriggerCommand.
+    /// @param event The log event that tells why.
+    /// @return True when a send was tried.
+    bool SendNowFor(const char* trigger, LogEvent event);
     /// Handles `EWS1 send`: at most one send in 30 seconds; a later one is dropped and counted.
     void SendRequested();
     bool SendOneBatch();
@@ -304,6 +356,7 @@ private:
 
     ServiceDeps deps_;
     ServiceSettings settings_;
+    DiagRecorder diag_;
     InstanceLock lock_;
     ServiceConfig config_;
     std::string deviceId_;
@@ -328,6 +381,9 @@ private:
     std::int64_t serviceStartUnix_ = 0;
 
     Snapshot previous_;
+    PreviousRead previousRead_ = PreviousRead::First;  ///< The first read is the one taken at the start.
+    MinuteFlags minuteFlags_;
+    const char* sendTrigger_ = kTriggerTick;
     std::optional<IntervalAccumulator> interval_;
     int ticksInInterval_ = 0;
     std::string lastDate_;

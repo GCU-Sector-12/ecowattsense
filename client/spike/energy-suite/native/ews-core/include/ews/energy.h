@@ -34,11 +34,21 @@ struct MinuteInput {
     const CalibrationModel* model = nullptr;    ///< The valid model, or null when there is none.
 };
 
+/// The watt terms of the formula of SPEC 4.2 that one minute used, for the diagnostics file (SPEC 7a).
+/// An empty value was not part of this minute's formula. They are output only: they never change the energy.
+struct MinuteTerms {
+    std::optional<double> baseW;    ///< base_w, level L3 only.
+    std::optional<double> restW;    ///< rest_w, level L2 only.
+    std::optional<double> cpuW;     ///< The processor term: rest_w_per_cpu_pct x percent (L2) or cpu_w_per_pct x percent (L3).
+    std::optional<double> screenW;  ///< The screen power of the minute (L2 and L3).
+};
+
 /// The energy of one minute.
 struct MinuteEnergy {
     MeasureLevel level = MeasureLevel::Unknown;
     std::optional<double> deviceUj;  ///< Energy of the whole computer in uJ; empty when the minute is unknown.
     double measuredUj = 0;           ///< The part read from hardware, in uJ (0 for L3 and for an unknown minute).
+    MinuteTerms terms;               ///< The watt terms that were used (L2 and L3 only).
 };
 
 /// Calculates one minute by SPEC 4.5: L1 when the system growth is known; else L2 when the model is valid, names
@@ -49,6 +59,11 @@ struct MinuteEnergy {
 /// @param input The values of the minute.
 /// @return The level, the device energy and the measured part.
 MinuteEnergy CalculateMinuteEnergy(const MinuteInput& input);
+
+/// @param microjoules An energy in uJ, or nothing when it is unknown.
+/// @param seconds The length of the period in seconds.
+/// @return The average power in watts, or nothing when the energy is unknown or the length is 0 or less.
+std::optional<double> EnergyToWatts(const std::optional<double>& microjoules, double seconds);
 
 /// What the history shows for a minute. With a model, or when the minute is known, it is `calculated` unchanged.
 /// Without a model and with no known level, it is level L4: the known package and memory growth as the measured

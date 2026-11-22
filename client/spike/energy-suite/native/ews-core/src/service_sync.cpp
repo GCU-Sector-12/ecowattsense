@@ -45,6 +45,13 @@ int CommandTypeCode(const std::string& type) {
     return code;
 }
 
+/// @param code A code of CommandTypeCode.
+/// @return The fixed word of the command type for the diagnostics file; `unknown` for any text the server may have sent.
+const char* CommandTypeWord(int code) {
+    const char* const words[] = {"unknown", "set_interval", "report_now", "flush_buffer", "clear_buffer", "pull_settings"};
+    return words[code >= 0 && code <= 5 ? code : 0];
+}
+
 /// @param result A command result.
 /// @return 0 done, 1 failed, 2 unsupported (the number in the log).
 int CommandResultCode(CommandResult result) { return static_cast<int>(result); }
@@ -136,6 +143,9 @@ void ServiceCore::ApplySettings(const ServerSettings& settings) {
     serverSettings_ = settings;
     lastSettingsUnix_ = settings.checkedUnix;
     ignoredVersion_.reset();
+    DiagEvent("settings_applied", {FieldMaybeInt("settings_version", settings.version), FieldInt("report_interval_seconds", settings.reportIntervalSeconds),
+                                   FieldInt("ping_interval_seconds", settings.pingIntervalSeconds), FieldInt("idle_threshold_seconds", settings.idleThresholdSeconds),
+                                   FieldInt("unused_threshold_seconds", settings.unusedThresholdSeconds)});
 }
 
 /// Writes the settings in force to server-settings.json. A write failure is logged (state_write_failed 1); the settings stay in force.
@@ -223,7 +233,9 @@ void ServiceCore::Ping() {
 
 /// Records the result of a ping (word, time, failures in a row) and logs the first failure and then one an hour.
 void ServiceCore::NotePing(ApiWord word, const ApiAnswer& answer) {
+    LastPing before = lastPing_;
     lastPing_ = LastPingFor(word);
+    DiagPingChanged(before);
     lastPingUnix_ = NowUnix();
     pingFailures_ = word == ApiWord::Ok ? 0 : pingFailures_ + 1;
     Hold(answer);
@@ -277,6 +289,7 @@ void ServiceCore::RunOneCommand(const ServerCommand& command) {
     doneCommands_.erase(doneCommands_.begin(), doneCommands_.begin() + static_cast<std::ptrdiff_t>(extra));
     doneDirty_ = true;
     Log(LogEvent::CommandRun, {command.id, CommandTypeCode(command.type), CommandResultCode(result)});
+    DiagEvent("command", {FieldWord("type", CommandTypeWord(CommandTypeCode(command.type))), FieldWord("result", CommandResultWord(result))});
 }
 
 /// Runs the command of a known type. Returns done or failed; unsupported for any other type.
@@ -306,14 +319,16 @@ CommandResult ServiceCore::CommandSetInterval(const ServerCommand& command) {
 
 /// report_now: closes the running report period, queues and sends its report, and starts a new period. Returns done.
 CommandResult ServiceCore::CommandReportNow() {
+    sendTrigger_ = kTriggerCommand;
     Snapshot at = CloseEarly(true);
+    sendTrigger_ = kTriggerTick;
     BeginInterval(at);
     return CommandResult::Done;
 }
 
 /// flush_buffer: tries a send of the queue now (the path of the pipe request). Returns done, also when there was nothing to send.
 CommandResult ServiceCore::CommandFlushBuffer() {
-    SendNow(LogEvent::SendRequested);
+    SendNowFor(kTriggerCommand, LogEvent::SendRequested);
     return CommandResult::Done;
 }
 
