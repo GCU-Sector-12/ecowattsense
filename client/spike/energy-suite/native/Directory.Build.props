@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Directory.Build.props: settings shared by every project of the energy suite native solution.
+     MSBuild reads it automatically for each project below this folder.
+     Rules: x64 only, C++20, warning level 4 with warnings as errors, static runtime. -->
+<Project>
+  <PropertyGroup>
+    <IgnoreWarnIntDirInTempDetected>true</IgnoreWarnIntDirInTempDetected>
+    <EwsVersionDefine Condition="'$(EwsVersion)'!=''">EWS_VERSION=$(EwsVersion);</EwsVersionDefine>
+    <NativeRoot>$(MSBuildThisFileDirectory)</NativeRoot>
+    <OutDir>$(NativeRoot)out\$(Configuration)\</OutDir>
+    <IntDir>$(NativeRoot)obj\$(MSBuildProjectName)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;$(EwsVersionDefine)%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- /utf-8: sources are UTF-8. /external: Windows SDK headers do not raise our warnings. IgnoreWarnIntDirInTempDetected: a checkout under a temp folder (agent worktrees) must still build with 0 warnings. -->
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <AdditionalOptions>/utf-8 /external:anglebrackets %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

@@ -1,0 +1,11 @@
+<!--
+  App.xaml: WPF application definition of EnergyCalibrator.
+  Who uses it: the WPF runtime. It opens MainWindow and sends unexpected errors to App.xaml.cs.
+-->
+<Application x:Class="EnergyCalibrator.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml"
+             DispatcherUnhandledException="OnUnhandledException">
+    <Application.Resources />
+</Application>
