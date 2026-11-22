@@ -2,7 +2,9 @@
 // Used by Setup (once, with --out <data>\scan) and by the service (with --context service).
 // It tests every energy source of this computer and writes capabilities.json and scan.log.
 // Usage: ews-scan.exe [--out <folder>] [--context user|admin|service] [--quiet]
-// Exit codes: 0 scan written, 2 output folder missing or not writable, 3 bad arguments.
+//        ews-scan.exe --watch [--period-ms <500..10000>]   (prints JSON lines until standard input ends, writes no file)
+// Exit codes: 0 scan written (or the watch ended), 1 the watch could not run, 2 output folder missing or not writable,
+// 3 bad arguments.
 #include <windows.h>
 
 #include <cstdio>
@@ -13,8 +15,10 @@
 #include "ews/atomic_file.h"
 #include "ews/battery.h"
 #include "ews/display.h"
+#include "ews/display_layout.h"
 #include "ews/emi.h"
 #include "ews/gpu.h"
+#include "ews/gpu_use.h"
 #include "ews/handles.h"
 #include "ews/intel_dtt.h"
 #include "ews/pawnio.h"
@@ -24,6 +28,7 @@
 #include "ews/scan.h"
 #include "ews/scan_args.h"
 #include "ews/scan_output.h"
+#include "watch_run.h"
 
 namespace {
 
@@ -76,6 +81,7 @@ void PrintSummary(const ews::ScanResult& result) {
     PrintSourceLine("acpi_power_meter", result.powerMeter.common);
     PrintSourceLine("display", result.display.common);
     PrintSourceLine("gpu", result.gpu.common);
+    PrintSourceLine("gpu_use", result.gpuUse.common);
     PrintSourceLine("intel_dtt", result.intelDtt.common);
     PrintSourceLine("pawnio", result.pawnIo.common);
     std::printf("level: %s\ncalibration: %s\ndevice_type: %s\n", ews::LevelWord(result.level), ews::CalibrationWord(result.calibration),
@@ -89,11 +95,14 @@ ews::ScanResult ScanThisComputer(ews::ScanContext context) {
     ews::SystemBatterySource battery;
     ews::SystemPowerMeterSource powerMeter;
     ews::SystemDisplaySource display;
+    ews::SystemDisplayLayoutSource displayLayout;
     ews::SystemGpuSource gpu;
+    ews::SystemGpuUseSource gpuUse;
     ews::SystemIntelDttSource intelDtt;
     ews::SystemPawnIoSource pawnIo;
     ews::SystemScanWaiter waiter;
-    ews::ScanSources sources{machine, emi, battery, powerMeter, display, gpu, intelDtt, pawnIo, waiter, ews::ReadOnBattery};
+    ews::ScanSources sources{machine, emi,     battery, powerMeter, display,   displayLayout,
+                             gpu,     gpuUse,  intelDtt, pawnIo,     waiter,    ews::ReadOnBattery};
     return ews::RunScan(sources, context, NowUtcText());
 }
 
@@ -114,13 +123,19 @@ bool WriteOutputs(const std::wstring& folder, const ews::ScanResult& result) {
 
 }  // namespace
 
-/// Program entry. @return 0 when the scan was written, 2 for an output folder problem, 3 for bad arguments.
+/// Program entry. @return 0 when the scan was written or the watch ended, 1 when the watch could not run, 2 for an output folder
+/// problem, 3 for bad arguments.
 int wmain(int argc, wchar_t** argv) {
     std::vector<std::wstring> arguments(argv + 1, argv + (argc > 0 ? argc : 1));
     auto parsed = ews::ParseScanArgs(arguments);
     if (!parsed.ok) {
-        std::fprintf(stderr, "usage: ews-scan.exe [--out <folder>] [--context user|admin|service] [--quiet]\n");
+        std::fprintf(stderr,
+                     "usage: ews-scan.exe [--out <folder>] [--context user|admin|service] [--quiet]\n"
+                     "       ews-scan.exe --watch [--period-ms <500..10000>]\n");
         return kExitBadArguments;
+    }
+    if (parsed.args.watch) {
+        return ews_scan::RunWatch(parsed.args.periodMs);
     }
     std::wstring folder = parsed.args.outFolder.empty() ? L"." : parsed.args.outFolder;
     if (!FolderExists(folder)) {

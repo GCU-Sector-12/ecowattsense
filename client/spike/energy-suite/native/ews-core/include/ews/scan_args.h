@@ -2,6 +2,7 @@
 // Used by ews-scan (main). Arguments are untrusted text from the user.
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -15,6 +16,8 @@ struct ScanArgs {
     std::wstring outFolder;              ///< Empty means the current folder.
     std::optional<ScanContext> context;  ///< Empty means: decide from the process token.
     bool quiet = false;
+    bool watch = false;                  ///< --watch: print JSON lines until standard input ends (SPEC 1.6).
+    std::uint32_t periodMs = 2000;       ///< --period-ms, 500..10000; only with --watch.
 };
 
 /// The outcome of the parser.
@@ -23,8 +26,10 @@ struct ScanArgsResult {
     ScanArgs args;    ///< Valid only when ok.
 };
 
-/// Parses `[--out <folder>] [--context user|admin|service] [--quiet]`.
-/// A bad context, an unknown argument, or `--out` / `--context` without a value gives ok = false.
+/// Parses `[--out <folder>] [--context user|admin|service] [--quiet]` or `--watch [--period-ms <500..10000>]`.
+/// A bad context, an unknown argument, or `--out` / `--context` / `--period-ms` without a value gives ok = false.
+/// `--period-ms` without `--watch`, a period outside 500..10000 or with anything but digits, and `--watch` together
+/// with `--out`, `--context` or `--quiet` give ok = false.
 /// @param arguments The arguments without the program name.
 /// @return The parse result.
 ScanArgsResult ParseScanArgs(std::span<const std::wstring> arguments);
