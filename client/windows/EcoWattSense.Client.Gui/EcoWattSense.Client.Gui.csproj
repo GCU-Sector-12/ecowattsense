@@ -11,7 +11,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>../../spike/energy-suite/assets/ecowattsense.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WMI (root\wmi WmiMonitorBrightness) for the pipe message; the same package the calibrator uses. -->
+    <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />

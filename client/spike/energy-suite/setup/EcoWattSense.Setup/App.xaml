@@ -1,0 +1,8 @@
+<!--
+  App.xaml: the WPF application of Setup.exe. The start code is in App.xaml.cs, so no StartupUri is set here.
+-->
+<Application x:Class="EcoWattSense.Setup.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources/>
+</Application>
