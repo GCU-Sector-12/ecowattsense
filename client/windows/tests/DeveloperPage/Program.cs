@@ -420,7 +420,16 @@ internal static class Program
         ExportPlan plan5 = DiagExportPlan.Build(d5);
         string target5 = Path.Combine(NewDir(), "twice.zip");
         File.WriteAllText(target5, "old");
-        Run("zip: an existing target is replaced", () => DiagZipWriter.Write(plan5, target5).Saved && ZipFile.OpenRead(target5).Entries.Count == 13);
+        Run("zip: an existing target is replaced", () => DiagZipWriter.Write(plan5, target5).Saved && ZipEntryCount(target5) == 13);
+    }
+
+    /// <summary>Counts the entries of a ZIP file and closes it again, so the test folder can be deleted on Windows.</summary>
+    /// <param name="path">The ZIP file.</param>
+    /// <returns>The number of entries.</returns>
+    private static int ZipEntryCount(string path)
+    {
+        using ZipArchive zip = ZipFile.OpenRead(path);
+        return zip.Entries.Count;
     }
 
     // ---------------------------------------------------------------- DiagText

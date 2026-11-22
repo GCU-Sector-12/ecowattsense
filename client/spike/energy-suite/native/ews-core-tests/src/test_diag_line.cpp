@@ -128,7 +128,9 @@ EWS_TEST(DiagTickLineEscapesAChannelName) {
     emi.kind = "other";
     tick.emi.push_back(emi);
     std::string line = ews::BuildTickLine(tick);
-    CHECK(Has(line, R"("name":"A\"B\\C\u0001D")"));
+    // The expected text is a variable: MSVC cannot turn a raw string inside CHECK into the check name.
+    const std::string escapedName = R"("name":"A\"B\\C\u0001D")";
+    CHECK(Has(line, escapedName));
     CHECK(line.find('\n') == std::string::npos);
 }
 
@@ -232,7 +234,10 @@ EWS_TEST(DiagEventLineLeavesOutAnEmptyWord) {
 }
 
 EWS_TEST(DiagEventLineEscapesAWord) {
-    CHECK(ews::BuildEventLine(kTime, "x", {ews::FieldWord("w", "a\"b")}) == R"({"t":"event","ts":"2026-11-14T10:05:00Z","what":"x","w":"a\"b"})");
+    // The expected text is a variable: MSVC cannot turn a raw string inside CHECK into the check name.
+    const std::string expected = R"({"t":"event","ts":"2026-11-14T10:05:00Z","what":"x","w":"a\"b"})";
+    const std::string line = ews::BuildEventLine(kTime, "x", {ews::FieldWord("w", "a\"b")});
+    CHECK(line == expected);
 }
 
 EWS_TEST(DiagLineLimitIs16KbWithTheLineFeed) {
