@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar.jsx'
 import sidebarClasses from './components/Sidebar.module.css'
 import DashboardPage from './pages/DashboardPage.jsx'
 import ComputersPage from './pages/ComputersPage.jsx'
+import ConnectPage from './pages/ConnectPage.jsx'
 import EnergyPage from './pages/EnergyPage.jsx'
 import HistoryPage from './pages/HistoryPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -136,7 +137,8 @@ function takeReturnPath() {
 function applyRouteGuard(session, setGuardReady) {
   const page = currentPage()
   if (!session && page !== 'login') {
-    const path = window.location.pathname
+    // The query is kept, so a login returns to /connect?code=ABCD-EFGH and not only to /connect.
+    const path = window.location.pathname + window.location.search
     sessionStorage.setItem(RETURN_ROUTE_KEY, path === '/' ? '/dashboard' : path)
     navigate('/login', { replace: true })
     setGuardReady(true)
@@ -159,6 +161,7 @@ export const PAGES = {
   history: HistoryPage,
   energy: EnergyPage,
   settings: SettingsPage,
+  connect: ConnectPage,
   login: LoginPage,
   'not-found': NotFoundPage,
 }
@@ -221,6 +224,9 @@ export default function App() {
   }
 
   if (showLogin) return <LoginPage onLogin={setSession} />
+
+  // The connect page is a card of its own, like Login, so it has no sidebar.
+  if (route.page === 'connect') return <ConnectPage />
 
   return (
     <AppShell
