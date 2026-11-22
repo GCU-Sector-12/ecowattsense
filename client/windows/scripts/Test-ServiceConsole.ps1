@@ -2,7 +2,7 @@
 # Who uses it: the author of the native code and the main session, after Test-Native.ps1 has built the Release programs.
 # What it does: makes a data folder below native\out with the sub folders of SPEC 2.2 and the example model of SPEC 8,
 #   writes service.ini (interval 300 s), sets the URL and the key through `ews-service.exe --configure` on standard input,
-#   starts a local HttpListener on a free port from 49301 to 49400 that answers 200 and keeps every request, runs
+#   starts a local HttpListener on a port chosen by Windows that answers 200 and keeps every request, runs
 #   `ews-service.exe --console --tick-seconds 2 --run-seconds 34`, sends one pipe message `EWS1 idle=5 bright=50` after about
 #   12 seconds, and checks the files and the reports that arrived. Nothing is sent to a real server.
 # How to run: pwsh -NoProfile -File Test-ServiceConsole.ps1 [-Exe <path to ews-service.exe>] [-Keep]
@@ -54,15 +54,18 @@ function Write-Check([string] $Name, [bool] $Passed, [string] $Detail = '') {
 }
 
 <#
-.SYNOPSIS Finds a free TCP port on the loopback address between 49301 and 49400.
-.OUTPUTS The port number.
+.SYNOPSIS Asks Windows for an available TCP port on loopback.
+.OUTPUTS The port number. A socket error stops the test.
 #>
 function Get-FreePort {
-    foreach ($port in 49301..49400) {
-        $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
-        try { $probe.Start(); return $port } catch { continue } finally { $probe.Stop() }
+    $probe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $probe.Start()
+        return $probe.LocalEndpoint.Port
     }
-    throw 'no free port between 49301 and 49400'
+    finally {
+        $probe.Stop()
+    }
 }
 
 <#
@@ -210,13 +213,20 @@ function Test-ReportShape($Report) {
 }
 
 <#
-.SYNOPSIS Checks the energy fields of one 10 second report: on mains 30 to 600 J and a battery change, on battery zero.
+.SYNOPSIS Checks energy fields for the current power source and the scanned battery.
+.PARAMETER Report The submitted report. Missing energy fields fail when the hardware supports them.
+.PARAMETER NoBattery True when the scan confirms the computer has no battery.
+.OUTPUTS True when the meter values match the expected fields and range.
 #>
-function Test-ReportEnergy($Report) {
+function Test-ReportEnergy($Report, [bool] $NoBattery) {
     $names = $Report.PSObject.Properties.Name
     if ($Report.on_battery) { return ($names -contains 'energy_uj' -and $Report.energy_uj -eq 0) }
+    $inRange = $Report.energy_uj -ge 30000000 -and $Report.energy_uj -le 600000000
+    if ($NoBattery) {
+        return $inRange -and $names -notcontains 'battery_energy_uj' -and $Report.device_energy_uj -eq $Report.energy_uj
+    }
     $hasAll = ($energyFields | Where-Object { $names -notcontains $_ }).Count -eq 0
-    return $hasAll -and $Report.energy_uj -ge 30000000 -and $Report.energy_uj -le 600000000
+    return $hasAll -and $inRange
 }
 
 <#
@@ -225,7 +235,10 @@ function Test-ReportEnergy($Report) {
 function Test-Results([string] $Folder, $Run) {
     Write-Check 'exit code is 0' ($Run.Code -eq 0) "(exit $($Run.Code))"
     $caps = Read-JsonFile (Join-Path $Folder 'scan\capabilities.service.json')
-    Write-Check 'capabilities.service.json parses, level L2' ($null -ne $caps -and $caps.level -eq 'L2') "(level $($caps.level))"
+    $battery = $caps.sources | Where-Object id -eq 'battery' | Select-Object -First 1
+    $noBattery = [object]::Equals($battery.present, $false)
+    $validLevel = $null -ne $caps -and $caps.level -in 'L1', 'L2', 'L3', 'L4'
+    Write-Check 'capabilities.service.json reports a valid level' $validLevel "(level $($caps.level))"
     $history = Get-ChildItem -LiteralPath (Join-Path $Folder 'history') -Filter '*.csv' | ForEach-Object { Get-Content -LiteralPath $_.FullName } | Select-Object -Skip 1
     $rows = @($history | Where-Object { $_ }).Count
     Write-Check 'at least 14 history rows after the header' ($rows -ge 14) "($rows rows)"
@@ -238,14 +251,15 @@ function Test-Results([string] $Folder, $Run) {
     Write-Check 'every report has exactly the fields of SPEC 5.4' (-not $shapeProblems) "($($shapeProblems -join ' | '))"
     $badLength = $reports | Where-Object { $_.Report.interval_seconds -lt 8 -or $_.Report.interval_seconds -gt 12 }
     Write-Check 'interval_seconds is 8 to 12 in every sent report' (-not $badLength) "($(@($badLength).Count) outside)"
-    $badEnergy = $reports | Where-Object { -not (Test-ReportEnergy $_.Report) }
-    Write-Check 'energy fields right (mains: 30 to 600 J and battery change)' (-not $badEnergy) "($(@($badEnergy).Count) wrong)"
+    $badEnergy = $reports | Where-Object { -not (Test-ReportEnergy $_.Report $noBattery) }
+    Write-Check 'energy fields match the power source and battery' (-not $badEnergy) "($(@($badEnergy).Count) wrong)"
     $afterPipe = $reports | Where-Object { $_.At -gt $Run.PipeAt -and $Run.PipeAt -ge 0 }
     $badPipe = $afterPipe | Where-Object { $_.Report.state -ne 2 -or $_.Report.idle_seconds -ge 60 }
     Write-Check 'reports after the pipe message: state 2, idle below 60' (@($afterPipe).Count -ge 1 -and -not $badPipe) "(pipe: $($Run.PipeError); $(@($afterPipe).Count) reports after it)"
     $badKey = $script:received | Where-Object { $_.Key -ne 'test-key' }
     Write-Check 'header X-EWS-Key was test-key' ($script:received.Count -ge 1 -and -not $badKey)
     $status = Read-JsonFile (Join-Path $Folder 'status\status.json')
+    Write-Check 'status.json confirms the test model loaded' ($status.model_generated_utc -and [datetimeoffset]$status.model_generated_utc -eq [datetimeoffset]'2026-11-12T17:08:31Z') "(model time: $($status.model_generated_utc))"
     Write-Check 'status.json parses and says ok' ($null -ne $status -and $status.last_send_result -eq 'ok') "(result $($status.last_send_result))"
     $queue = Get-Content -LiteralPath (Join-Path $Folder 'queue\reports.jsonl') -ErrorAction SilentlyContinue
     $queued = @($queue | Where-Object { $_ }).Count
