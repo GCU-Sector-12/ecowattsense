@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $vswhere)) {
     exit 2
 }
 
-$msbuild = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+$msbuild = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
 if (-not $msbuild -or -not (Test-Path -LiteralPath $msbuild)) {
     Write-Error 'MSBuild.exe with the x64 C++ tools was not found by vswhere.'
     exit 2

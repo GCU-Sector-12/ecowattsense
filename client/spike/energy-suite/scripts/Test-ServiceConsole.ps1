@@ -107,7 +107,13 @@ function Invoke-Configure([string] $Folder, [string] $Url) {
 function Receive-Request($Context, [double] $Seconds) {
     $reader = [System.IO.StreamReader]::new($Context.Request.InputStream, [System.Text.Encoding]::UTF8)
     $body = $reader.ReadToEnd()
-    $script:received.Add([pscustomobject]@{ Body = $body; Key = $Context.Request.Headers['X-EWS-Key']; At = $Seconds })
+    $script:received.Add([pscustomobject]@{
+        Method = $Context.Request.HttpMethod
+        Path = $Context.Request.Url.AbsolutePath
+        Body = $body
+        Key = $Context.Request.Headers['X-EWS-Key']
+        At = $Seconds
+    })
     $answer = [System.Text.Encoding]::UTF8.GetBytes('[{"status":"created"}]')
     $Context.Response.StatusCode = 200
     $Context.Response.ContentType = 'application/json'
@@ -164,15 +170,26 @@ function Read-JsonFile([string] $Path) {
 }
 
 <#
-.SYNOPSIS Collects every report of every request, each with the second its request arrived.
+.SYNOPSIS Reads a JSON report batch and attaches the request arrival time to each report.
+.PARAMETER Request The recorded HTTP request. Invalid JSON stops the test.
+.OUTPUTS The reports with their arrival time.
+#>
+function Read-ReportBatch($Request) {
+    $items = $Request.Body | ConvertFrom-Json -NoEnumerate
+    foreach ($item in $items) {
+        [pscustomobject]@{ Report = $item; At = $Request.At }
+    }
+}
+
+<#
+.SYNOPSIS Collects reports from POST /api/reports requests.
+.OUTPUTS The reports with their arrival time. A malformed batch stops the test.
 #>
 function Get-Reports {
-    $reports = [System.Collections.Generic.List[object]]::new()
-    foreach ($request in $script:received) {
-        $items = $request.Body | ConvertFrom-Json -NoEnumerate
-        foreach ($item in $items) { $reports.Add([pscustomobject]@{ Report = $item; At = $request.At }) }
+    $requests = $script:received | Where-Object Method -CEQ 'POST' | Where-Object Path -CEQ '/api/reports'
+    foreach ($request in $requests) {
+        Read-ReportBatch $request
     }
-    return $reports
 }
 
 <#
