@@ -208,9 +208,10 @@ All energy values are whole microjoules. 1 mWh = 3 600 000 µJ.
 Device power of one minute:
 
 - L1: the `system` channel only.
-- L2: sum of the model's `measured_parts` from EMI + `rest_w` + `rest_w_per_cpu_pct` × processor percent + screen power.
-- L3: `base_w` + `cpu_w_per_pct` × processor percent + screen power.
+- L2: sum of the model's `measured_parts` from EMI + `rest_w` + `rest_w_per_cpu_pct` × processor percent + screen power + `rest_w_per_gpu_pct` × GPU use.
+- L3: `base_w` + `cpu_w_per_pct` × processor percent + screen power + `gpu_w_per_pct` × GPU use.
 - Screen power: 0 when the display is off; else `screen_w_at_50` + (brightness − 50) × `screen_w_per_pct`, not below 0. An unknown brightness counts as 50.
+- GPU use of a minute: the service reads the source `gpu_use` (section 3.3) once at each tick. The value is the highest use of one adapter (the busiest 3D engine, the value the calibrator samples), 0 to 100. A read that fails, finds no adapter or no 3D engine, or comes from a source the scan did not find readable gives an unknown use. An unknown use counts as 0: the graphics term is 0 and the minute is calculated as before. A schema 2 model has both graphics numbers 0, so its result does not change. The use does not change L1.
 
 Then:
 
@@ -267,7 +268,8 @@ L2 is used only when every part named in `measured_parts` is live. If one is mis
 
 - At start: report "running" to the service control manager first, then take `<data>\Client\instance.lock` (so the old client mode cannot report at the same time), read the device identity, run the scan with context `service` into `capabilities.service.json`, read the model.
 - One waitable timer, 60 seconds. No other timer. The timer does not wake the computer.
-- Each tick: read the cumulative counters (EMI channels, battery charge, `GetSystemTimes`), calculate the minute, append one history row.
+- Each tick: read the cumulative counters (EMI channels, battery charge, `GetSystemTimes`) and the GPU use, calculate the minute, append one history row.
+- GPU use: the service keeps one query of the counter set "GPU Engine" for its whole run and reads it once at each tick, only when the scan in the service context (`capabilities.service.json`) says `gpu_use` is readable. The read at the start and the read at a resume only start the counter: the value of a minute is always the read at the end of that minute, so the time before the start and the time asleep are never in it. A failed read, a read with no adapter and a missing source give an unknown use (section 4.2); they never stop the tick.
 - Every `interval_seconds` (default 300): build the report, append it to the queue, try to send, write `status.json`, check whether `model.json` changed (file time) and reload it.
 - Each tick, after the measurement, the service pings the server when a server URL and a key are set and `ping_interval_seconds` has passed (5.5). The ping runs on this tick; there is no second timer. A settings read (`GET /api/settings`) happens once at start, after the configuration is read, and again when a ping answer shows another `settings_version` or the command `pull_settings` comes. An applied change of `report_interval_seconds` needs no restart: the running report period ends when its length reaches the new length, at the next tick when it is already longer.
 - Events, no polling: power source change, suspend and resume, display on or off, session logon, logoff, lock and unlock (service control handler).
@@ -416,18 +418,20 @@ One line for every minute that is calculated (every 60 second tick, and the shor
  "emi":[{"name":"RAPL_Package0_PKG","kind":"cpu_package","ok":true,"raw":123456789012,"uj":5400000}],
  "battery":[{"ok":true,"unit":"mWh","remaining_mwh":31200,"full_mwh":36092,"design_mwh":41000,"voltage_mv":11400,"rate_mw":-8200,"online":false,"charging":false,"discharging":true}],
  "cpu":{"pct":18.6},
+ "gpu":{"pct":12.5,"from":"service"},
  "display":{"on":true,"brightness_pct":50,"brightness_from":"service"},
  "session":{"logged_on":true,"locked":false,"idle_s":12,"idle_msg_age_s":30,"state":2},
- "calc":{"scan_level":"L2","level":"L2","model":true,"measured_uj":4100000,"rest_w":2.240,"cpu_term_w":0.167,"screen_w":1.400,"device_w":7.910,"battery_w":-8.200,"energy_uj":474600000},
+ "calc":{"scan_level":"L2","level":"L2","model":true,"measured_uj":4100000,"rest_w":2.240,"cpu_term_w":0.167,"gpu_term_w":0.375,"screen_w":1.400,"device_w":7.910,"battery_w":-8.200,"energy_uj":474600000},
  "flags":["battery_jump"]}
 ```
 
 - `seconds`: the length of the minute, whole seconds. Watts have three decimals, `cpu.pct` one.
 - `emi`: every channel the service reads, in its order, as read in this tick. `raw` is the counter exactly as read (its own unit, pWh), `uj` the growth of this minute in microjoules. A failed read has `"ok":false` and no `raw` and no `uj`. A counter that went backwards keeps `raw` and has no `uj`.
 - `battery`: every battery as read in this tick; no battery gives `[]`. A battery read that failed gives one entry `{"ok":false}`. A value the driver marks unknown is left out. With a relative unit (`"unit":"relative"`) the mWh and mW values are left out, because they are not energy.
+- `gpu`: the GPU use of the minute (section 4.2). `pct` is the use in percent with one decimal. `from` is `service` (the service read it) or `default` (unknown, counted as 0; `pct` is then left out, because it is not known). The object is on every tick line.
 - `display.brightness_from`: `service` (the service read it itself), `pipe` (the value of the client) or `default` (unknown, counted as 50; `brightness_pct` is then 50).
 - `session.idle_msg_age_s`: seconds since the last accepted pipe message; left out when there was none.
-- `calc`: the numbers the minute was calculated with. `scan_level` is the level of the scan, `level` the level used for this minute (section 4.5; left out when the minute is unknown), `model` is true when a valid model is loaded, `measured_uj` the measured energy (as in the history row). The terms of section 4.2 that were used: `base_w` (L3), `rest_w` (L2), `cpu_term_w` (the percent term of L2 or L3) and `screen_w`. `device_w` is the device power of the minute and `battery_w` the battery power (negative when discharging), both as calculated for the report, not the history value that turns the sign on battery. `energy_uj` is the energy of the minute for the report sum: 0 on battery; on mains `device_energy_uj` plus the positive part of the battery change (section 4.2), and left out when a value it needs is unknown (section 4.3).
+- `calc`: the numbers the minute was calculated with. `scan_level` is the level of the scan, `level` the level used for this minute (section 4.5; left out when the minute is unknown), `model` is true when a valid model is loaded, `measured_uj` the measured energy (as in the history row). The terms of section 4.2 that were used: `base_w` (L3), `rest_w` (L2), `cpu_term_w` (the percent term of L2 or L3), `gpu_term_w` (the graphics term of L2 or L3; left out when the GPU use is unknown, and 0.000 when the use is known and the model number is 0) and `screen_w`. `device_w` is the device power of the minute and `battery_w` the battery power (negative when discharging), both as calculated for the report, not the history value that turns the sign on battery. `energy_uj` is the energy of the minute for the report sum: 0 on battery; on mains `device_energy_uj` plus the positive part of the battery change (section 4.2), and left out when a value it needs is unknown (section 4.3).
 - `flags`: only the words that apply to this minute, in this order, from: `battery_jump` (the battery change of the minute was impossible, section 4.3), `battery_replaced` (this minute replaced the held impossible minutes), `held` (the history row of this minute was held back), `gap` (the previous read was taken at the late tick of a gap), `counter_back` (an EMI counter went backwards), `first_read` (the previous read was the first read after the start or a resume). An empty list when none.
 
 ### 7a.2 Line `report`
@@ -467,7 +471,7 @@ One line for every minute that is calculated (every 60 second tick, and the shor
 ## 8. Calibration model
 
 `<data>\calibration\model.json`, written by the calibrator. The file of the first calibrator (no `schema` field) is version 1 and is not read by the service.
-Schema 2 is the file without the graphics numbers and the conditions. The calibrator writes schema 3 now. The service of today reads schema 2 only; reading schema 3 is piece N2, so until then it treats a schema 3 file as no model.
+Schema 2 is the file without the graphics numbers and the conditions. The calibrator writes schema 3 now. The service reads schema 2 and schema 3. A schema 2 file is read as before and `gpu_w_per_pct` and `rest_w_per_gpu_pct` count as 0 (the service does not look for them in it). Any other `schema` makes the model invalid. The `model_loaded` line of the diagnostics file (section 7a.4) shows the `schema` of the file that was read.
 
 ```json
 {
@@ -510,7 +514,7 @@ Schema 2 is the file without the graphics numbers and the conditions. The calibr
 - Before writing, the calibrator copies the current file to `model.previous.json`. It writes to a temporary file and renames it.
 - Calibrator exit codes for Setup: 0 model written, 1 stopped by the user, 2 start conditions not met (no battery, charger connected, charge below 30%), 3 test aborted, 4 file not writable.
 
-The service reads `schema`, `generated_utc`, `measured_parts` and `model` only. Limits: file at most 64 KB; watt values 0 to 500; per-percent values 0 to 5 (`gpu_w_per_pct` and `rest_w_per_gpu_pct` too); `measured_parts` only the kinds of section 3.3. Anything outside, missing or not a number makes the whole model invalid. An invalid model is treated as no model and counted in the log. The calibrator checks the same limits before it writes.
+The service reads `schema`, `generated_utc`, `measured_parts` and `model` only (`conditions`, `phase_nvml_w` and `phase_gpu_use_pct` are not read). Limits: file at most 64 KB; watt values 0 to 500; per-percent values 0 to 5 (`gpu_w_per_pct` and `rest_w_per_gpu_pct` too, in schema 3 only); `measured_parts` only the kinds of section 3.3. Anything outside, missing or not a number makes the whole model invalid; in schema 3 that includes a missing or bad graphics number. An invalid model is treated as no model and counted in the log. The calibrator checks the same limits before it writes.
 
 ## 9. Client (viewer mode)
 
@@ -612,13 +616,14 @@ Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter
 
 ## 12. Points to confirm by measurement
 
-1. Graphics power from NVML is found by the scanner but not used in the energy sum. Using it needs the calibrator to read NVML too; that is a decision for Darek.
+1. Graphics power from NVML is found by the scanner but not used in the energy sum. Using it needs the calibrator to read NVML too; that is a decision for Darek. The service uses the GPU use only (section 4.2), not a power read of any vendor.
 2. EMI reads from the LocalService account: not tested yet. The scan in the service context answers it.
 3. Brightness through `\\.\LCD` is denied for a standard user on the HP 250 G7 (measured 13 Nov 2026). Whether the service account can read it is not tested yet. The pipe value is the fallback.
 4. EMI on AMD: Mozilla bug 1797697 (Ryzen 7 5800U, Windows 11 22H2) measured that EMI gives `RAPL_Package0_PKG` and one channel `RAPL_Package0_Core<N>_CORE` per physical core (N = 0, 2, 4 ... 14); the package holds the cores. So today's rules give L2 on such a laptop; the core channels are kind `cpu_core`, logged and not counted. The AMD values are a model of the processor, not a measurement (Schoene et al. 2021), and on forums the package power was sometimes above the battery discharge; the calibrator must survive that. Other makers: known from literature only. The scanner on real laptops answers it.
 5. Size and cost of the service (file size, memory, processor time): measured at the gate of session 2 with process counters and by comparing with the service stopped.
 6. The unit of the ACPI "Power Meter" counter is not confirmed (it reads 0 on mains on the HP 250 G7). The scan lists it with its test result, but it never gives level L1 and is not used for energy.
 7. Not run on Windows yet: the watch mode, the NVML fields (name, adapter, power, energy, `sample_w`), the source `gpu_use`, the display layout fields, the processor family, model, stepping and physical cores, and the battery design capacity and cycle count. They are written from the Microsoft and NVIDIA documentation and tested with fakes only. A first run on real laptops (Intel with NVIDIA, AMD) must confirm: that the wildcard counter "GPU Engine(*)" shows processes that start between two collections, that `EnumAdapterByGpuPreference` gives two different adapters on a switching laptop, that the PCI id of NVML has the device id in the high half, and that the refresh rate of the path is the current one.
+8. The service reads the counter set "GPU Engine" once a minute (section 5.3). Not measured yet: the processor time and the memory of that one read a minute, and whether the service account (LocalService) can read the counter set at all. The scan in the service context answers the second question (`gpu_use` in `capabilities.service.json`); until then a service that cannot read it counts the use as unknown, which changes nothing in the energy.
 
 ## 13. Web installer
 
