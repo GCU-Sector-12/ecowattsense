@@ -53,6 +53,9 @@ public partial class SetupWindow : Window
     private readonly Dictionary<string, TextBlock> _texts = [];
     private readonly WizardNav _nav = new();
     private readonly ConnectionTester _tester;
+    private readonly ConnectClient _connect;
+    private CancellationTokenSource? _connectSource;
+    private string _receivedKey = "";
 
     /// <summary>Creates the window.</summary>
     /// <param name="mode">Install, settings or uninstall.</param>
@@ -75,11 +78,13 @@ public partial class SetupWindow : Window
         _install = new InstallEngine(services, layout, log, deviceName);
         _maintenance = new MaintenanceEngine(services, layout, log, deviceName);
         _tester = new ConnectionTester(ConnectionTester.CreateRealHandler(), () => StoredKeyReader.Read(layout.KeyFile), log);
+        _connect = new ConnectClient(ConnectionTester.CreateRealHandler(), new RealBrowserOps(), log);
         _nextActions = [NextScan, mode == SetupMode.Settings ? NextSaveSettings : NextServer, NextInstall, NextClose, NextUninstall];
         _pages = [PageScan, PageServer, PageInstall, PageCalibration, PageUninstall];
         _stepItems = [StepScanItem, StepServerItem, StepInstallItem, StepCalibrationItem];
         foreach (Border item in _stepItems) item.MouseLeftButtonUp += StepItem_Click;
         LoadServerValues();
+        UpdateConnectButton();
         VersionText.Text = "Version " + SetupVersion.Text;
         Loaded += Window_Loaded;
     }
@@ -113,6 +118,7 @@ public partial class SetupWindow : Window
     private void Show(int page)
     {
         _page = page;
+        if (page != 1) CancelConnect();
         for (int index = 0; index < _pages.Length; index++) _pages[index].Visibility = index == page ? Visibility.Visible : Visibility.Collapsed;
         MarkSidebar();
         NextButton.Content = _finished ? "Close" : _nextTexts[page];
@@ -253,9 +259,9 @@ public partial class SetupWindow : Window
         InstallText.Text = "Installing. This can take a minute.";
         BuildStepList();
         IProgress<InstallProgress> progress = new Progress<InstallProgress>(ShowProgress);
-        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), KeyBox.Password, SendBox.IsChecked == true, DeviceNameBox.Text);
+        InstallRequest request = new(_packageDir, UrlBox.Text.Trim(), EffectiveKey(), SendBox.IsChecked == true, DeviceNameBox.Text);
         StepOutcome outcome = await Task.Run(() => _install.Install(request, progress));
-        KeyBox.Clear();
+        ClearKey(outcome.Ok);
         SetBusy(false);
         FinishInstall(outcome);
     }
@@ -375,7 +381,7 @@ public partial class SetupWindow : Window
     private async void TestButton_Click(object sender, RoutedEventArgs e)
     {
         string url = UrlBox.Text;
-        string key = KeyBox.Password;
+        string key = EffectiveKey();
         TestButton.IsEnabled = false;
         TestResultText.Foreground = Brushes.Gray;
         TestResultText.Text = "Testing...";
@@ -388,15 +394,16 @@ public partial class SetupWindow : Window
     private async Task NextSaveSettings()
     {
         if (!InputIsValid()) return;
+        CancelConnect();
         SetBusy(true);
         string device = DeviceBox.SelectedItem as string ?? "desktop";
         string url = UrlBox.Text.Trim();
-        string key = KeyBox.Password;
+        string key = EffectiveKey();
         bool send = SendBox.IsChecked == true;
         bool autostart = AutostartBox.IsChecked == true;
         string computerName = DeviceNameBox.Text;
         StepOutcome outcome = await Task.Run(() => _maintenance.SaveSettings(url, key, send, device, autostart, computerName));
-        KeyBox.Clear();
+        ClearKey(outcome.Ok);
         SetBusy(false);
         ServerMessage.Foreground = outcome.Ok ? GoodBrush : ErrorBrush;
         ServerMessage.Text = outcome.Ok ? ("Saved. The service was restarted. " + outcome.Note).Trim() : outcome.Message;
@@ -425,6 +432,7 @@ public partial class SetupWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        CancelConnect();
         if (_tempCopyDir == null) return;
         _services.Processes.StartDetached("cmd.exe", $"/c ping 127.0.0.1 -n 4 >nul & rmdir /s /q \"{_tempCopyDir}\"");
     }
@@ -445,7 +453,7 @@ public partial class SetupWindow : Window
         _hadUrl = UrlBox.Text.Length > 0;
         SendBox.IsChecked = _hadUrl && IniEditor.Get(ini, "server_enabled") != "0";
         _keyStored = _services.Files.FileExists(_layout.KeyFile);
-        KeyHint.Text = _keyStored ? "Server key is set" : "Server key";
+        ShowKeyHint();
         DeviceBox.ItemsSource = new[] { "laptop", "desktop" };
         AutostartBox.IsChecked = _services.Tasks.Exists(SetupLayout.TaskName);
         string device = IniEditor.Get(ini, "device_type");
@@ -455,6 +463,22 @@ public partial class SetupWindow : Window
     private void KeyBox_PasswordChanged(object sender, RoutedEventArgs e) =>
         KeyHint.Visibility = KeyBox.Password.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>The key to use: the typed one, else the one that Connect received, else empty (the stored key stays).</summary>
+    private string EffectiveKey() => KeyBox.Password.Length > 0 ? KeyBox.Password : _receivedKey;
+
+    /// <summary>Shows the placeholder of the empty key field. The key itself is never shown.</summary>
+    private void ShowKeyHint() => KeyHint.Text = _receivedKey.Length > 0 ? "Server key received" : _keyStored ? "Server key is set" : "Server key";
+
+    /// <summary>After an install or a save: forgets the typed and the received key and shows the placeholder.</summary>
+    /// <param name="stored">True when the key was written, so the placeholder says that a key is set.</param>
+    private void ClearKey(bool stored)
+    {
+        _keyStored = _keyStored || (stored && EffectiveKey().Length > 0);
+        KeyBox.Clear();
+        _receivedKey = "";
+        ShowKeyHint();
+    }
+
     /// <summary>Ticks "Send reports" when an address appears and clears it when the address is emptied.</summary>
     private void UrlBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -462,5 +486,70 @@ public partial class SetupWindow : Window
         bool changed = hasUrl != _hadUrl;
         _hadUrl = hasUrl;
         if (changed) SendBox.IsChecked = hasUrl;
+        CancelConnect();
+        UpdateConnectButton();
+    }
+
+    /// <summary>The device type that goes to the server: the choice on the settings page, else the one from the scan.</summary>
+    private string CurrentDeviceType() => _mode == SetupMode.Settings ? DeviceBox.SelectedItem as string ?? "desktop" : _install.Scan?.DeviceType ?? "desktop";
+
+    /// <summary>Connect is on when the address is valid and no connect is running.</summary>
+    private void UpdateConnectButton() =>
+        ConnectButton.IsEnabled = _connectSource == null && ConnectionTester.ParseAddress(UrlBox.Text.Trim()) != null;
+
+    /// <summary>Stops a running connect, if any. The run ends with the Cancelled result, which clears the lines.</summary>
+    private void CancelConnect() => _connectSource?.Cancel();
+
+    private void ConnectCancelButton_Click(object sender, RoutedEventArgs e) => CancelConnect();
+
+    /// <summary>
+    /// Connect: asks the server for a code, shows it, opens the dashboard page and waits for the approval without
+    /// blocking the window. The key that arrives is kept in memory like a typed key and is never shown.
+    /// </summary>
+    private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connectSource != null) return;
+        if (!InputIsValid()) return;
+        ConnectRequest request = new(UrlBox.Text, _services.Files.ReadText(_layout.DeviceIdFile) ?? "", DeviceNameBox.Text, CurrentDeviceType());
+        using CancellationTokenSource source = new();
+        _connectSource = source;
+        ShowConnecting();
+        ConnectOutcome outcome = await _connect.RunAsync(request, ShowCode, source.Token);
+        _connectSource = null;
+        ShowOutcome(outcome);
+    }
+
+    /// <summary>The first state of a run: the button is off, Cancel is on, the old lines are gone.</summary>
+    private void ShowConnecting()
+    {
+        ConnectCodeText.Visibility = Visibility.Collapsed;
+        ConnectHintText.Visibility = Visibility.Collapsed;
+        ConnectCancelButton.Visibility = Visibility.Visible;
+        ConnectResultText.Foreground = Brushes.Gray;
+        ConnectResultText.Text = "Connecting...";
+        UpdateConnectButton();
+    }
+
+    /// <summary>Shows the code and what to do in the dashboard.</summary>
+    private void ShowCode(ConnectCode code)
+    {
+        ConnectCodeText.Text = code.CodeLine;
+        ConnectHintText.Text = code.HintLine;
+        ConnectCodeText.Visibility = Visibility.Visible;
+        ConnectHintText.Visibility = Visibility.Visible;
+        ConnectResultText.Text = "";
+    }
+
+    /// <summary>The end of a run: the result line, the received key and the buttons.</summary>
+    private void ShowOutcome(ConnectOutcome outcome)
+    {
+        ConnectCodeText.Visibility = Visibility.Collapsed;
+        ConnectHintText.Visibility = Visibility.Collapsed;
+        ConnectCancelButton.Visibility = Visibility.Collapsed;
+        ConnectResultText.Foreground = outcome.Result == ConnectFlow.Connected ? GoodBrush : ErrorBrush;
+        ConnectResultText.Text = outcome.Result.Text;
+        _receivedKey = outcome.Key.Length > 0 ? outcome.Key : _receivedKey;
+        ShowKeyHint();
+        UpdateConnectButton();
     }
 }
