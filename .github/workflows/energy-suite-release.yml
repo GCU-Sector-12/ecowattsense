@@ -1,0 +1,219 @@
+# Builds and tests the Windows client on pull requests and prepares signed release drafts on tags.
+# The test job uses a temporary certificate. The release job uses
+# ENERGY_SUITE_SIGNING_PFX and ENERGY_SUITE_SIGNING_PASSWORD from repository secrets.
+name: Windows client CI and release
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'client/**'
+      - '.github/workflows/energy-suite-release.yml'
+  push:
+    branches: [dev]
+    tags: ['v*-energy-suite']
+    paths:
+      - 'client/**'
+      - '.github/workflows/energy-suite-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-client-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test:
+    name: Windows client tests and package
+    runs-on: windows-2022
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Native build, tests and nesting check
+        run: pwsh -NoProfile -File client/windows/scripts/Test-Native.ps1
+
+      - name: Report sender
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/scripts/Test-Sender.ps1
+
+      - name: Service console
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/scripts/Test-ServiceConsole.ps1
+
+      - name: Service scripts
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/scripts/Test-ServiceScripts.ps1
+
+      - name: Setup tests
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/scripts/Test-Setup.ps1
+
+      - name: Calibrator tests
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/EcoWattSense.Calibrator/tests/Test-Calibrator.ps1
+
+      - name: Developer page tests
+        if: ${{ !cancelled() }}
+        run: dotnet run --project client/windows/tests/DeveloperPage
+
+      - name: Live monitoring integration tests
+        if: ${{ !cancelled() }}
+        run: dotnet run --project client/windows/tests/MonitoringIntegration -c Release
+
+      - name: PowerShell client tests
+        if: ${{ !cancelled() }}
+        working-directory: client/windows/EcoWattSense.Client
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tests = @(Get-ChildItem -File ./tests/Test-*.ps1 | Sort-Object Name)
+          if ($tests.Count -eq 0) { throw 'No client test scripts found.' }
+
+          $results = foreach ($test in $tests) {
+            Write-Host "Running $($test.Name)"
+            pwsh -NoProfile -File $test.FullName | Out-Host
+            [pscustomobject]@{ Name = $test.Name; ExitCode = $LASTEXITCODE }
+          }
+          $failed = @($results | Where-Object ExitCode -ne 0)
+          $summary = "Client scripts passed: $($tests.Count - $failed.Count) of $($tests.Count)"
+          Write-Host $summary
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+          if ($failed.Count -gt 0) {
+            $failed | Format-Table -AutoSize | Out-Host
+            exit 1
+          }
+          exit 0
+
+      - name: Signing tests with a temporary certificate
+        if: ${{ !cancelled() }}
+        run: pwsh -NoProfile -File client/windows/scripts/Test-Signing.ps1
+
+      - name: Build the unsigned Windows package
+        run: pwsh -NoProfile -File client/windows/scripts/Build-Package.ps1 -Version 0.0.0
+
+  release:
+    name: Build the signed release draft
+    needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-energy-suite')
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check that the signing secrets exist
+        env:
+          PFX_B64: ${{ secrets.ENERGY_SUITE_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.ENERGY_SUITE_SIGNING_PASSWORD }}
+        run: |
+          $missing = @()
+          if (-not $env:PFX_B64) { $missing += 'ENERGY_SUITE_SIGNING_PFX' }
+          if (-not $env:PFX_PASSWORD) { $missing += 'ENERGY_SUITE_SIGNING_PASSWORD' }
+          if ($missing.Count -gt 0) {
+            Write-Host "::error::Missing repository secrets: $($missing -join ', '). Add them in Settings, Secrets and variables, Actions."
+            exit 1
+          }
+
+      - name: Read the version from the tag
+        id: version
+        run: |
+          if ($env:TAG -notmatch '^v(\d+(\.\d+)*)-energy-suite$') {
+            Write-Host "::error::Tag '$env:TAG' is not v<digits and dots>-energy-suite."
+            exit 1
+          }
+          "value=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Write the signing certificate
+        env:
+          PFX_B64: ${{ secrets.ENERGY_SUITE_SIGNING_PFX }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'energy-suite-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          "PFX_PATH=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build and sign the package
+        env:
+          ENERGY_SUITE_SIGNING_PASSWORD: ${{ secrets.ENERGY_SUITE_SIGNING_PASSWORD }}
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          pwsh -NoProfile -File client/windows/scripts/Build-Package.ps1 -Version $env:SUITE_VERSION -ReleaseTag $env:TAG -Sign -PfxPath $env:PFX_PATH
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Delete the signing certificate
+        if: always()
+        run: |
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'energy-suite-signing.pfx') -Force -ErrorAction SilentlyContinue
+
+      - name: Verify the release signer
+        run: |
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            (Resolve-Path 'client/windows/signing/EcoWattSense-CodeSigning.cer').Path
+          )
+          $executables = @('out/package/EcoWattSense/Setup.exe', 'out/package/EcoWattSense-Web-Setup.exe')
+          foreach ($executable in $executables) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $executable
+            if ($signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) { throw "Unexpected signer for $executable." }
+          }
+
+      - name: Write the notes and the job summary
+        id: notes
+        env:
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'out\package'
+          $zip = "EcoWattSense-$env:SUITE_VERSION-win-x64.zip"
+          $zipHash = (Get-FileHash -LiteralPath (Join-Path $out $zip) -Algorithm SHA256).Hash.ToLowerInvariant()
+          $webHash = (Get-FileHash -LiteralPath (Join-Path $out 'EcoWattSense-Web-Setup.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          $lines = @(
+            'Draft made by the release workflow. Check, then publish; after publishing follow client/windows/release/README.md to update the manifest.',
+            '',
+            'SHA256:',
+            '',
+            "- $zip : $zipHash",
+            "- EcoWattSense-Web-Setup.exe : $webHash"
+          )
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -LiteralPath $notesPath -Value $lines -Encoding utf8
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value (@("### Energy suite $env:SUITE_VERSION", '') + $lines)
+          "path=$notesPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create the draft pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+          NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: |
+          $out = Join-Path $env:GITHUB_WORKSPACE 'out\package'
+          $names = @(
+            "EcoWattSense-$env:SUITE_VERSION-win-x64.zip",
+            "EcoWattSense-$env:SUITE_VERSION-win-x64.zip.sha256",
+            'EcoWattSense-Web-Setup.exe',
+            'EcoWattSense-Web-Setup.exe.sha256',
+            'latest.json'
+          )
+          $files = $names | ForEach-Object { Join-Path $out $_ }
+          gh release create $env:TAG --verify-tag --draft --prerelease --title "EcoWattSense Windows client $env:SUITE_VERSION" --notes-file $env:NOTES_PATH @files
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

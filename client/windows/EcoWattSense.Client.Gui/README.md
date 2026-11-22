@@ -59,3 +59,44 @@ The integration check uses isolated temporary identity/history files, two actual
 Windows readings, and the normal 300-second report interval; it stops before any
 report is due. It checks singleton registration, saved/configured type reuse,
 observer-failure isolation, sampling cadence, classification, and worker shutdown.
+
+## Developer page (viewer mode, SPEC section 9)
+
+The Settings page, About card, has the box "Developer mode". It is off by default and kept per user in
+`%LOCALAPPDATA%\EcoWattSense\developer-mode.txt` (the text `1`, or no file). When it is on, the sidebar shows a third item,
+"Developer", in viewer mode only.
+
+The page shows the raw data that the service writes, newest first, in six tabs:
+
+- Readings: the `tick` lines of the last 24 hours of `<data>\logs\diag-<yyyy-MM-dd>.jsonl`.
+- Reports: the `report` lines. Sends and events: the `send` and `event` lines.
+- Sources: `<data>\scan\capabilities.service.json` and `capabilities.json` as "name, value" rows.
+- Status: `<data>\status\status.json` as "name, value" rows.
+- Log: the last 300 lines of `<data>\logs\service.log`.
+
+The page does not know the field names. It flattens each line (`calc.device_w`, `emi[0].name`, a list of words joined with a
+space). The columns are the union of the names in the order of first appearance, `ts` first.
+
+Everything read is untrusted: a line is at most 64 KB, a table at most 5000 rows (the newest) and 400 columns, a cell at most
+200 characters, nesting at most 6 levels, a file at most 64 MB. A line that is not a JSON object with `t` and `ts` is skipped
+and counted ("M lines could not be read"). A file that is missing or cannot be read is "unknown": the page says so and never
+shows it as empty. A last line without a line end is a line the service is still writing, so it is ignored and not counted.
+
+The data is read off the window thread when a file in `logs\`, `status\` or `scan\` changes, and only while the page is
+visible. There is no timer.
+
+"Export diagnostics..." (top right) opens a Save dialog (`EcoWattSense-diagnostics-<yyyyMMdd-HHmm>.zip`) and writes a ZIP with
+`scan\capabilities*.json`, `scan\scan.log`, `scan\scan.service.log`, `history\*.csv`, `logs\service.log`,
+`logs\service.previous.log`, `logs\diag-*.jsonl`, `calibration\model.json` and `status\status.json` without the fields
+`server_url`, `device_name` and `server_device_name`. Never in the ZIP: `config\`, `queue\`, `Client\` and `logs\install.log`.
+A file that is missing or cannot be read is left out; `export-notes.txt` in the ZIP holds the counts of files written and left
+out. The line under the button says "Saved." or "The export failed.". The list of files (`DiagExportPlan`) is separate from
+the ZIP writer and the dialog, so a later "send" function can use it.
+
+The logic has no WPF in it and sits in `Developer\Logic`. Its tests are a plain console program that needs no Windows:
+
+```powershell
+dotnet run --project client/windows/tests/DeveloperPage/DeveloperPage.csproj
+```
+
+The exit code is the number of failed checks.
