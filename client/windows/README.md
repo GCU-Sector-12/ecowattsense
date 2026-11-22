@@ -64,7 +64,7 @@ Needs Visual Studio 2022 with the C++ desktop workload and the .NET 10 SDK. The 
 
 ## Release workflow
 
-The workflow `.github/workflows/energy-suite-release.yml` builds, signs and drafts a release. To cut a release, bump nothing and push a tag:
+The workflow `.github/workflows/energy-suite-release.yml` tests and builds the Windows package on pull requests. On a release tag, it runs the same tests before signing the package and creating a draft release. To cut a release, bump nothing and push a tag:
 
 ```
 git tag v0.1.2-energy-suite
