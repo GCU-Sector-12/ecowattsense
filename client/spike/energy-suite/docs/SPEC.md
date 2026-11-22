@@ -25,7 +25,7 @@ Target: Windows 11, x64. Windows 10 and ARM64 are out of scope.
 ```
 client/spike/energy-suite/
   docs/SPEC.md            this file
-  scripts/                Build-Native.ps1, Test-Native.ps1, Build-Package.ps1
+client/windows/scripts/               Windows build, test and packaging scripts
 client/windows/native/                C++ solution: core, scanner, service, web installer and tests
 client/windows/EcoWattSense.Setup/      Setup.exe (C# WPF)
 client/windows/tests/SetupTests/       Setup tests
@@ -603,7 +603,7 @@ Server address argument: `Setup.exe /server=<url>` prefills the Server address f
 
 Version rule: one version for all programs. `Build-Package.ps1 -Version <v>` sets it: the C# programs get `-p:Version=<v>` (AssemblyInformationalVersion and FileVersion), the native programs get it through `Build-Native.ps1 -Version <v>` as the preprocessor value `EWS_VERSION` (`ews/version.h`: status.json `service_version`, first line of the `ews-scan` summary). Setup shows its version at the bottom of the sidebar. The package script also copies `README.md` next to `Setup.exe`, puts `EcoWattSense-Web-Setup.exe` (when built; `-SkipWebSetup` allows it missing) and its `.sha256` next to the ZIP, and writes `latest.json` = `{"version","zip_url","sha256","size","server_url"}` (`-ReleaseTag`, default `v<v>-energy-suite`; `-ServerUrl`, default `https://dev.ecowattsense.co.uk`). Clients read `latest.json` from the folder `release\`.
 
-Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter dial with a leaf), set as the application icon of the client, the calibrator and Setup. The tray icon of the client is taken from its own exe. The file is made by `scripts\New-AppIcon.ps1`.
+Icon: all programs of the suite use one icon, `assets\ecowattsense.ico` (a meter dial with a leaf), set as the application icon of the client, the calibrator and Setup. The tray icon of the client is taken from its own exe. The file is made by `client/windows/scripts/New-AppIcon.ps1`.
 
 ## 11. Rules for the native code
 

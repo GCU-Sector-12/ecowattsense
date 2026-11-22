@@ -10,7 +10,7 @@ Prints every check. The exit code is the number of failed checks, or 1 when the 
 pwsh -File .\Test-Setup.ps1
 #>
 $ErrorActionPreference = 'Stop'
-$project = Join-Path $PSScriptRoot '..\..\..\windows\tests\SetupTests\SetupTests.csproj'
+$project = Join-Path $PSScriptRoot '..\tests\SetupTests\SetupTests.csproj'
 dotnet build $project -nodeReuse:false --nologo -v q
 if ($LASTEXITCODE -ne 0) { exit 1 }
 dotnet run --project $project --no-build

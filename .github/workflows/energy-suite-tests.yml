@@ -47,7 +47,7 @@ jobs:
 
       - name: Build the native solution, run its tests and the nesting check
         run: |
-          pwsh -NoProfile -File client/spike/energy-suite/scripts/Test-Native.ps1
+          pwsh -NoProfile -File client/windows/scripts/Test-Native.ps1
           exit $LASTEXITCODE
 
   managed:
@@ -66,7 +66,7 @@ jobs:
       - name: Setup tests
         if: ${{ !cancelled() }}
         run: |
-          pwsh -NoProfile -File client/spike/energy-suite/scripts/Test-Setup.ps1
+          pwsh -NoProfile -File client/windows/scripts/Test-Setup.ps1
           exit $LASTEXITCODE
 
       - name: Calibrator tests

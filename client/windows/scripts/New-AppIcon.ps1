@@ -8,9 +8,9 @@
   The .ico holds PNG frames (supported by Windows Vista and later).
   Run: pwsh -NoProfile -ExecutionPolicy Bypass -File New-AppIcon.ps1
 .PARAMETER OutDir
-  The folder that receives the files. Default: ..\assets next to this script.
+  The folder that receives the files. Default: the energy suite assets folder.
 #>
-param([string] $OutDir = (Join-Path $PSScriptRoot '..\assets'))
+param([string] $OutDir = (Join-Path $PSScriptRoot '..\..\spike\energy-suite\assets'))
 
 Add-Type -AssemblyName PresentationCore, WindowsBase
 

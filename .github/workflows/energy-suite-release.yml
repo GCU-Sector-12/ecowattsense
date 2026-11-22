@@ -2,7 +2,7 @@
 #
 # What it makes:
 #   The ZIP, EcoWattSense-Web-Setup.exe, both .sha256 files and latest.json, built by
-#   client/spike/energy-suite/scripts/Build-Package.ps1 with code signing (-Sign).
+#   client/windows/scripts/Build-Package.ps1 with code signing (-Sign).
 #   The result is a DRAFT pre-release. A person checks it and publishes it by hand.
 #
 # When it runs:
@@ -75,7 +75,7 @@ jobs:
           ENERGY_SUITE_SIGNING_PASSWORD: ${{ secrets.ENERGY_SUITE_SIGNING_PASSWORD }}
           SUITE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          pwsh -NoProfile -File client/spike/energy-suite/scripts/Build-Package.ps1 -Version $env:SUITE_VERSION -ReleaseTag $env:TAG -Sign -PfxPath $env:PFX_PATH
+          pwsh -NoProfile -File client/windows/scripts/Build-Package.ps1 -Version $env:SUITE_VERSION -ReleaseTag $env:TAG -Sign -PfxPath $env:PFX_PATH
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Delete the signing certificate

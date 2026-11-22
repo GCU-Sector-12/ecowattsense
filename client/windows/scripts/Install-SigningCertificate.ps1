@@ -11,7 +11,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$suite = Split-Path -Parent $PSScriptRoot
+$suite = Join-Path $PSScriptRoot '..\..\spike\energy-suite'
 if ($CerPath -eq '') { $CerPath = Join-Path $suite 'signing\EcoWattSense-CodeSigning.cer' }
 $stores = 'Root', 'TrustedPublisher'
 

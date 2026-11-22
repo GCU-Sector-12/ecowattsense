@@ -57,7 +57,7 @@ Run `Setup.exe /uninstall` from `C:\Program Files\EcoWattSense`. It stops and re
 ## Build
 
 ```
-pwsh -NoProfile -File client\spike\energy-suite\scripts\Build-Package.ps1 [-Version 0.1.0] [-OutDir <folder>]
+pwsh -NoProfile -File client\windows\scripts\Build-Package.ps1 [-Version 0.1.0] [-OutDir <folder>]
 ```
 
 Needs Visual Studio 2022 with the C++ desktop workload and the .NET 10 SDK. The result is a ZIP and a `.sha256` file in `out\package`.

@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-$solution = Join-Path $PSScriptRoot '..\..\..\windows\native\EwsNative.sln'
+$solution = Join-Path $PSScriptRoot '..\native\EwsNative.sln'
 
 if (-not (Test-Path -LiteralPath $vswhere)) {
     Write-Error "vswhere.exe not found at $vswhere. Install Visual Studio 2022 with the C++ desktop workload."

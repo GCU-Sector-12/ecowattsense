@@ -1,1 +1,1 @@
-This folder holds `latest.json`, the file the clients read to learn the newest version. It is written by `scripts\Build-Package.ps1` at release time and copied here when the release is published; it is not kept in git before the first release.
+This folder holds `latest.json`, the file the clients read to learn the newest version. It is written by `client/windows/scripts/Build-Package.ps1` at release time and copied here when the release is published; it is not kept in git before the first release.

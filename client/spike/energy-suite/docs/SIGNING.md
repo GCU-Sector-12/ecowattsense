@@ -8,7 +8,7 @@ and the programs can pin the certificate thumbprint. The price: each laptop must
 
 ## How the certificate was made
 
-Darek ran `scripts\New-SigningCertificate.ps1` once, as himself. It made an RSA 3072 / SHA256 certificate, valid for 2 years, with the
+Darek ran `client/windows/scripts/New-SigningCertificate.ps1` once, as himself. It made an RSA 3072 / SHA256 certificate, valid for 2 years, with the
 subject `CN=EcoWattSense Code Signing, O=GCU Sector 12`. It wrote the public part to `signing\EcoWattSense-CodeSigning.cer`
 (committed) and the private key to a `.pfx` outside the repository (never committed, `*.pfx` is in `.gitignore`).
 The `.pfx` and its password are in the password manager of the team and in two GitHub secrets (see "Releases").
@@ -17,7 +17,7 @@ The `.pfx` and its password are in the password manager of the team and in two G
 
 With the script, in an administrator PowerShell:
 
-    pwsh -NoProfile -File client\spike\energy-suite\scripts\Install-SigningCertificate.ps1
+    pwsh -NoProfile -File client\windows\scripts\Install-SigningCertificate.ps1
 
 It shows the subject and the thumbprint and asks Y/N. Check the thumbprint with Darek, then answer Y.
 
@@ -51,7 +51,7 @@ does not change that. So for the first install:
 ## How releases are signed
 
 A GitHub Actions workflow runs on a tag push. It writes the secret `ENERGY_SUITE_SIGNING_PFX` (base64 of the `.pfx`) to a temporary
-file and calls `scripts\Build-Package.ps1 -Sign -PfxPath <file>`. The password comes from the secret `ENERGY_SUITE_SIGNING_PASSWORD`,
+file and calls `client/windows/scripts/Build-Package.ps1 -Sign -PfxPath <file>`. The password comes from the secret `ENERGY_SUITE_SIGNING_PASSWORD`,
 passed as the environment variable of the same name. Build-Package signs our own programs and DLLs (not the .NET runtime) and the web
 installer with a timestamp, before the ZIP and the checksums are made, and checks that every signature comes from the expected
 thumbprint. The secrets are set with `gh secret set` (the commands are printed by `New-SigningCertificate.ps1`).

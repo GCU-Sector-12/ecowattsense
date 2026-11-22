@@ -10,7 +10,7 @@
 # Output: one line per scenario (PASS or FAIL with the reason).
 # Exit code: the number of failed scenarios (0 = all passed).
 param(
-    [string] $Exe = (Join-Path $PSScriptRoot '..\..\..\windows\native\out\Release\ews-core-tests.exe')
+    [string] $Exe = (Join-Path $PSScriptRoot '..\native\out\Release\ews-core-tests.exe')
 )
 
 $ErrorActionPreference = 'Stop'

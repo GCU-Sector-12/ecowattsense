@@ -10,7 +10,7 @@
 # Output: one PASS or FAIL line per check.
 # Exit code: the number of failed checks (0 = all passed). The listener is always stopped.
 param(
-    [string] $Exe = (Join-Path $PSScriptRoot '..\..\..\windows\native\out\Release\ews-service.exe'),
+    [string] $Exe = (Join-Path $PSScriptRoot '..\native\out\Release\ews-service.exe'),
     [switch] $Keep
 )
 
@@ -260,7 +260,7 @@ if (-not (Test-Path -LiteralPath $Exe)) {
     exit 1
 }
 
-$native = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\windows\native')).Path
+$native = (Resolve-Path (Join-Path $PSScriptRoot '..\native')).Path
 $folder = Join-Path $native "out\svc-console-test-$PID"
 $port = Get-FreePort
 $listener = [System.Net.HttpListener]::new()
