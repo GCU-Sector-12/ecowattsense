@@ -355,3 +355,48 @@ class Tariff(BaseModel):
     valid_from: AwareDatetime
     price_gbp_per_kwh: float
     co2_kg_per_kwh: float
+
+
+class ConnectRequestIn(DeviceIn):
+    """The body of POST /api/connect/requests (Connect, C1).
+
+    It is DeviceIn with the id of the computer added, so the name, os and device_type
+    follow the same rules as in PUT /api/devices/{device_id}.
+    """
+
+    device_id: UUID
+
+
+class ConnectRequestOut(BaseModel):
+    """The answer of C1. Only the computer that asked gets request_id."""
+
+    request_id: str
+    user_code: str
+    expires_in_seconds: int
+
+
+class ConnectRequestInfo(BaseModel):
+    """The answer of C2: what the admin sees before approving. It never holds request_id."""
+
+    user_code: str
+    device_id: UUID
+    device_name: str | None
+    os: Literal["windows", "linux", "macos"]
+    device_type: str
+    approved: bool
+    expires_in_seconds: int
+
+
+class ConnectClaimIn(BaseModel):
+    """The body of POST /api/connect/claim (Connect, C4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str = Field(min_length=20, max_length=100)
+
+
+class ConnectClaimOut(BaseModel):
+    """The answer of C4. client_key is set only when status is approved (the route leaves out None)."""
+
+    status: Literal["pending", "approved"]
+    client_key: str | None = Field(default=None, repr=False)
