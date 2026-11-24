@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
 import { formatDuration, historyState, rangeText, reportTime, shortDay, timelinePlace } from '../data/historyView.js'
-import { ujToKwh } from '../data/units.js'
+import { ujToKwh, chooseDisplayUnit } from '../data/units.js'
 import classes from './HistoryReports.module.css'
 
 /**
@@ -29,6 +29,8 @@ function TimelineBlock({ report }) {
  * @returns {JSX.Element} Report row with textual state and battery status.
  */
 function ReportRow({ report }) {
+  const energy = ujToKwh(report.energy_uj)
+  const display = chooseDisplayUnit(energy)
   return (
     <Table.Tr>
       <Table.Td><time dateTime={report.timestamp}>{reportTime(report.timestamp)}</time></Table.Td>
@@ -36,7 +38,7 @@ function ReportRow({ report }) {
       <Table.Td>{report.cpu_percent.toFixed(1)}%</Table.Td>
       <Table.Td>{formatDuration(report.idle_seconds)}</Table.Td>
       <Table.Td>{report.on_battery ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{ujToKwh(report.energy_uj).toFixed(3)} kWh</Table.Td>
+      <Table.Td>{(energy * display.multiplier).toFixed(3)} {display.unit}</Table.Td>
     </Table.Tr>
   )
 }

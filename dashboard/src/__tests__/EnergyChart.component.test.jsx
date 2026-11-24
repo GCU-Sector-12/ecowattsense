@@ -1,3 +1,4 @@
+// Tests chart conversion, shared display units, UK times and axis bounds.
 import { beforeEach, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { AreaChart } from '@mantine/charts'
@@ -24,7 +25,8 @@ it('passes converted data, UK time ticks and a detailed tooltip to the chart', (
   const props = AreaChart.mock.lastCall[0]
   expect(props.dataKey).toBe('timestamp')
   expect(props.data).toEqual([
-    { timestamp: '2025-07-10T00:00:00Z', power_kw: 1, energy_kwh: 0.5 },
+    { timestamp: '2025-07-10T00:00:00Z', power_kw: 1, energy_kwh: 0.5,
+      power: 1, energy: 500, powerUnit: 'kW', energyUnit: 'Wh' },
   ])
   expect(props.xAxisProps.ticks).toEqual(['2025-07-10T00:00:00Z'])
   expect(props.xAxisProps.tickFormatter(props.data[0].timestamp)).toBe('01:00')
@@ -36,7 +38,7 @@ it('passes converted data, UK time ticks and a detailed tooltip to the chart', (
     payload: [{ payload: props.data[0] }],
   })
   expect(tooltip.props.children.props.children.map((child) => child.props.children))
-    .toEqual(['01:00', ['Power: ', '1.0', ' kW'], ['Energy: ', '0.500', ' kWh']])
+    .toEqual(['01:00', ['Power: ', '1.0', ' ', 'kW'], ['Energy: ', '500.000', ' ', 'Wh']])
 })
 
 it('scales the Y axis to a rounded maximum for higher power readings', () => {
