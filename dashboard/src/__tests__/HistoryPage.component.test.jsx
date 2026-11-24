@@ -43,7 +43,7 @@ it('shows 48 focusable timeline blocks and readable state words in all report ro
   expect(within(rows[1]).getByText('1.1%')).toBeInTheDocument()
   expect(within(rows[1]).getByText('1 h 5 min')).toBeInTheDocument()
   expect(within(rows[1]).getByText('No')).toBeInTheDocument()
-  expect(within(rows[1]).getByText('0.150 kWh')).toBeInTheDocument()
+  expect(within(rows[1]).getByText('150.000 Wh')).toBeInTheDocument()
   expect(within(table).getAllByText('Active')).toHaveLength(20)
   expect(within(table).getAllByText('Idle')).toHaveLength(12)
   expect(within(table).getAllByText('Unused')).toHaveLength(16)

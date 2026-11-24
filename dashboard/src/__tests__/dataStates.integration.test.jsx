@@ -89,7 +89,7 @@ async function checkEmptyDashboard() {
   expect(await screen.findByRole('status', { name: 'Computers' })).toHaveTextContent('No data')
   expect(screen.getByRole('status', { name: 'Energy usage' })).toHaveTextContent('No data')
   expect(screen.getByRole('status', { name: 'Computer status' })).toHaveTextContent('No data')
-  expect(screen.getByText('0.0 kWh')).toBeInTheDocument()
+  expect(screen.getByText('0.0 Wh')).toBeInTheDocument()
 }
 it('shows No data for empty Dashboard regions', checkEmptyDashboard)
 

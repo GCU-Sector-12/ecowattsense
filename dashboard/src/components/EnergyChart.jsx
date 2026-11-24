@@ -1,7 +1,7 @@
 // Plots the half-hour energy buckets of a day as average power, with a tooltip that shows energy too.
 import { Card, Stack, Text, useMantineTheme } from '@mantine/core'
 import { AreaChart } from '@mantine/charts'
-import { formatUkTime, toEnergyChartData } from './energyChartData.js'
+import { formatUkTime, toEnergyChartData, scaleEnergyChartData } from './energyChartData.js'
 
 // Chart ticks follow UK wall-clock four-hour boundaries, not fixed UTC offsets.
 function getFourHourTicks(data) {
@@ -19,13 +19,13 @@ function getFourHourTicks(data) {
 }
 
 /**
- * Builds the power axis for the series: domain from 0 to the peak rounded up to the next 0.5 kW,
- * five evenly spaced ticks, at least 0 to 0.5 kW for a flat series.
- * @param {Array<{power_kw: number}>} data - Chart points with power in kW.
+ * Builds the power axis for the series: domain from 0 to the peak rounded up to the next 0.5 display units,
+ * five evenly spaced ticks, at least 0 to 0.5 display units for a flat series.
+ * @param {Array<{power: number}>} data - Chart points with scaled power.
  * @returns {object} Recharts y-axis props: domain, ticks, tickMargin and width.
  */
 function getPowerAxis(data) {
-  const peak = Math.max(...data.map(({ power_kw }) => power_kw), 0)
+  const peak = Math.max(...data.map(({ power }) => power), 0)
   const maximum = peak === 0 ? 0.5 : Math.max(0.5, Math.ceil(peak * 2) / 2)
   return {
     domain: [0, maximum],
@@ -38,15 +38,15 @@ function getPowerAxis(data) {
 // Ticks and tooltip values are shown with one decimal, as in the mockup (0.5, 1.0, 1.5, 2.0).
 /**
  * Formats power ticks and tooltip values with one decimal place.
- * @param {number|string} value - Power in kW, as a number or the string Recharts passes.
+ * @param {number|string} value - Power in the selected unit, as a number or the string Recharts passes.
  * @returns {string} Formatted value.
  */
-function formatKw(value) {
+function formatPower(value) {
   return Number(value).toFixed(1)
 }
 
 /**
- * Tooltip for one chart bucket: UK time, average power and energy in kWh.
+ * Tooltip for one chart bucket: UK time, average power and energy in the selected units.
  * @param {object} props - Recharts tooltip props: active, payload and label.
  * @returns {JSX.Element|null} The tooltip card, or null when no point is hovered.
  */
@@ -57,8 +57,8 @@ function EnergyTooltip({ active, payload, label }) {
     <Card padding="xs" radius="sm" shadow="sm" withBorder>
       <Stack gap={2}>
         <Text size="xs" fw={600}>{formatUkTime(label)}</Text>
-        <Text size="xs">Power: {formatKw(point.power_kw)} kW</Text>
-        <Text size="xs">Energy: {point.energy_kwh.toFixed(3)} kWh</Text>
+        <Text size="xs">Power: {formatPower(point.power)} {point.powerUnit}</Text>
+        <Text size="xs">Energy: {point.energy.toFixed(3)} {point.energyUnit}</Text>
       </Stack>
     </Card>
   )
@@ -73,7 +73,7 @@ function EnergyTooltip({ active, payload, label }) {
  */
 export default function EnergyChart({ points, title = 'Energy Usage (Today)' }) {
   const theme = useMantineTheme()
-  const data = toEnergyChartData(points)
+  const { data, powerUnit } = scaleEnergyChartData(toEnergyChartData(points))
   const xTicks = data.length ? getFourHourTicks(data) : []
   const yAxis = data.length ? getPowerAxis(data) : null
 
@@ -82,11 +82,12 @@ export default function EnergyChart({ points, title = 'Energy Usage (Today)' }) 
       <Text fz="lg" fw={700} mb="md">
         {title}
       </Text>
+      <Text size="sm" c="var(--ews-text-muted)" mb="sm">Average power ({powerUnit})</Text>
       {data.length === 0 ? <Text>No data for this day</Text> : <AreaChart
         h={240}
         data={data}
         dataKey="timestamp"
-        series={[{ name: 'power_kw', label: 'Power', color: theme.other.chartLine }]}
+        series={[{ name: 'power', label: 'Power', color: theme.other.chartLine }]}
         curveType="linear"
         withDots={false}
         withGradient
@@ -99,8 +100,8 @@ export default function EnergyChart({ points, title = 'Energy Usage (Today)' }) 
         xAxisProps={{ ticks: xTicks, interval: 0, tickMargin: 8, tickFormatter: formatUkTime }}
         tooltipProps={{ content: EnergyTooltip, labelFormatter: formatUkTime }}
         yAxisProps={yAxis}
-        yAxisLabel="Power (kW)"
-        valueFormatter={formatKw}
+        yAxisLabel={`Power (${powerUnit})`}
+        valueFormatter={formatPower}
       />}
     </Card>
   )
