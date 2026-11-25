@@ -2,6 +2,7 @@
 // App.jsx renders this page for /dashboard; providers supply counts, energy, devices and settings.
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
+import RefreshStatus from '../components/RefreshStatus.jsx'
 import { Grid, SimpleGrid, Stack, Text } from '@mantine/core'
 import { Monitor, Clock, Power } from 'lucide-react'
 import Header from '../components/Header.jsx'
@@ -43,7 +44,7 @@ function loadDashboard() {
  * @returns {JSX.Element} The page.
  */
 export default function DashboardPage() {
-  const { data, error, retry } = useSampleData(loadDashboard)
+  const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(loadDashboard)
   if (error || !data) return <DataState error={error} loading={!data} onRetry={retry} label="dashboard" />
   const [summary, { devices }, settings] = data
   const realDevices = import.meta.env.VITE_DEVICES_DATA_SOURCE === 'real'
@@ -61,6 +62,7 @@ export default function DashboardPage() {
       <Header title="Welcome to EcoWattSense!"
         subtitle="Here's an overview of your computers and energy usage."
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
         {cards.map(({ state, icon, caption }) => (
           <StatCard key={state} state={state} icon={icon}

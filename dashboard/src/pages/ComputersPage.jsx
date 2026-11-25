@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
+import RefreshStatus from '../components/RefreshStatus.jsx'
 import { Group, NativeSelect, Stack, Switch, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
@@ -24,9 +25,9 @@ const STATE_OPTIONS = [
  * @returns {JSX.Element} The page.
  */
 export default function ComputersPage() {
-  const { data, error, retry } = useSampleData(getDevices)
-  const [editedDevices, setEditedDevices] = useState({})
   const [editingComputer, setEditingComputer] = useState(null)
+  const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
+  const [editedDevices, setEditedDevices] = useState({})
   const devices = (data?.devices ?? []).map(device => editedDevices[device.device_id] ?? device)
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('all')
@@ -72,6 +73,7 @@ export default function ComputersPage() {
       <Header title="Computers"
         subtitle={`Showing ${visibleDevices.length} of ${devices.filter((computer) => showArchived || !computer.archived).length} monitored computers.`}
         generatedAt={referenceTime} userName={sampleScreen.user_name} />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <Group align="end" gap="md" wrap="wrap">
         <TextInput label="Search by computer name" placeholder="Search computers"
           aria-label="Search computers" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />

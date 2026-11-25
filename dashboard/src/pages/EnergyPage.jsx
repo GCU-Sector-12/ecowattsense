@@ -1,8 +1,10 @@
 // Energy Usage page (/energy). Opened from the sidebar by App.jsx.
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert, Card, Group, SegmentedControl, SimpleGrid, Stack, Table, Text, useMantineTheme } from '@mantine/core'
 import { BarChart } from '@mantine/charts'
 import Header from '../components/Header.jsx'
+import RefreshStatus from '../components/RefreshStatus.jsx'
+import useSampleData from '../useSampleData.js'
 import { getSummary } from '../data/index.js'
 import sample from '../data/summary.json'
 import { buildEnergyRows, formatEnergyCost, getEnergyTotals, getRangeDates } from '../data/energyUsage.js'
@@ -48,19 +50,10 @@ function handleLoadError(cause, setError, setRows) {
 export default function EnergyPage() {
   const theme = useMantineTheme()
   const [range, setRange] = useState('7')
-  const [rows, setRows] = useState([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    loadEnergyRows(Number(range))
-      .then(setRows)
-      .catch((cause) => handleLoadError(cause, setError, setRows))
-      .finally(() => setLoading(false))
-  }, [range])
-
+  const loader = useCallback(() => loadEnergyRows(Number(range)), [range])
+  const { data, error, refreshError, lastUpdatedAt } = useSampleData(loader)
+  const rows = data ?? []
+  const loading = data === null && !error
   const totals = getEnergyTotals(rows)
   const chartData = rows.map((row) => ({ day: row.label, energy: Number(row.energy_kwh.toFixed(2)) }))
 
@@ -72,6 +65,7 @@ export default function EnergyPage() {
         generatedAt={new Date().toISOString()}
         userName="Admin"
       />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <Group justify="space-between" align="center">
         <Text fw={600}>Daily overview</Text>
         <SegmentedControl
@@ -81,7 +75,7 @@ export default function EnergyPage() {
           data={[{ label: '7 days', value: '7' }, { label: '30 days', value: '30' }]}
         />
       </Group>
-      {error && <Alert color="red" role="alert" title="Could not load energy usage">{error}</Alert>}
+      {error && <Alert color="red" role="alert" title="Could not load energy usage">{error.message || 'Please try again.'}</Alert>}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
         <TotalCard label="Total energy" value={totals.energy_kwh.toFixed(2) + ' kWh'} />
         <TotalCard label="Estimated cost" value={formatEnergyCost(totals.cost_gbp)} />
