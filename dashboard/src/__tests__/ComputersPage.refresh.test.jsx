@@ -98,7 +98,7 @@ async function preservesOpenEditInputs() {
   const nameInput = await screen.findByLabelText('Computer name')
   fireEvent.change(nameInput, { target: { value: 'My in-progress name' } })
   rerender(
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider theme={theme} defaultColorScheme="light" env="test">
       <ComputerEditModal computer={makeDevice({ display_name: 'Server name' })}
         opened onClose={onClose} onSaved={onSaved} />
     </MantineProvider>,
