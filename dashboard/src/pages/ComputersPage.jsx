@@ -28,7 +28,10 @@ export default function ComputersPage() {
   const [editingComputer, setEditingComputer] = useState(null)
   const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
   const [editedDevices, setEditedDevices] = useState({})
-  const devices = (data?.devices ?? []).map(device => editedDevices[device.device_id] ?? device)
+  const devices = (data?.devices ?? []).map(device => {
+    const saved = editedDevices[device.device_id]
+    return saved?.sourceData === data ? saved.device : device
+  })
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('all')
   const [showArchived, setShowArchived] = useState(false)
@@ -45,7 +48,7 @@ export default function ComputersPage() {
    * @returns {void} Replaces the matching row in local page state.
    */
   function handleSaved(updated) {
-    setEditedDevices(current => ({ ...current, [updated.device_id]: updated }))
+    setEditedDevices(current => ({ ...current, [updated.device_id]: { device: updated, sourceData: data } }))
   }
 
   /**
