@@ -17,4 +17,3 @@ export function readDeveloperMode() {
 export function saveDeveloperMode(enabled) {
   window.localStorage.setItem(STORAGE_KEY, String(enabled))
 }
-

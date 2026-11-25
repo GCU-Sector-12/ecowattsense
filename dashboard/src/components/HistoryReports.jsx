@@ -215,4 +215,3 @@ export default function HistoryReports({ reports, page = 1, pageSize = 25, onPag
     </Stack>
   )
 }
-

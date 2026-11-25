@@ -81,4 +81,3 @@ it('reports page and size changes', async () => {
   await userEvent.click(screen.getAllByRole('radio', { name: '50' })[0])
   expect(props.onPageSize).toHaveBeenCalledWith(50)
 })
-

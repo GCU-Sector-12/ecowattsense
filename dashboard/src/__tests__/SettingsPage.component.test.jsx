@@ -214,4 +214,3 @@ async function checkSample() {
   expect(fetch).not.toHaveBeenCalled()
 }
 it('works without the API in sample mode', checkSample)
-
