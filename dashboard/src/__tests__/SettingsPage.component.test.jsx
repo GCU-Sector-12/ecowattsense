@@ -52,6 +52,7 @@ async function openPage() {
 /** @returns {Promise<void>} Checks the real values fill the form and the old line is gone. */
 async function checkLoad() {
   await openPage()
+  expect(screen.getByRole('switch', { name: /Developer mode/ })).not.toBeChecked()
   expect(screen.getByLabelText('Report interval (seconds)')).toHaveValue('300')
   expect(screen.getByLabelText('Idle after (minutes)')).toHaveValue('10')
   expect(screen.getByLabelText('Unused after (minutes)')).toHaveValue('60')
@@ -61,6 +62,21 @@ async function checkLoad() {
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
 }
 it('loads the real settings into the form', checkLoad)
+
+/** @returns {Promise<void>} Checks the developer mode choice persists after the Settings page remounts. */
+async function checkDeveloperModePersists() {
+  const user = userEvent.setup()
+  const view = renderWithMantine(<SettingsPage />)
+  await screen.findByLabelText('Report interval (seconds)')
+  const toggle = screen.getByRole('switch', { name: /Developer mode/ })
+  expect(toggle).not.toBeChecked()
+  await user.click(toggle)
+  expect(toggle).toBeChecked()
+  view.unmount()
+  renderWithMantine(<SettingsPage />)
+  expect(await screen.findByRole('switch', { name: /Developer mode/ })).toBeChecked()
+}
+it('keeps developer mode enabled after the Settings page reloads', checkDeveloperModePersists)
 
 /** @returns {Promise<void>} Checks a good save: nine fields, tariff time kept, Saved shown for 3 seconds. */
 async function checkSave() {

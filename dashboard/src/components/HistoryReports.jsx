@@ -3,6 +3,7 @@ import { ActionIcon, Box, Card, Group, Loader, Pagination, SegmentedControl, Sta
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
+import { readDeveloperMode } from '../data/developerMode.js'
 import { formatDuration, historyState, rangeText, reportTime, shortDay, timelinePlace } from '../data/historyView.js'
 import { ujToKwh, chooseDisplayUnit } from '../data/units.js'
 import classes from './HistoryReports.module.css'
@@ -39,6 +40,83 @@ function ReportRow({ report }) {
       <Table.Td>{formatDuration(report.idle_seconds)}</Table.Td>
       <Table.Td>{report.on_battery ? 'Yes' : 'No'}</Table.Td>
       <Table.Td>{(energy * display.multiplier).toFixed(3)} {display.unit}</Table.Td>
+    </Table.Tr>
+  )
+}
+
+/**
+ * Shows a report field as returned by the API, with a readable word after its numeric state.
+ * @param {object} props - The report and its ordered field names.
+ * @returns {JSX.Element} One raw report row.
+ */
+function DeveloperReportRow({ report, fields }) {
+  return (
+    <Table.Tr>
+      {fields.map(field => <Table.Td key={field}>{developerValue(field, report[field])}</Table.Td>)}
+    </Table.Tr>
+  )
+}
+
+/**
+ * Adds the state word while keeping the numeric API state visible.
+ * @param {string} field - Report property name.
+ * @param {*} value - Report property value.
+ * @returns {string} Raw text for the table cell.
+ */
+function developerValue(field, value) {
+  if (value === undefined) return '—'
+  if (field !== 'state') return formatDeveloperValue(value)
+  return `${formatDeveloperValue(value)} ${stateLabels[historyState(value)] ?? 'Unknown'}`
+}
+
+/**
+ * Formats nested API values as JSON and preserves primitive values as text.
+ * @param {*} value - A report field value.
+ * @returns {string} Readable API value for a table cell.
+ */
+function formatDeveloperValue(value) {
+  if (value === null) return 'null'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+/**
+ * Creates the table columns from every field present in the loaded reports.
+ * @param {object[]} reports - History reports from the API.
+ * @returns {string[]} Field names in their first-seen order.
+ */
+function reportFields(reports) {
+  return [...new Set(reports.flatMap(Object.keys))]
+}
+
+/**
+ * Selects the normal or raw row presentation for one report.
+ * @param {object} props - Report, presentation mode and raw field names.
+ * @returns {JSX.Element} One report row.
+ */
+function ReportTableRow({ report, developerMode, fields }) {
+  if (!developerMode) return <ReportRow report={report} />
+  return <DeveloperReportRow report={report} fields={fields} />
+}
+
+/**
+ * Shows field-name headers for raw mode.
+ * @param {object} props - Field names from the history reports.
+ * @returns {JSX.Element} One header row.
+ */
+function DeveloperTableHeader({ fields }) {
+  return <Table.Tr>{fields.map(field => <Table.Th key={field}>{field}</Table.Th>)}</Table.Tr>
+}
+
+/**
+ * Shows the existing human-readable report headers.
+ * @returns {JSX.Element} The six standard history headings.
+ */
+function StandardTableHeader() {
+  return (
+    <Table.Tr>
+      <Table.Th>Time (UTC)</Table.Th><Table.Th>State</Table.Th><Table.Th>CPU</Table.Th>
+      <Table.Th>Idle time</Table.Th><Table.Th>On battery</Table.Th><Table.Th>Energy</Table.Th>
     </Table.Tr>
   )
 }
@@ -109,6 +187,9 @@ function DaySwitcher({ day, onShiftDay, canNext, loading }) {
 export default function HistoryReports({ reports, page = 1, pageSize = 25, onPage, onPageSize, day, onShiftDay, canNext, loading }) {
   const paged = Boolean(onPage)
   const rows = paged ? reports.slice((page - 1) * pageSize, page * pageSize) : reports
+  const developerMode = readDeveloperMode()
+  const fields = developerMode ? reportFields(reports) : []
+  const TableHeader = developerMode ? DeveloperTableHeader : StandardTableHeader
   return (
     <Stack gap="md">
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
@@ -137,11 +218,9 @@ export default function HistoryReports({ reports, page = 1, pageSize = 25, onPag
         <Table.ScrollContainer minWidth={650} type="native" role="region" aria-label="Scrollable history reports" tabIndex={0}>
           <Table aria-label="History reports" verticalSpacing="sm" horizontalSpacing="sm"
             styles={{ th: { color: 'var(--ews-text-muted)' }, tr: { borderColor: 'var(--ews-border)' } }}>
-            <Table.Thead><Table.Tr>
-              <Table.Th>Time (UTC)</Table.Th><Table.Th>State</Table.Th><Table.Th>CPU</Table.Th>
-              <Table.Th>Idle time</Table.Th><Table.Th>On battery</Table.Th><Table.Th>Energy</Table.Th>
-            </Table.Tr></Table.Thead>
-            <Table.Tbody>{rows.map(report => <ReportRow key={report.timestamp} report={report} />)}</Table.Tbody>
+          <Table.Thead><TableHeader fields={fields} /></Table.Thead>
+          <Table.Tbody>{rows.map(report => <ReportTableRow key={report.timestamp} report={report}
+            developerMode={developerMode} fields={fields} />)}</Table.Tbody>
           </Table>
         </Table.ScrollContainer>
         {paged ? <TablePaging page={page} pageSize={pageSize} total={reports.length}
