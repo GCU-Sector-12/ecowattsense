@@ -1,6 +1,8 @@
 // Tests shared sample loading, failure handling and lifecycle race protection.
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+afterEach(() => vi.useRealTimers())
 import useSampleData from '../useSampleData.js'
 
 /** @returns {{promise: Promise, resolve: Function, reject: Function}} A controllable request. */
@@ -82,8 +84,7 @@ async function retriesFailure() {
 }
 it('retries a failed loader', retriesFailure)
 
-
-/** @returns {void} Makes the document visibility state controllable in fake-timer tests. */
+/** @param {'visible'|'hidden'} state - Browser tab visibility. @returns {void} Sets the document visibility state. */
 function setVisibility(state) {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: state })
 }

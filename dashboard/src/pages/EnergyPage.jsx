@@ -32,18 +32,6 @@ async function loadEnergyRows(range) {
 }
 
 /**
- * Records a load failure and clears stale rows from the previous range.
- * @param {Error} cause - Error raised by the summary provider.
- * @param {(message: string) => void} setError - Page error state setter.
- * @param {(rows: object[]) => void} setRows - Daily rows state setter.
- * @returns {void}
- */
-function handleLoadError(cause, setError, setRows) {
-  setRows([])
-  setError(cause.message || 'Please try again.')
-}
-
-/**
  * Renders range totals, a daily energy chart and a daily cost and CO2 table.
  * @returns {JSX.Element} Energy Usage page.
  */
