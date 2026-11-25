@@ -183,6 +183,7 @@ export default function HistoryPage({ deviceId }) {
     day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(), loading: loadingNext,
   } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
+  // Keep the saved details only until the history loader returns a fresh device.
   const currentDevice = editedDevice?.sourceData === shown?.data
     ? editedDevice.device
     : shown?.data.device ?? null
