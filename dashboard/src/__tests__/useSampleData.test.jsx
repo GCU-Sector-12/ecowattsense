@@ -1,6 +1,8 @@
 // Tests shared sample loading, failure handling and lifecycle race protection.
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+afterEach(() => vi.useRealTimers())
 import useSampleData from '../useSampleData.js'
 
 /** @returns {{promise: Promise, resolve: Function, reject: Function}} A controllable request. */
@@ -81,3 +83,74 @@ async function retriesFailure() {
   expect(result.current.retry).toBe(retry)
 }
 it('retries a failed loader', retriesFailure)
+
+/** @param {'visible'|'hidden'} state - Browser tab visibility. @returns {void} Sets the document visibility state. */
+function setVisibility(state) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: state })
+}
+
+/** @returns {Promise<void>} Checks visible pages refresh after 60 seconds without dropping old data. */
+async function refreshesVisibleData() {
+  vi.useFakeTimers()
+  setVisibility('visible')
+  const next = deferred()
+  const loader = vi.fn().mockResolvedValueOnce('first').mockImplementationOnce(() => next.promise)
+  const { result } = renderHook(() => useSampleData(loader))
+  await act(async () => {})
+  expect(result.current.data).toBe('first')
+  await act(async () => vi.advanceTimersByTimeAsync(60000))
+  expect(loader).toHaveBeenCalledTimes(2)
+  expect(result.current.data).toBe('first')
+  expect(result.current.loading).toBe(false)
+  await act(async () => next.resolve('second'))
+  expect(result.current.data).toBe('second')
+  expect(result.current.lastUpdatedAt).toBeInstanceOf(Date)
+}
+it('refreshes visible data every 60 seconds without clearing the current result', refreshesVisibleData)
+
+/** @returns {Promise<void>} Checks hidden tabs pause polling and refresh as soon as they become visible. */
+async function refreshesWhenTabReturns() {
+  vi.useFakeTimers()
+  setVisibility('hidden')
+  const loader = vi.fn().mockResolvedValue('loaded')
+  const { result } = renderHook(() => useSampleData(loader))
+  await act(async () => {})
+  await act(async () => vi.advanceTimersByTimeAsync(120000))
+  expect(loader).toHaveBeenCalledTimes(1)
+  setVisibility('visible')
+  await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+  expect(loader).toHaveBeenCalledTimes(2)
+  expect(result.current.data).toBe('loaded')
+}
+it('does not poll a hidden tab and refreshes immediately when it becomes visible', refreshesWhenTabReturns)
+
+/** @returns {Promise<void>} Checks failed refreshes preserve the last result and retry on the next interval. */
+async function keepsDataAfterRefreshFailure() {
+  vi.useFakeTimers()
+  setVisibility('visible')
+  const failure = new Error('offline')
+  const loader = vi.fn().mockResolvedValueOnce('current')
+    .mockRejectedValueOnce(failure).mockResolvedValueOnce('fresh')
+  const { result } = renderHook(() => useSampleData(loader))
+  await act(async () => {})
+  await act(async () => vi.advanceTimersByTimeAsync(60000))
+  expect(result.current.data).toBe('current')
+  expect(result.current.refreshError).toBe(failure)
+  await act(async () => vi.advanceTimersByTimeAsync(60000))
+  expect(result.current.data).toBe('fresh')
+  expect(result.current.refreshError).toBeNull()
+}
+it('keeps old data after a failed background refresh and tries again', keepsDataAfterRefreshFailure)
+
+/** @returns {Promise<void>} Checks pages with active forms can disable background refresh. */
+async function pausesWhenDisabled() {
+  vi.useFakeTimers()
+  setVisibility('visible')
+  const loader = vi.fn().mockResolvedValue('loaded')
+  const { result } = renderHook(() => useSampleData(loader, { enabled: false }))
+  await act(async () => {})
+  await act(async () => vi.advanceTimersByTimeAsync(120000))
+  expect(loader).toHaveBeenCalledTimes(1)
+  expect(result.current.data).toBe('loaded')
+}
+it('does not refresh while a page form or edit dialog is active', pausesWhenDisabled)

@@ -6,6 +6,7 @@ import DataState from '../components/DataState.jsx'
 import EnergyChart from '../components/EnergyChart.jsx'
 import HistoryReports from '../components/HistoryReports.jsx'
 import useSampleData from '../useSampleData.js'
+import RefreshStatus from '../components/RefreshStatus.jsx'
 import { sampleScreen } from '../data/ui.js'
 import { formatGbp, timeAgo, ujToKwh } from '../data/units.js'
 import { computerLabelParts } from '../data/computerLabel.js'
@@ -156,7 +157,7 @@ export default function HistoryPage({ deviceId }) {
   // Sample readings do not depend on the date, so only real mode reloads when it changes.
   const loadDay = isRealHistory() ? day : undefined
   const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
-  const { data, error, retry } = useSampleData(loader)
+  const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(loader, { enabled: !editingComputer })
   const shown = useLastShown(data, deviceId, day)
   const loadingNext = Boolean(shown) && !data && !error
 
@@ -182,12 +183,16 @@ export default function HistoryPage({ deviceId }) {
     day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(), loading: loadingNext,
   } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
-  const currentDevice = editedDevice ?? shown?.data.device ?? null
+  // Keep the saved details only until the history loader returns a fresh device.
+  const currentDevice = editedDevice && editedDevice.sourceData === shown?.data
+    ? editedDevice.device
+    : shown?.data.device ?? null
 
   return (
     <Stack gap="md">
       <Header title="Computer history" subtitle={`Computer ${deviceId}`}
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <Anchor href="/computers" onClick={followLink}>Back to computers</Anchor>
       <TextInput type="date" label="History date" value={day} onChange={changeDay} maw={240} />
       {isRealHistory() ? null : <Text size="sm" c="var(--ews-text-muted)">
@@ -200,7 +205,8 @@ export default function HistoryPage({ deviceId }) {
         </Box>
       ) : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
       <ComputerEditModal computer={currentDevice} opened={editingComputer && Boolean(currentDevice)}
-        onClose={() => setEditingComputer(false)} onSaved={setEditedDevice} />
+        onClose={() => setEditingComputer(false)}
+        onSaved={(updated) => setEditedDevice({ device: updated, sourceData: shown?.data })} />
     </Stack>
   )
 }

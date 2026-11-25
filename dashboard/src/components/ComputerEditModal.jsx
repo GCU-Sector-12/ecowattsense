@@ -17,6 +17,7 @@ export default function ComputerEditModal({ computer, opened, onClose, onSaved }
   const [saving, setSaving] = useState(false)
   const [loadingLocations, setLoadingLocations] = useState(false)
 
+  // Reinitialize on open or device switch, not when polling replaces the device object.
   useEffect(() => {
     if (!opened || !computer) return
     setName(computer.display_name ?? '')
@@ -25,7 +26,7 @@ export default function ComputerEditModal({ computer, opened, onClose, onSaved }
     setError('')
     setLoadingLocations(true)
     getLocations().then(setLocationOptions).catch(showLocationError).finally(stopLocationLoading)
-  }, [opened, computer])
+  }, [opened, computer?.device_id])
 
   /**
    * Stores the room options in the shape Mantine Select expects.
