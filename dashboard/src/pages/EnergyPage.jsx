@@ -6,6 +6,7 @@ import Header from '../components/Header.jsx'
 import RefreshStatus from '../components/RefreshStatus.jsx'
 import useSampleData from '../useSampleData.js'
 import { getSummary } from '../data/index.js'
+import { chooseDisplayUnit } from '../data/units.js'
 import sample from '../data/summary.json'
 import { buildEnergyRows, formatEnergyCost, getEnergyTotals, getRangeDates } from '../data/energyUsage.js'
 
@@ -43,7 +44,18 @@ export default function EnergyPage() {
   const rows = data ?? []
   const loading = data === null && !error
   const totals = getEnergyTotals(rows)
-  const chartData = rows.map((row) => ({ day: row.label, energy: Number(row.energy_kwh.toFixed(2)) }))
+  const display = chooseDisplayUnit(Math.max(0, ...rows.map(row => row.energy_kwh)))
+  const totalDisplay = chooseDisplayUnit(totals.energy_kwh)
+  const chartData = rows.map(row => ({ day: row.label, energy: row.energy_kwh * display.multiplier }))
+
+  /**
+   * Formats chart labels without rounding plotted data.
+   * @param {number|string} value - Energy already scaled to the selected unit.
+   * @returns {string} Energy label with the common chart unit. Does not throw.
+   */
+  function formatChartEnergy(value) {
+    return `${Number(value).toFixed(display.unit === 'kWh' ? 3 : 2)} ${display.unit}`
+  }
 
   return (
     <Stack gap="md">
@@ -65,16 +77,18 @@ export default function EnergyPage() {
       </Group>
       {error && <Alert color="red" role="alert" title="Could not load energy usage">{error.message || 'Please try again.'}</Alert>}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <TotalCard label="Total energy" value={totals.energy_kwh.toFixed(2) + ' kWh'} />
+        <TotalCard label="Total energy" value={(totals.energy_kwh * totalDisplay.multiplier).toFixed(2) + ' ' + totalDisplay.unit} />
         <TotalCard label="Estimated cost" value={formatEnergyCost(totals.cost_gbp)} />
         <TotalCard label="Estimated CO₂" value={totals.co2_kg.toFixed(2) + ' kg'} />
       </SimpleGrid>
       <Card radius="lg" padding="lg" bg="var(--ews-card)">
-        <Text fw={700} mb="md">Energy per day (kWh)</Text>
+        <Text fw={700} mb="md">Energy per day ({display.unit})</Text>
         {loading ? <Text>Loading energy usage…</Text> : <BarChart
           h={280}
           data={chartData}
           dataKey="day"
+          yAxisLabel={`Energy (${display.unit})`}
+          valueFormatter={formatChartEnergy}
           series={[{ name: 'energy', label: 'Energy', color: theme.other.chartLine }]}
           withLegend={false}
           gridAxis="y"
@@ -90,7 +104,7 @@ export default function EnergyPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Day</Table.Th>
-                <Table.Th ta="right">Energy (kWh)</Table.Th>
+                <Table.Th ta="right">Energy</Table.Th>
                 <Table.Th ta="right">Cost</Table.Th>
                 <Table.Th ta="right">CO₂ (kg)</Table.Th>
               </Table.Tr>
@@ -98,7 +112,7 @@ export default function EnergyPage() {
             <Table.Tbody>
               {rows.map((row) => <Table.Tr key={row.date}>
                 <Table.Td>{row.label}</Table.Td>
-                <Table.Td ta="right">{row.energy_kwh.toFixed(2)}</Table.Td>
+                <Table.Td ta="right">{formatDailyEnergy(row.energy_kwh)}</Table.Td>
                 <Table.Td ta="right">{formatEnergyCost(row.cost_gbp)}</Table.Td>
                 <Table.Td ta="right">{row.co2_kg.toFixed(2)}</Table.Td>
               </Table.Tr>)}
@@ -109,6 +123,17 @@ export default function EnergyPage() {
       </Card>
     </Stack>
   )
+}
+
+/**
+ * Formats one daily reading independently, so small rows remain readable in a mixed table.
+ * @param {number} energy - Daily energy in kWh.
+ * @returns {string} Value and Wh or kWh unit, rounded only for display.
+ * @throws {RangeError} If energy is not finite and nonnegative.
+ */
+function formatDailyEnergy(energy) {
+  const display = chooseDisplayUnit(energy)
+  return `${(energy * display.multiplier).toFixed(2)} ${display.unit}`
 }
 
 /**
