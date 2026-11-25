@@ -28,6 +28,7 @@ export default function ComputersPage() {
   const [editingComputer, setEditingComputer] = useState(null)
   const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
   const [editedDevices, setEditedDevices] = useState({})
+  // A saved row is temporary; a new provider response becomes the source of truth.
   const devices = (data?.devices ?? []).map(device => {
     const saved = editedDevices[device.device_id]
     return saved?.sourceData === data ? saved.device : device
