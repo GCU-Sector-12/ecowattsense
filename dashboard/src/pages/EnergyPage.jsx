@@ -1,8 +1,10 @@
 // Energy Usage page (/energy). Opened from the sidebar by App.jsx.
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert, Card, Group, SegmentedControl, SimpleGrid, Stack, Table, Text, useMantineTheme } from '@mantine/core'
 import { BarChart } from '@mantine/charts'
 import Header from '../components/Header.jsx'
+import RefreshStatus from '../components/RefreshStatus.jsx'
+import useSampleData from '../useSampleData.js'
 import { getSummary } from '../data/index.js'
 import { chooseDisplayUnit } from '../data/units.js'
 import sample from '../data/summary.json'
@@ -31,37 +33,16 @@ async function loadEnergyRows(range) {
 }
 
 /**
- * Records a load failure and clears stale rows from the previous range.
- * @param {Error} cause - Error raised by the summary provider.
- * @param {(message: string) => void} setError - Page error state setter.
- * @param {(rows: object[]) => void} setRows - Daily rows state setter.
- * @returns {void}
- */
-function handleLoadError(cause, setError, setRows) {
-  setRows([])
-  setError(cause.message || 'Please try again.')
-}
-
-/**
  * Renders range totals, a daily energy chart and a daily cost and CO2 table.
  * @returns {JSX.Element} Energy Usage page.
  */
 export default function EnergyPage() {
   const theme = useMantineTheme()
   const [range, setRange] = useState('7')
-  const [rows, setRows] = useState([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    loadEnergyRows(Number(range))
-      .then(setRows)
-      .catch((cause) => handleLoadError(cause, setError, setRows))
-      .finally(() => setLoading(false))
-  }, [range])
-
+  const loader = useCallback(() => loadEnergyRows(Number(range)), [range])
+  const { data, error, refreshError, lastUpdatedAt } = useSampleData(loader)
+  const rows = data ?? []
+  const loading = data === null && !error
   const totals = getEnergyTotals(rows)
   const display = chooseDisplayUnit(Math.max(0, ...rows.map(row => row.energy_kwh)))
   const totalDisplay = chooseDisplayUnit(totals.energy_kwh)
@@ -84,6 +65,7 @@ export default function EnergyPage() {
         generatedAt={new Date().toISOString()}
         userName="Admin"
       />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <Group justify="space-between" align="center">
         <Text fw={600}>Daily overview</Text>
         <SegmentedControl
@@ -93,7 +75,7 @@ export default function EnergyPage() {
           data={[{ label: '7 days', value: '7' }, { label: '30 days', value: '30' }]}
         />
       </Group>
-      {error && <Alert color="red" role="alert" title="Could not load energy usage">{error}</Alert>}
+      {error && <Alert color="red" role="alert" title="Could not load energy usage">{error.message || 'Please try again.'}</Alert>}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
         <TotalCard label="Total energy" value={(totals.energy_kwh * totalDisplay.multiplier).toFixed(2) + ' ' + totalDisplay.unit} />
         <TotalCard label="Estimated cost" value={formatEnergyCost(totals.cost_gbp)} />

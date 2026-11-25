@@ -18,7 +18,7 @@ import classes from './SettingsPage.module.css'
  * @returns {JSX.Element} The page.
  */
 export default function SettingsPage() {
-  const { data: settings, error, retry } = useSampleData(getSettings)
+  const { data: settings, error, retry } = useSampleData(getSettings, { enabled: false })
   const generatedAt = isRealSettings() ? new Date().toISOString() : sampleScreen.generated_at
 
   return (

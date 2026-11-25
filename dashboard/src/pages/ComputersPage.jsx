@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
+import RefreshStatus from '../components/RefreshStatus.jsx'
 import { Group, NativeSelect, Stack, Switch, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
@@ -24,10 +25,11 @@ const STATE_OPTIONS = [
  * @returns {JSX.Element} The page.
  */
 export default function ComputersPage() {
-  const { data, error, retry } = useSampleData(getDevices)
-  const [editedDevices, setEditedDevices] = useState({})
   const [editingComputer, setEditingComputer] = useState(null)
-  const devices = (data?.devices ?? []).map(device => editedDevices[device.device_id] ?? device)
+  const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
+  const [editedDevices, setEditedDevices] = useState({})
+  // A saved row is temporary; a new provider response becomes the source of truth.
+  const devices = (data?.devices ?? []).map(device => shownDevice(device, editedDevices, data))
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('all')
   const [showArchived, setShowArchived] = useState(false)
@@ -44,7 +46,7 @@ export default function ComputersPage() {
    * @returns {void} Replaces the matching row in local page state.
    */
   function handleSaved(updated) {
-    setEditedDevices(current => ({ ...current, [updated.device_id]: updated }))
+    setEditedDevices(current => ({ ...current, [updated.device_id]: { device: updated, sourceData: data } }))
   }
 
   /**
@@ -72,6 +74,7 @@ export default function ComputersPage() {
       <Header title="Computers"
         subtitle={`Showing ${visibleDevices.length} of ${devices.filter((computer) => showArchived || !computer.archived).length} monitored computers.`}
         generatedAt={referenceTime} userName={sampleScreen.user_name} />
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={refreshError} />
       <Group align="end" gap="md" wrap="wrap">
         <TextInput label="Search by computer name" placeholder="Search computers"
           aria-label="Search computers" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
@@ -88,6 +91,18 @@ export default function ComputersPage() {
         onClose={() => setEditingComputer(null)} onSaved={handleSaved} />
     </Stack>
   )
+}
+
+/**
+ * Chooses the saved row only while it belongs to the current provider response.
+ * @param {object} device - Current provider device.
+ * @param {object} editedDevices - Saved row snapshots keyed by device ID.
+ * @param {object|null} data - Current provider response identity.
+ * @returns {object} The saved row for this response, or the latest provider row.
+ */
+function shownDevice(device, editedDevices, data) {
+  const saved = editedDevices[device.device_id]
+  return saved?.sourceData === data ? saved.device : device
 }
 
 /**
