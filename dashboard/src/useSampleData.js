@@ -19,16 +19,27 @@ export default function useSampleData(loader, options = {}) {
 
   useEffect(() => startRequest(loader, setResult, requestRef), [loader, attempt])
 
-  useEffect(() => {
-    if (!enabled || !hasData) return undefined
-    const scope = { active: true }
-    const interval = window.setInterval(() => refreshIfVisible(loader, setResult, requestRef, scope), REFRESH_INTERVAL)
-    const onVisibilityChange = () => refreshWhenVisible(loader, setResult, requestRef, scope)
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => stopRefreshing(interval, scope, onVisibilityChange)
-  }, [loader, enabled, hasData])
+  useEffect(() => startPolling(loader, enabled, hasData, setResult, requestRef), [loader, enabled, hasData])
 
   return { ...result, retry }
+}
+
+/**
+ * Starts visible-tab polling after the first result is available.
+ * @param {Function} loader - Provider for the current page selection.
+ * @param {boolean} enabled - Whether polling is allowed while the page is active.
+ * @param {boolean} hasData - Whether the first provider response has completed.
+ * @param {Function} setResult - React result setter.
+ * @param {{current: object|null}} requestRef - Current in-flight request token.
+ * @returns {Function|undefined} Cleanup for the polling timer and visibility listener.
+ */
+function startPolling(loader, enabled, hasData, setResult, requestRef) {
+  if (!enabled || !hasData) return undefined
+  const scope = { active: true }
+  const interval = window.setInterval(() => refreshIfVisible(loader, setResult, requestRef, scope), REFRESH_INTERVAL)
+  const onVisibilityChange = () => refreshWhenVisible(loader, setResult, requestRef, scope)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  return () => stopRefreshing(interval, scope, onVisibilityChange)
 }
 
 /** @returns {object} Empty request state before the first response. */
