@@ -25,7 +25,7 @@ export default function ComputerEditModal({ computer, opened, onClose, onSaved }
     setError('')
     setLoadingLocations(true)
     getLocations().then(setLocationOptions).catch(showLocationError).finally(stopLocationLoading)
-  }, [opened, computer])
+  }, [opened, computer?.device_id])
 
   /**
    * Stores the room options in the shape Mantine Select expects.
