@@ -17,6 +17,7 @@ export default function ComputerEditModal({ computer, opened, onClose, onSaved }
   const [saving, setSaving] = useState(false)
   const [loadingLocations, setLoadingLocations] = useState(false)
 
+  // Reinitialize on open or device switch, not when polling replaces the device object.
   useEffect(() => {
     if (!opened || !computer) return
     setName(computer.display_name ?? '')
