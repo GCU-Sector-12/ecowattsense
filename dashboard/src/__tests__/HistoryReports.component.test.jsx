@@ -64,7 +64,7 @@ function checkDeveloperReportFields() {
   expect(within(table).getByText('47')).toBeInTheDocument()
   expect(within(table).getByText('12.5')).toBeInTheDocument()
   expect(within(table).getByText('true')).toBeInTheDocument()
-  expect(within(table).getByText('false')).toBeInTheDocument()
+  expect(within(table).getAllByText('false')).toHaveLength(2)
   expect(within(table).getByText('9000000000')).toBeInTheDocument()
   expect(within(table).getByText('reported')).toBeInTheDocument()
   expect(within(table).getByText('new value')).toBeInTheDocument()
