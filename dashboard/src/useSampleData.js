@@ -23,9 +23,9 @@ export default function useSampleData(loader, options = {}) {
     if (!enabled || !hasData) return undefined
     const scope = { active: true }
     const interval = window.setInterval(() => refreshIfVisible(loader, setResult, requestRef, scope), REFRESH_INTERVAL)
-    scope.onVisibilityChange = () => refreshWhenVisible(loader, setResult, requestRef, scope)
-    document.addEventListener('visibilitychange', scope.onVisibilityChange)
-    return () => stopRefreshing(interval, scope)
+    const onVisibilityChange = () => refreshWhenVisible(loader, setResult, requestRef, scope)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => stopRefreshing(interval, scope, onVisibilityChange)
   }, [loader, enabled, hasData])
 
   return { ...result, retry }
@@ -121,12 +121,12 @@ function refreshWhenVisible(loader, setResult, requestRef, scope) {
 
 /** @returns {boolean} True unless the browser has hidden this tab. */
 function isTabVisible() {
-  return document.visibilityState !== 'hidden'
+  return document.visibilityState === 'visible'
 }
 
-/** @param {number} interval - Polling interval handle. @param {{active: boolean}} scope - Polling effect lifetime. @returns {void} Stops polling and removes its event listener. */
-function stopRefreshing(interval, scope) {
+/** @param {number} interval - Polling interval handle. @param {{active: boolean}} scope - Polling effect lifetime. @param {Function} onVisibilityChange - Listener to remove. @returns {void} Stops polling and removes its event listener. */
+function stopRefreshing(interval, scope, onVisibilityChange) {
   scope.active = false
   window.clearInterval(interval)
-  document.removeEventListener('visibilitychange', scope.onVisibilityChange)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 }
