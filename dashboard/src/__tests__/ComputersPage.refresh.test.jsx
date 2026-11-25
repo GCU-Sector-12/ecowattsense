@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ComputersPage from '../pages/ComputersPage.jsx'
 import HistoryPage from '../pages/HistoryPage.jsx'
 import ComputerEditModal from '../components/ComputerEditModal.jsx'
+import RefreshStatus from '../components/RefreshStatus.jsx'
 import { getDevices, getLocations, saveDevice } from '../data/index.js'
-import { loadComputerHistory } from '../data/historyView.js'
+import { loadComputerHistory, rangeText, reportTime, shortDay } from '../data/historyView.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import { renderWithMantine } from '../test/render.jsx'
 import { theme } from '../theme.js'
@@ -31,6 +32,7 @@ vi.mock('../data/historyView.js', () => ({
   timelinePlace: vi.fn(),
 }))
 vi.mock('../data/historyProvider.js', () => ({ isRealHistory: vi.fn() }))
+vi.mock('../components/EnergyChart.jsx', () => ({ default: () => null }))
 
 const initialDevice = {
   device_id: 'device-123',
@@ -48,6 +50,30 @@ const initialDevice = {
 /** @returns {object} A device fixture with the supplied field changes. */
 function makeDevice(changes) {
   return { ...initialDevice, ...changes }
+}
+
+/** @returns {object} A valid history response containing enough rows to test table paging. */
+function makeHistory() {
+  const reports = Array.from({ length: 30 }, (_, index) => ({
+    timestamp: `2026-11-25T${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}:00Z`,
+    state: 2,
+    cpu_percent: 10,
+    idle_seconds: 60,
+    on_battery: false,
+    energy_uj: 100,
+    interval_seconds: 1800,
+  }))
+  return {
+    reports,
+    totals: {
+      active_time_seconds: 3600,
+      idle_time_seconds: 0,
+      unused_time_seconds: 0,
+      energy_uj: 3000,
+      cost_gbp: 0.01,
+      co2_kg: 0.01,
+    },
+  }
 }
 
 /** @returns {Promise<void>} Checks a saved row yields to the next successful server refresh. */
@@ -139,6 +165,50 @@ async function refreshesSavedHistoryDevice() {
   expect(loadComputerHistory).toHaveBeenCalledTimes(2)
 }
 
+/** @returns {Promise<void>} Checks the refresh status displays both success and failure messages. */
+async function showsRefreshStatusMessages() {
+  const lastUpdatedAt = new Date('2026-11-25T21:00:00Z')
+  const { rerender } = renderWithMantine(
+    <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={null} />,
+  )
+  expect(screen.getByText(/^Updated /)).toBeInTheDocument()
+  rerender(
+    <MantineProvider theme={theme} defaultColorScheme="light" env="test">
+      <RefreshStatus lastUpdatedAt={lastUpdatedAt} refreshError={new Error('offline')} />
+    </MantineProvider>,
+  )
+  expect(screen.getByText(/^Could not update\. Last update /)).toBeInTheDocument()
+}
+
+/** @returns {Promise<void>} Checks refresh keeps the selected day and current reports-table page. */
+async function keepsHistoryDayAndTablePageAfterRefresh() {
+  isRealHistory.mockReturnValue(true)
+  loadComputerHistory.mockResolvedValue({
+    device: initialDevice,
+    history: makeHistory(),
+  })
+  reportTime.mockImplementation(timestamp => timestamp.slice(11, 16))
+  shortDay.mockImplementation(day => day)
+  rangeText.mockImplementation((page, pageSize, total) => {
+    const first = total ? (page - 1) * pageSize + 1 : 0
+    return `Showing ${first} to ${Math.min(page * pageSize, total)} of ${total} reports`
+  })
+
+  renderWithMantine(<HistoryPage deviceId="device-123" />)
+  await act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+  const dateInput = screen.getByLabelText('History date')
+  expect(dateInput).toHaveValue('2026-11-25')
+  fireEvent.click(screen.getAllByRole('button', { name: '2' })[0])
+  expect(screen.getAllByText('Showing 26 to 30 of 30 reports')).toHaveLength(2)
+
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+
+  expect(screen.getByLabelText('History date')).toHaveValue('2026-11-25')
+  expect(screen.getAllByText('Showing 26 to 30 of 30 reports')).toHaveLength(2)
+  expect(loadComputerHistory).toHaveBeenCalledTimes(2)
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
@@ -150,4 +220,6 @@ describe('ComputersPage automatic refresh', () => {
   it('shows fresh state and last-seen values after a computer is saved', refreshesSavedComputerFromServer)
   it('preserves form inputs when refreshed device details change', preservesOpenEditInputs)
   it('refreshes saved device details on the History page', refreshesSavedHistoryDevice)
+  it('shows the last update and failed refresh messages', showsRefreshStatusMessages)
+  it('keeps the selected history day and table page after refresh', keepsHistoryDayAndTablePageAfterRefresh)
 })
