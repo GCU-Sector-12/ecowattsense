@@ -7,7 +7,7 @@ import HistoryPage from '../pages/HistoryPage.jsx'
 import ComputerEditModal from '../components/ComputerEditModal.jsx'
 import RefreshStatus from '../components/RefreshStatus.jsx'
 import { getDevices, getLocations, saveDevice } from '../data/index.js'
-import { loadComputerHistory, rangeText, reportTime, shortDay } from '../data/historyView.js'
+import { historyState, loadComputerHistory, rangeText, reportTime, shortDay } from '../data/historyView.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import { renderWithMantine } from '../test/render.jsx'
 import { theme } from '../theme.js'
@@ -187,6 +187,7 @@ async function keepsHistoryDayAndTablePageAfterRefresh() {
     device: initialDevice,
     history: makeHistory(),
   })
+  historyState.mockReturnValue('active')
   reportTime.mockImplementation(timestamp => timestamp.slice(11, 16))
   shortDay.mockImplementation(day => day)
   rangeText.mockImplementation((page, pageSize, total) => {
