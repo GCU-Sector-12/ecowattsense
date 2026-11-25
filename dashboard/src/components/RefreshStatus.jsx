@@ -1,4 +1,4 @@
-// Last successful background refresh time and any current refresh warning.
+// Refresh status line used by Dashboard, Computers, History and Energy pages.
 import { Text } from '@mantine/core'
 
 /**
