@@ -84,7 +84,7 @@ async function preservesOpenEditInputs() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
 })
 afterEach(() => vi.useRealTimers())
