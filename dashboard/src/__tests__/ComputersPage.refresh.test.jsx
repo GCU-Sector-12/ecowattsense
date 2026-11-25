@@ -83,7 +83,7 @@ async function refreshesSavedComputerFromServer() {
 
   const refreshedRow = screen.getByRole('row', { name: /Renamed PC/ })
   expect(refreshedRow).toHaveTextContent('No data')
-  expect(refreshedRow.querySelector('time')).toHaveAttribute('title', refreshed.last_seen_at)
+  expect(refreshedRow.querySelector('[title]')).toHaveAttribute('title', refreshed.last_seen_at)
   expect(getDevices).toHaveBeenCalledTimes(2)
 }
 
