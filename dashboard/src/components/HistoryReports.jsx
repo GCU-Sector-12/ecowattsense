@@ -5,7 +5,7 @@ import StateBadge from '../StateBadge.jsx'
 import { stateColors, stateLabels } from '../data/ui.js'
 import { readDeveloperMode } from '../data/developerMode.js'
 import { formatDuration, historyState, rangeText, reportTime, shortDay, timelinePlace } from '../data/historyView.js'
-import { ujToKwh } from '../data/units.js'
+import { ujToKwh, chooseDisplayUnit } from '../data/units.js'
 import classes from './HistoryReports.module.css'
 
 /**
@@ -30,6 +30,8 @@ function TimelineBlock({ report }) {
  * @returns {JSX.Element} Report row with textual state and battery status.
  */
 function ReportRow({ report }) {
+  const energy = ujToKwh(report.energy_uj)
+  const display = chooseDisplayUnit(energy)
   return (
     <Table.Tr>
       <Table.Td><time dateTime={report.timestamp}>{reportTime(report.timestamp)}</time></Table.Td>
@@ -37,7 +39,7 @@ function ReportRow({ report }) {
       <Table.Td>{report.cpu_percent.toFixed(1)}%</Table.Td>
       <Table.Td>{formatDuration(report.idle_seconds)}</Table.Td>
       <Table.Td>{report.on_battery ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{ujToKwh(report.energy_uj).toFixed(3)} kWh</Table.Td>
+      <Table.Td>{(energy * display.multiplier).toFixed(3)} {display.unit}</Table.Td>
     </Table.Tr>
   )
 }
@@ -62,8 +64,20 @@ function DeveloperReportRow({ report, fields }) {
  * @returns {string} Raw text for the table cell.
  */
 function developerValue(field, value) {
-  if (field !== 'state') return String(value)
-  return `${value} ${stateLabels[historyState(value)]}`
+  if (value === undefined) return '—'
+  if (field !== 'state') return formatDeveloperValue(value)
+  return `${formatDeveloperValue(value)} ${stateLabels[historyState(value)] ?? 'Unknown'}`
+}
+
+/**
+ * Formats nested API values as JSON and preserves primitive values as text.
+ * @param {*} value - A report field value.
+ * @returns {string} Readable API value for a table cell.
+ */
+function formatDeveloperValue(value) {
+  if (value === null) return 'null'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
 }
 
 /**
