@@ -180,6 +180,22 @@ async function showsRefreshStatusMessages() {
   expect(screen.getByText(/^Could not update\. Last update /)).toBeInTheDocument()
 }
 
+/** @param {string} day - Selected calendar day. @returns {string} The unchanged day. */
+function identityDay(day) {
+  return day
+}
+
+/** @param {string} timestamp - Report timestamp. @returns {string} UTC hour and minute. */
+function formatReportTime(timestamp) {
+  return timestamp.slice(11, 16)
+}
+
+/** @param {number} page - Current page. @param {number} pageSize - Rows per page. @param {number} total - Report count. @returns {string} Visible report range. */
+function formatRangeText(page, pageSize, total) {
+  const first = total ? (page - 1) * pageSize + 1 : 0
+  return `Showing ${first} to ${Math.min(page * pageSize, total)} of ${total} reports`
+}
+
 /** @returns {Promise<void>} Checks refresh keeps the selected day and current reports-table page. */
 async function keepsHistoryDayAndTablePageAfterRefresh() {
   isRealHistory.mockReturnValue(true)
@@ -188,12 +204,9 @@ async function keepsHistoryDayAndTablePageAfterRefresh() {
     history: makeHistory(),
   })
   historyState.mockReturnValue('active')
-  reportTime.mockImplementation(timestamp => timestamp.slice(11, 16))
-  shortDay.mockImplementation(day => day)
-  rangeText.mockImplementation((page, pageSize, total) => {
-    const first = total ? (page - 1) * pageSize + 1 : 0
-    return `Showing ${first} to ${Math.min(page * pageSize, total)} of ${total} reports`
-  })
+  reportTime.mockImplementation(formatReportTime)
+  shortDay.mockImplementation(identityDay)
+  rangeText.mockImplementation(formatRangeText)
 
   renderWithMantine(<HistoryPage deviceId="device-123" />)
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
