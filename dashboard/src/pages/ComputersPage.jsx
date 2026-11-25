@@ -1,6 +1,6 @@
 // Full computer-list page, rendered by App.jsx for /computers.
 // Loads devices through the shared provider hook, then filters and sorts them in memory.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
 import RefreshStatus from '../components/RefreshStatus.jsx'
@@ -28,12 +28,8 @@ export default function ComputersPage() {
   const [editingComputer, setEditingComputer] = useState(null)
   const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
   const [editedDevices, setEditedDevices] = useState({})
-  useEffect(() => clearEditedDevices(setEditedDevices), [data])
   // A saved row is temporary; a new provider response becomes the source of truth.
-  const devices = (data?.devices ?? []).map(device => {
-    const saved = editedDevices[device.device_id]
-    return saved?.sourceData === data ? saved.device : device
-  })
+  const devices = (data?.devices ?? []).map(device => shownDevice(device, editedDevices, data))
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState('all')
   const [showArchived, setShowArchived] = useState(false)
@@ -97,9 +93,16 @@ export default function ComputersPage() {
   )
 }
 
-/** @param {Function} setEditedDevices - Setter for saved row snapshots. @returns {void} Drops snapshots after a provider response changes. */
-function clearEditedDevices(setEditedDevices) {
-  setEditedDevices({})
+/**
+ * Chooses the saved row only while it belongs to the current provider response.
+ * @param {object} device - Current provider device.
+ * @param {object} editedDevices - Saved row snapshots keyed by device ID.
+ * @param {object|null} data - Current provider response identity.
+ * @returns {object} The saved row for this response, or the latest provider row.
+ */
+function shownDevice(device, editedDevices, data) {
+  const saved = editedDevices[device.device_id]
+  return saved?.sourceData === data ? saved.device : device
 }
 
 /**
