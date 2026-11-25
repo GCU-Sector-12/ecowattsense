@@ -183,7 +183,9 @@ export default function HistoryPage({ deviceId }) {
     day, onShiftDay: shiftSelectedDay, canNext: day < calendarDay(), loading: loadingNext,
   } : {}
   const generatedAt = isRealHistory() ? new Date().toISOString() : sampleScreen.generated_at
-  const currentDevice = editedDevice ?? shown?.data.device ?? null
+  const currentDevice = editedDevice?.sourceData === shown?.data
+    ? editedDevice.device
+    : shown?.data.device ?? null
 
   return (
     <Stack gap="md">
@@ -202,7 +204,8 @@ export default function HistoryPage({ deviceId }) {
         </Box>
       ) : <DataState error={error} loading={!error} onRetry={retry} label="computer history" />}
       <ComputerEditModal computer={currentDevice} opened={editingComputer && Boolean(currentDevice)}
-        onClose={() => setEditingComputer(false)} onSaved={setEditedDevice} />
+        onClose={() => setEditingComputer(false)}
+        onSaved={(updated) => setEditedDevice({ device: updated, sourceData: shown?.data })} />
     </Stack>
   )
 }
