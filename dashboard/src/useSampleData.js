@@ -57,9 +57,20 @@ function startRequest(loader, setResult, requestRef) {
   requestRef.current = token
   setResult(initialResult())
   Promise.resolve().then(loader)
-    .then(data => publishInitialData(data, token, setResult), error => publishInitialFailure(error, token, setResult))
-    .finally(() => releaseRequest(requestRef, token))
+    .then(data => completeInitialSuccess(data, token, setResult, requestRef), error => completeInitialFailure(error, token, setResult, requestRef))
   return () => cancelRequest(token)
+}
+
+/** @param {*} data - Initial provider result. @param {object} token - Request lifecycle token. @param {Function} setResult - React result setter. @param {{current: object|null}} requestRef - Current request token. @returns {void} Releases the request before publishing its result. */
+function completeInitialSuccess(data, token, setResult, requestRef) {
+  releaseRequest(requestRef, token)
+  publishInitialData(data, token, setResult)
+}
+
+/** @param {Error} error - Initial provider failure. @param {object} token - Request lifecycle token. @param {Function} setResult - React result setter. @param {{current: object|null}} requestRef - Current request token. @returns {void} Releases the request before publishing its failure. */
+function completeInitialFailure(error, token, setResult, requestRef) {
+  releaseRequest(requestRef, token)
+  publishInitialFailure(error, token, setResult)
 }
 
 /** @param {*} data - Initial provider result. @param {object} token - Request lifecycle token. @param {Function} setResult - React result setter. @returns {void} Publishes an active response. */
@@ -97,8 +108,19 @@ function refreshIfVisible(loader, setResult, requestRef, scope) {
   const token = { cancelled: false }
   requestRef.current = token
   Promise.resolve().then(loader)
-    .then(data => publishRefresh(data, token, scope, setResult), error => publishRefreshFailure(error, token, scope, setResult))
-    .finally(() => releaseRequest(requestRef, token))
+    .then(data => completeRefreshSuccess(data, token, scope, setResult, requestRef), error => completeRefreshFailure(error, token, scope, setResult, requestRef))
+}
+
+/** @param {*} data - Fresh provider result. @param {object} token - Request lifecycle token. @param {{active: boolean}} scope - Polling effect lifetime. @param {Function} setResult - React result setter. @param {{current: object|null}} requestRef - Current request token. @returns {void} Releases the request before publishing fresh data. */
+function completeRefreshSuccess(data, token, scope, setResult, requestRef) {
+  releaseRequest(requestRef, token)
+  publishRefresh(data, token, scope, setResult)
+}
+
+/** @param {Error} error - Background provider failure. @param {object} token - Request lifecycle token. @param {{active: boolean}} scope - Polling effect lifetime. @param {Function} setResult - React result setter. @param {{current: object|null}} requestRef - Current request token. @returns {void} Releases the request before publishing the failure. */
+function completeRefreshFailure(error, token, scope, setResult, requestRef) {
+  releaseRequest(requestRef, token)
+  publishRefreshFailure(error, token, scope, setResult)
 }
 
 /** @param {*} data - Fresh provider result. @param {object} token - Request lifecycle token. @param {{active: boolean}} scope - Polling effect lifetime. @param {Function} setResult - React result setter. @returns {void} Replaces data only after a successful response. */
