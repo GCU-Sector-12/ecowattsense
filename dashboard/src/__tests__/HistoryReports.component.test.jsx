@@ -59,7 +59,7 @@ function checkDeveloperReportFields() {
   expect(headers).toEqual(['timestamp', 'interval_seconds', 'state', 'idle_seconds', 'cpu_percent',
     'screen_locked', 'on_battery', 'energy_uj', 'energy_source', 'future_field', 'nested_field', 'nullable_field'])
   expect(within(table).getByText('2026-11-14T12:34:56Z')).toBeInTheDocument()
-  expect(within(table).getByText('300')).toBeInTheDocument()
+  expect(within(table).getAllByText('300')).toHaveLength(2)
   expect(within(table).getByText('2 Active')).toBeInTheDocument()
   expect(within(table).getByText('47')).toBeInTheDocument()
   expect(within(table).getByText('12.5')).toBeInTheDocument()
