@@ -1,5 +1,5 @@
 // Page-level regression tests for saved computer data during automatic refresh.
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ComputersPage from '../pages/ComputersPage.jsx'
 import HistoryPage from '../pages/HistoryPage.jsx'
@@ -7,6 +7,7 @@ import ComputerEditModal from '../components/ComputerEditModal.jsx'
 import { getDevices, getLocations, saveDevice } from '../data/index.js'
 import { loadComputerHistory } from '../data/historyView.js'
 import { isRealHistory } from '../data/historyProvider.js'
+import { renderWithMantine } from '../test/render.jsx'
 
 vi.mock('../data/index.js', () => ({
   getDevices: vi.fn(),
@@ -60,7 +61,7 @@ async function refreshesSavedComputerFromServer() {
   getLocations.mockResolvedValue({ locations: [] })
   saveDevice.mockResolvedValue(saved)
 
-  render(<ComputersPage />)
+  renderWithMantine(<ComputersPage />)
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit Office PC' }))
@@ -89,12 +90,12 @@ async function preservesOpenEditInputs() {
   getLocations.mockResolvedValue({ locations: [] })
   const onClose = vi.fn()
   const onSaved = vi.fn()
-  const { rerender } = render(
+  const { rerender } = renderWithMantine(
     <ComputerEditModal computer={initialDevice} opened onClose={onClose} onSaved={onSaved} />,
   )
   const nameInput = await screen.findByLabelText('Computer name')
   fireEvent.change(nameInput, { target: { value: 'My in-progress name' } })
-  rerender(
+  rerenderWithMantine(
     <ComputerEditModal computer={makeDevice({ display_name: 'Server name' })}
       opened onClose={onClose} onSaved={onSaved} />,
   )
@@ -115,7 +116,7 @@ async function refreshesSavedHistoryDevice() {
   getLocations.mockResolvedValue({ locations: [] })
   saveDevice.mockResolvedValue(saved)
 
-  render(<HistoryPage deviceId="device-123" />)
+  renderWithMantine(<HistoryPage deviceId="device-123" />)
   await act(async () => { await Promise.resolve(); await Promise.resolve() })
 
   fireEvent.click(screen.getByRole('button', { name: 'Edit computer' }))
