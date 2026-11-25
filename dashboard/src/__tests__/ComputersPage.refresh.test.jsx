@@ -2,14 +2,32 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ComputersPage from '../pages/ComputersPage.jsx'
+import HistoryPage from '../pages/HistoryPage.jsx'
 import ComputerEditModal from '../components/ComputerEditModal.jsx'
 import { getDevices, getLocations, saveDevice } from '../data/index.js'
+import { loadComputerHistory } from '../data/historyView.js'
+import { isRealHistory } from '../data/historyProvider.js'
 
 vi.mock('../data/index.js', () => ({
   getDevices: vi.fn(),
   getLocations: vi.fn(),
   saveDevice: vi.fn(),
 }))
+vi.mock('../data/historyView.js', () => ({
+  calendarDay: () => '2026-11-25',
+  energyByHalfHour: vi.fn(),
+  formatDuration: vi.fn(),
+  historyDate: vi.fn(),
+  historyState: vi.fn(),
+  loadComputerHistory: vi.fn(),
+  rangeText: vi.fn(),
+  reportTime: vi.fn(),
+  SAMPLE_HISTORY_FROM: '2025-03-10T00:00:00Z',
+  shiftDay: day => day,
+  shortDay: vi.fn(),
+  timelinePlace: vi.fn(),
+}))
+vi.mock('../data/historyProvider.js', () => ({ isRealHistory: vi.fn() }))
 
 const initialDevice = {
   device_id: 'device-123',
@@ -83,6 +101,39 @@ async function preservesOpenEditInputs() {
   expect(screen.getByLabelText('Computer name')).toHaveValue('My in-progress name')
 }
 
+/** @returns {Promise<void>} Checks HistoryPage replaces a saved device snapshot after refresh. */
+async function refreshesSavedHistoryDevice() {
+  const saved = makeDevice({ display_name: 'Renamed PC' })
+  const refreshed = makeDevice({
+    display_name: 'Renamed PC',
+    last_seen_at: '2026-11-25T21:00:00Z',
+    location_name: 'New room',
+  })
+  isRealHistory.mockReturnValue(true)
+  loadComputerHistory.mockResolvedValueOnce({ device: initialDevice, history: null })
+    .mockResolvedValueOnce({ device: refreshed, history: null })
+  getLocations.mockResolvedValue({ locations: [] })
+  saveDevice.mockResolvedValue(saved)
+
+  render(<HistoryPage deviceId="device-123" />)
+  await act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Edit computer' }))
+  const nameInput = await screen.findByLabelText('Computer name')
+  fireEvent.change(nameInput, { target: { value: 'Renamed PC' } })
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  expect(screen.getByText('Renamed PC')).toBeInTheDocument()
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+  expect(screen.getByTitle(refreshed.last_seen_at)).toBeInTheDocument()
+  expect(screen.getByText('New room')).toBeInTheDocument()
+  expect(loadComputerHistory).toHaveBeenCalledTimes(2)
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
@@ -93,4 +144,5 @@ afterEach(() => vi.useRealTimers())
 describe('ComputersPage automatic refresh', () => {
   it('shows fresh state and last-seen values after a computer is saved', refreshesSavedComputerFromServer)
   it('preserves form inputs when refreshed device details change', preservesOpenEditInputs)
+  it('refreshes saved device details on the History page', refreshesSavedHistoryDevice)
 })
