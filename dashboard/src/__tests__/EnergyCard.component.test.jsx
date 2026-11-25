@@ -1,3 +1,4 @@
+// Tests the energy card values and accessible tariff explanation.
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import EnergyCard from '../components/EnergyCard.jsx'
@@ -18,7 +19,7 @@ it('converts microjoules to kWh and shows API cost and CO2', () => {
 
 it('shows valid zero energy, cost and CO2', () => {
   renderWithMantine(<EnergyCard {...summary} energy_uj={0} cost_gbp={0} co2_kg={0} />)
-  expect(screen.getByText('0.0 kWh')).toBeInTheDocument()
+  expect(screen.getByText('0.0 Wh')).toBeInTheDocument()
   expect(screen.getByText('£0.00')).toBeInTheDocument()
   expect(screen.getByText('0.00 kg')).toBeInTheDocument()
 })

@@ -55,3 +55,17 @@ export function timeAgo(last_seen_at, now = new Date()) {
   const days = Math.floor(hours / 24)
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
+
+/**
+ * Selects a display unit from a value, or the largest value in a chart.
+ * @param {number} peak - Nonnegative finite energy in kWh or power in kW.
+ * @param {'energy'|'power'} [kind='energy'] - Quantity being displayed.
+ * @returns {{unit: string, multiplier: number}} Label and scale applied before formatting.
+ * @throws {RangeError} For an invalid peak or quantity kind.
+ */
+export function chooseDisplayUnit(peak, kind = 'energy') {
+  if (!Number.isFinite(peak) || peak < 0) throw new RangeError('peak must be finite and nonnegative')
+  if (!['energy', 'power'].includes(kind)) throw new RangeError('kind must be energy or power')
+  const base = kind === 'energy' ? 'Wh' : 'W'
+  return peak < 1 ? { unit: base, multiplier: 1000 } : { unit: `k${base}`, multiplier: 1 }
+}
