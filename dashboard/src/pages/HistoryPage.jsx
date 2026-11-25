@@ -1,5 +1,5 @@
 // Daily computer history, opened from the computer table through /computers/<device_id>.
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Anchor, Box, Button, Card, Group, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import DataState from '../components/DataState.jsx'
@@ -59,6 +59,11 @@ function DeviceDetails({ device, referenceTime, onEdit }) {
       </SimpleGrid>
     </Card>
   )
+}
+
+/** @param {Function} setEditedDevice - Setter for the saved device snapshot. @returns {void} Drops the snapshot after a new history response. */
+function clearEditedDevice(setEditedDevice) {
+  setEditedDevice(null)
 }
 
 /**
@@ -158,6 +163,7 @@ export default function HistoryPage({ deviceId }) {
   const loadDay = isRealHistory() ? day : undefined
   const loader = useCallback(() => loadComputerHistory(deviceId, loadDay), [deviceId, loadDay])
   const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(loader, { enabled: !editingComputer })
+  useEffect(() => clearEditedDevice(setEditedDevice), [data])
   const shown = useLastShown(data, deviceId, day)
   const loadingNext = Boolean(shown) && !data && !error
 
