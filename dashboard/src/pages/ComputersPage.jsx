@@ -1,6 +1,6 @@
 // Full computer-list page, rendered by App.jsx for /computers.
 // Loads devices through the shared provider hook, then filters and sorts them in memory.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
 import RefreshStatus from '../components/RefreshStatus.jsx'
@@ -28,6 +28,7 @@ export default function ComputersPage() {
   const [editingComputer, setEditingComputer] = useState(null)
   const { data, error, retry, refreshError, lastUpdatedAt } = useSampleData(getDevices, { enabled: !editingComputer })
   const [editedDevices, setEditedDevices] = useState({})
+  useEffect(() => clearEditedDevices(setEditedDevices), [data])
   // A saved row is temporary; a new provider response becomes the source of truth.
   const devices = (data?.devices ?? []).map(device => {
     const saved = editedDevices[device.device_id]
@@ -94,6 +95,11 @@ export default function ComputersPage() {
         onClose={() => setEditingComputer(null)} onSaved={handleSaved} />
     </Stack>
   )
+}
+
+/** @param {Function} setEditedDevices - Setter for saved row snapshots. @returns {void} Drops snapshots after a provider response changes. */
+function clearEditedDevices(setEditedDevices) {
+  setEditedDevices({})
 }
 
 /**
