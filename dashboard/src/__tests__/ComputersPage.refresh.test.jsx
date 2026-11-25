@@ -1,5 +1,6 @@
 // Page-level regression tests for saved computer data during automatic refresh.
 import { act, fireEvent, screen } from '@testing-library/react'
+import { MantineProvider } from '@mantine/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ComputersPage from '../pages/ComputersPage.jsx'
 import HistoryPage from '../pages/HistoryPage.jsx'
@@ -8,6 +9,7 @@ import { getDevices, getLocations, saveDevice } from '../data/index.js'
 import { loadComputerHistory } from '../data/historyView.js'
 import { isRealHistory } from '../data/historyProvider.js'
 import { renderWithMantine } from '../test/render.jsx'
+import { theme } from '../theme.js'
 
 vi.mock('../data/index.js', () => ({
   getDevices: vi.fn(),
@@ -95,9 +97,11 @@ async function preservesOpenEditInputs() {
   )
   const nameInput = await screen.findByLabelText('Computer name')
   fireEvent.change(nameInput, { target: { value: 'My in-progress name' } })
-  rerenderWithMantine(
-    <ComputerEditModal computer={makeDevice({ display_name: 'Server name' })}
-      opened onClose={onClose} onSaved={onSaved} />,
+  rerender(
+    <MantineProvider theme={theme} defaultColorScheme="light">
+      <ComputerEditModal computer={makeDevice({ display_name: 'Server name' })}
+        opened onClose={onClose} onSaved={onSaved} />
+    </MantineProvider>,
   )
   expect(screen.getByLabelText('Computer name')).toHaveValue('My in-progress name')
 }
