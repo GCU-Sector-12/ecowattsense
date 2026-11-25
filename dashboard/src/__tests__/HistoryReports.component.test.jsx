@@ -1,10 +1,12 @@
 // HistoryReports: timeline blocks are placed by timestamp inside the UTC day, and the table pages.
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import HistoryReports from '../components/HistoryReports.jsx'
 import { renderWithMantine } from '../test/render.jsx'
 import { saveDeveloperMode } from '../data/developerMode.js'
+
+afterEach(() => saveDeveloperMode(false))
 
 /** @param {string} timestamp - ISO time. @returns {object} One 300 s report. */
 function report(timestamp) {
@@ -45,12 +47,17 @@ it('shows 25 rows by default with the range text', () => {
 function checkDeveloperReportFields() {
   saveDeveloperMode(true)
   const sample = { ...report('2026-11-14T12:34:56Z'), idle_seconds: 47, cpu_percent: 12.5,
-    screen_locked: true, energy_uj: 9000000000, energy_source: 'reported', future_field: 'new value' }
-  renderWithMantine(<HistoryReports reports={[sample]} />)
+    screen_locked: true, energy_uj: 9000000000, energy_source: 'reported', future_field: 'new value',
+    nested_field: { nested: 'value', count: 2 }, nullable_field: null }
+  const withoutOptionalFields = {
+    timestamp: '2026-11-14T12:39:56Z', interval_seconds: 300, state: 2, idle_seconds: 0,
+    cpu_percent: 1, on_battery: false, energy_uj: 10,
+  }
+  renderWithMantine(<HistoryReports reports={[sample, withoutOptionalFields]} />)
   const table = screen.getByRole('table', { name: 'History reports' })
   const headers = within(table).getAllByRole('columnheader').map(header => header.textContent)
   expect(headers).toEqual(['timestamp', 'interval_seconds', 'state', 'idle_seconds', 'cpu_percent',
-    'screen_locked', 'on_battery', 'energy_uj', 'energy_source', 'future_field'])
+    'screen_locked', 'on_battery', 'energy_uj', 'energy_source', 'future_field', 'nested_field', 'nullable_field'])
   expect(within(table).getByText('2026-11-14T12:34:56Z')).toBeInTheDocument()
   expect(within(table).getByText('300')).toBeInTheDocument()
   expect(within(table).getByText('2 Active')).toBeInTheDocument()
@@ -61,6 +68,11 @@ function checkDeveloperReportFields() {
   expect(within(table).getByText('9000000000')).toBeInTheDocument()
   expect(within(table).getByText('reported')).toBeInTheDocument()
   expect(within(table).getByText('new value')).toBeInTheDocument()
+  expect(within(table).getByText('{"nested":"value","count":2}')).toBeInTheDocument()
+  expect(within(table).getByText('null')).toBeInTheDocument()
+  const secondRow = within(table).getAllByRole('row')[2]
+  expect(within(secondRow).getAllByRole('cell').slice(-3).map(cell => cell.textContent)).toEqual(['—', '—', '—'])
+  expect(within(table).queryByText(/undefined|\[object Object\]/)).not.toBeInTheDocument()
 }
 it('shows dynamic report fields and raw values in developer mode', checkDeveloperReportFields)
 
