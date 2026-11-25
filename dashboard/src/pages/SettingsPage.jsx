@@ -10,6 +10,9 @@ import SettingsForm from '../components/SettingsForm.jsx'
 import { getSettings } from '../data/index.js'
 import { isRealSettings } from '../data/settingsProvider.js'
 import EnergyRatesSettings from '../components/EnergyRatesSettings.jsx'
+import { useState } from 'react'
+import { Card, Switch } from '@mantine/core'
+import { readDeveloperMode, saveDeveloperMode } from '../data/developerMode.js'
 import classes from './SettingsPage.module.css'
 
 /**
@@ -19,13 +22,25 @@ import classes from './SettingsPage.module.css'
  */
 export default function SettingsPage() {
   const { data: settings, error, retry } = useSampleData(getSettings)
+  const [developerMode, setDeveloperMode] = useState(readDeveloperMode)
   const generatedAt = isRealSettings() ? new Date().toISOString() : sampleScreen.generated_at
+
+  /** @param {React.ChangeEvent<HTMLInputElement>} event - Updated switch input. @returns {void} Saves the browser preference. */
+  function changeDeveloperMode(event) {
+    const enabled = event.currentTarget.checked
+    saveDeveloperMode(enabled)
+    setDeveloperMode(enabled)
+  }
 
   return (
     <Stack gap="md">
       <Header title="Settings"
         subtitle="Change how the system works and how EcoWattSense looks."
         generatedAt={generatedAt} userName={sampleScreen.user_name} />
+      <Card radius="lg" padding="lg" bg="var(--ews-card)">
+        <Switch label="Developer mode" description="Show every history report field exactly as returned by the API."
+          checked={developerMode} onChange={changeDeveloperMode} />
+      </Card>
       <DataState error={error} loading={!settings && !error} onRetry={retry} label="settings" />
       {!isRealSettings() && <Text size="sm" c="var(--ews-text-muted)">
         Sample settings are saved for this tab only. Refreshing restores defaults; no server settings are changed.
@@ -36,3 +51,4 @@ export default function SettingsPage() {
     </Stack>
   )
 }
+
