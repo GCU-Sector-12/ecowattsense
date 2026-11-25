@@ -2,7 +2,7 @@
 // Shows the settings form (real admin settings or sample data) and the appearance controls.
 import DataState from '../components/DataState.jsx'
 import useSampleData from '../useSampleData.js'
-import { Stack, Text } from '@mantine/core'
+import { Card, Stack, Switch, Text } from '@mantine/core'
 import Header from '../components/Header.jsx'
 import { sampleScreen } from '../data/ui.js'
 import AppearanceCard from '../components/AppearanceCard.jsx'
@@ -11,7 +11,6 @@ import { getSettings } from '../data/index.js'
 import { isRealSettings } from '../data/settingsProvider.js'
 import EnergyRatesSettings from '../components/EnergyRatesSettings.jsx'
 import { useState } from 'react'
-import { Card, Switch } from '@mantine/core'
 import { readDeveloperMode, saveDeveloperMode } from '../data/developerMode.js'
 import classes from './SettingsPage.module.css'
 
@@ -21,7 +20,7 @@ import classes from './SettingsPage.module.css'
  * @returns {JSX.Element} The page.
  */
 export default function SettingsPage() {
-  const { data: settings, error, retry } = useSampleData(getSettings)
+  const { data: settings, error, retry } = useSampleData(getSettings, { enabled: false })
   const [developerMode, setDeveloperMode] = useState(readDeveloperMode)
   const generatedAt = isRealSettings() ? new Date().toISOString() : sampleScreen.generated_at
 
