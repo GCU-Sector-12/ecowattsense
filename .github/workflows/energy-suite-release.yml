@@ -102,6 +102,22 @@ jobs:
       - name: Build the unsigned Windows package
         run: pwsh -NoProfile -File client/windows/scripts/Build-Package.ps1 -Version 0.0.0
 
+      - name: Check the unsigned package inventory
+        run: pwsh -NoProfile -File client/windows/scripts/Verify-ReleasePackage.ps1 -PackageDirectory out/package -Version 0.0.0 -InventoryOnly
+
+      - name: Confirm the signature check rejects unsigned Setup.dll
+        run: |
+          $failure = ''
+          try {
+            & ./client/windows/scripts/Verify-ReleasePackage.ps1 -PackageDirectory out/package -Version 0.0.0
+          } catch {
+            $failure = $_.Exception.Message
+          }
+          if ($failure -notmatch 'Setup\.dll \(team signature or pin check failed\)') {
+            throw "Expected a signature failure for unsigned Setup.dll. Verifier result: $failure"
+          }
+          Write-Host 'The verifier refused unsigned Setup.dll.'
+
   release:
     name: Build the signed release draft
     needs: test
@@ -167,16 +183,10 @@ jobs:
         run: |
           Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'energy-suite-signing.pfx') -Force -ErrorAction SilentlyContinue
 
-      - name: Verify the release signer
-        run: |
-          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-            (Resolve-Path 'client/windows/signing/EcoWattSense-CodeSigning.cer').Path
-          )
-          $executables = @('out/package/EcoWattSense/Setup.exe', 'out/package/EcoWattSense-Web-Setup.exe')
-          foreach ($executable in $executables) {
-            $signature = Get-AuthenticodeSignature -LiteralPath $executable
-            if ($signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) { throw "Unexpected signer for $executable." }
-          }
+      - name: Verify the release signer and package inventory
+        env:
+          SUITE_VERSION: ${{ steps.version.outputs.value }}
+        run: pwsh -NoProfile -File client/windows/scripts/Verify-ReleasePackage.ps1 -PackageDirectory out/package -Version $env:SUITE_VERSION
 
       - name: Write the notes and the job summary
         id: notes
